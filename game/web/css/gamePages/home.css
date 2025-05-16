@@ -1,0 +1,638 @@
+/* Game mode homepage styles */
+
+/* Global style reset */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Arial', sans-serif;
+    background-color: #f0f2f5;
+    color: #333;
+    overflow-x: hidden;
+}
+
+/* Game container */
+.game-container {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+}
+
+/* Game page top navigation */
+.game-header {
+    background-color: #1e2a4a;
+    color: #fff;
+    padding: 12px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+
+.header-left {
+    display: flex;
+    align-items: center;
+}
+
+.back-btn {
+    display: flex;
+    align-items: center;
+    color: #fff;
+    text-decoration: none;
+    font-size: 0.9rem;
+    padding: 8px 12px;
+    margin-right: 15px;
+    border-radius: 4px;
+    transition: background-color 0.2s;
+}
+
+.back-btn:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.back-icon {
+    margin-right: 5px;
+}
+
+.game-title {
+    font-size: 1.4rem;
+    font-weight: 600;
+    color: #fff;
+}
+
+.header-right {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+}
+
+.game-resources {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.resource {
+    display: flex;
+    align-items: center;
+    background-color: rgba(255, 255, 255, 0.1);
+    padding: 6px 12px;
+    border-radius: 20px;
+    min-width: 150px;
+}
+
+.resource-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    margin-right: 8px;
+}
+
+.resource-icon img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.resource-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.resource-label {
+    font-size: 0.65rem;
+    color: #ccc;
+}
+
+.resource-amount {
+    font-weight: 500;
+    font-size: 0.9rem;
+}
+
+.wallet-info {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+#walletAddress {
+    font-size: 0.85rem;
+    color: #eee;
+    padding: 6px 12px;
+    background-color: rgba(255, 255, 255, 0.1);
+    border-radius: 20px;
+}
+
+.wallet-btn {
+    background-color: #4d7bef;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 8px 16px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.wallet-btn:hover {
+    background-color: #3b68d8;
+}
+
+.wallet-btn.connected {
+    background-color: #10b981;
+}
+
+.wallet-btn.connected:hover {
+    background-color: #059669;
+}
+
+/* Farm main container */
+.farm-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    overflow: hidden;
+}
+
+/* Farm background */
+.farm-background {
+    flex: 1;
+    background-image: url('../../resources/images/backgrounds/day.jpg');
+    background-size: auto 100%;
+    background-position: center;
+    background-repeat: no-repeat;
+    position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: calc(100vh - 60px);
+}
+
+/* Use background color as fallback */
+.farm-background::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(to bottom, #000000 0%);
+    z-index: -1;
+}
+
+/* Farm animals */
+.farm-animals {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+}
+
+.animal {
+    width: 60px;
+    height: 60px;
+    position: absolute;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: transform 0.3s ease;
+    z-index: 10;
+}
+
+/* NFT pet style adjustments */
+.nft-animal {
+    width: 50px;
+    height: 50px;
+}
+
+/* Hover effects */
+.animal:hover {
+    transform: scale(1.1) !important;
+    z-index: 20;
+}
+
+/* Loading animal indicator */
+.loading-animal-indicator {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: rgba(0, 0, 0, 0.7);
+    color: white;
+    padding: 10px 15px;
+    border-radius: 5px;
+    font-size: 14px;
+    z-index: 30;
+}
+
+.duck img {
+    width: 60px;
+}
+
+.goose img {
+    width: 70px;
+}
+
+/* Game bottom action bar */
+.game-bottom-bar {
+    background-color: rgba(255, 255, 255, 0.95);
+    border-top: 1px solid rgba(0, 0, 0, 0.1);
+    padding: 10px 0;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    z-index: 50;
+    box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.bottom-nav {
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    max-width: 600px;
+    margin: 0 auto;
+}
+
+.bottom-nav .nav-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    cursor: pointer;
+    padding: 5px 15px;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+}
+
+.bottom-nav .nav-item:hover {
+    background-color: rgba(0, 0, 0, 0.05);
+}
+
+.bottom-nav .nav-icon {
+    width: 24px;
+    height: 24px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 24px;
+    margin-bottom: 5px;
+}
+
+.shop-icon {
+    background-image: url('../../resources/images/icons/shop.png');
+}
+
+.eggs-icon {
+    background-image: url('../../resources/images/icons/egg.png');
+}
+
+.goose-shed-icon {
+    background-image: url('../../resources/images/icons/goose-shed.png');
+}
+
+.market-icon {
+    background-image: url('../../resources/images/icons/market.png');
+}
+
+.more-icon {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 24px;
+    font-weight: bold;
+}
+
+.settings-icon {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 24px;
+}
+
+.bottom-nav .nav-text {
+    font-size: 0.8rem;
+    font-weight: 500;
+}
+
+/* Modal styles */
+.modal-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.7);
+    display: none;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.modal-container.active {
+    display: flex;
+}
+
+.game-modal {
+    background-color: white;
+    border-radius: 10px;
+    width: 80%;
+    max-width: 1200px;
+    max-height: 80vh;
+    overflow: hidden;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    display: none;
+    flex-direction: column;
+}
+
+.game-modal.active {
+    display: flex;
+}
+
+.modal-header {
+    background-color: #1e2a4a;
+    color: white;
+    padding: 15px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modal-header h2 {
+    font-size: 1.3rem;
+    font-weight: 600;
+}
+
+.close-modal {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 1.5rem;
+    cursor: pointer;
+}
+
+.modal-content {
+    padding: 20px;
+    overflow-y: auto;
+    max-height: calc(80vh - 60px);
+}
+
+/* Settings button */
+.settings-button {
+    position: fixed;
+    bottom: 80px;
+    right: 20px;
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    background-color: #1e2a4a;
+    color: white;
+    border: none;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    z-index: 50;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+    transition: all 0.2s ease;
+}
+
+.settings-button:hover {
+    transform: scale(1.1);
+    background-color: #2a3d68;
+}
+
+.settings-icon {
+    font-size: 1.5rem;
+}
+
+/* Responsive design */
+@media (max-width: 1024px) {
+    .resource {
+        min-width: auto;
+    }
+    
+    .resource-label {
+        display: none;
+    }
+    
+    .game-modal {
+        width: 90%;
+        max-width: 90%;
+    }
+}
+
+@media (max-width: 768px) {
+    .game-header {
+        flex-direction: column;
+        gap: 10px;
+    }
+    
+    .header-left, .header-right {
+        width: 100%;
+        justify-content: space-between;
+    }
+    
+    .game-resources {
+        width: 100%;
+        justify-content: space-between;
+    }
+    
+    .animal img {
+        width: 50px;
+    }
+    
+    .game-modal {
+        width: 95%;
+        max-width: 95%;
+    }
+}
+
+/* farm-actions styles, located above the farm area */
+.farm-actions {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    z-index: 50;
+    display: flex;
+    gap: 10px;
+}
+
+.farm-action-btn {
+    background-color: rgba(255, 255, 255, 0.85);
+    border: 2px solid rgba(0, 0, 0, 0.1);
+    border-radius: 50%;
+    width: 45px;
+    height: 45px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+    transition: all 0.3s ease;
+    padding: 0;
+}
+
+.farm-action-btn:hover {
+    transform: scale(1.1);
+    background-color: rgba(255, 255, 255, 0.95);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+
+.farm-action-btn:active {
+    transform: scale(0.95);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.farm-action-btn .action-icon {
+    font-size: 20px;
+    margin-bottom: 2px;
+}
+
+.farm-action-btn .action-text {
+    font-size: 10px;
+    color: #333;
+    font-weight: bold;
+}
+
+/* Refresh prompt styles */
+.refresh-toast {
+    position: fixed;
+    top: 80px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 10px 20px;
+    border-radius: 20px;
+    z-index: 1000;
+    font-size: 14px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    transition: opacity 0.5s ease;
+}
+
+/* Mobile adaptation */
+@media (max-width: 768px) {
+    .farm-actions {
+        top: 10px;
+        right: 10px;
+    }
+    
+    .farm-action-btn {
+        width: 40px;
+        height: 40px;
+    }
+    
+    .farm-action-btn .action-icon {
+        font-size: 18px;
+    }
+    
+    .farm-action-btn .action-text {
+        font-size: 9px;
+    }
+    
+    .refresh-toast {
+        width: 80%;
+        text-align: center;
+    }
+}
+
+/* No pet button and prompt styles */
+.no-nft-message {
+    position: absolute;
+    top: 40%;
+    left: 50%;
+    transform: translateX(-50%);
+    text-align: center;
+    color: #333;
+    font-size: 1.2rem;
+    font-weight: 500;
+    text-shadow: 0 1px 2px rgba(255, 255, 255, 0.8);
+    background-color: rgba(255, 255, 255, 0.7);
+    padding: 10px 20px;
+    border-radius: 20px;
+    max-width: 80%;
+    z-index: 20;
+}
+
+.adopt-pet-container {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    z-index: 20;
+}
+
+.adopt-pet-button {
+    width: 180px;
+    height: 180px;
+    border-radius: 50%;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+    animation: scale-pulse 2s infinite;
+}
+
+.adopt-pet-button img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.adopt-pet-button:hover {
+    transform: scale(1.1);
+}
+
+.connect-wallet-button {
+    width: 80px;
+    height: 80px;
+    background-color: transparent;
+}
+
+/* Scale pulse animation */
+@keyframes scale-pulse {
+    0% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.1);
+    }
+    100% {
+        transform: scale(1);
+    }
+}
+
+/* Responsive adjustment */
+@media (max-width: 768px) {
+    .adopt-pet-button {
+        width: 70px;
+        height: 70px;
+    }
+    
+    .no-nft-message {
+        font-size: 1rem;
+        padding: 8px 15px;
+    }
+} 

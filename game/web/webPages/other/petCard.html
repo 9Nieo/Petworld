@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pet Card Component</title>
+    <link rel="stylesheet" href="../../css/other/petCard.css">
+</head>
+<body>
+    <div class="component-documentation">
+        <h1>Pet Card Component</h1>
+        
+        <h2>Card Preview</h2>
+        <div class="preview-container">
+            <!-- Preview of pet cards of different qualities -->
+            <div class="card-examples">
+                <div class="pet-card common">
+                    <span class="pet-quality">Common</span>
+                    <div class="pet-image">
+                        <img src="/resources/images/pets/pet_placeholder.png" alt="Common Pet">
+                    </div>
+                    <div class="pet-info">
+                        <h4>Common Pet #001</h4>
+                        <div class="pet-id">ID: 001</div>
+                        <div class="pet-contract">
+                            <span class="contract-label">Contract:</span>
+                            <a href="#" class="contract-address" title="0x1234...5678">0x1234...5678</a>
+                        </div>
+                        <div class="pet-stats">
+                            <span class="stat">Satiety: 85</span>
+                        </div>
+                    </div>
+                    <div class="pet-actions">
+                        <button class="pet-btn pet-feed-btn">Feed</button>
+                        <button class="pet-btn pet-sell-btn">Sell</button>
+                    </div>
+                </div>
+                
+                <div class="pet-card good">
+                    <span class="pet-quality">Good</span>
+                    <div class="pet-image">
+                        <img src="/resources/images/pets/pet_placeholder.png" alt="Good Pet">
+                    </div>
+                    <div class="pet-info">
+                        <h4>Good Pet #002</h4>
+                        <div class="pet-id">ID: 002</div>
+                        <div class="pet-contract">
+                            <span class="contract-label">Contract:</span>
+                            <a href="#" class="contract-address" title="0x2345...6789">0x2345...6789</a>
+                        </div>
+                        <div class="pet-stats">
+                            <span class="stat">Satiety: 85</span>
+                        </div>
+                    </div>
+                    <div class="pet-actions">
+                        <button class="pet-btn pet-feed-btn">Feed</button>
+                        <button class="pet-btn pet-sell-btn">Sell</button>
+                    </div>
+                </div>
+                
+                <div class="pet-card excellent">
+                    <span class="pet-quality">Excellent</span>
+                    <div class="pet-image">
+                        <img src="/resources/images/pets/pet_placeholder.png" alt="Excellent Pet">
+                    </div>
+                    <div class="pet-info">
+                        <h4>Excellent Pet #003</h4>
+                        <div class="pet-id">ID: 003</div>
+                        <div class="pet-contract">
+                            <span class="contract-label">Contract:</span>
+                            <a href="#" class="contract-address" title="0x3456...7890">0x3456...7890</a>
+                        </div>
+                        <div class="pet-stats">
+                            <span class="stat">Satiety: 90</span>
+                        </div>
+                    </div>
+                    <div class="pet-actions">
+                        <button class="pet-btn pet-feed-btn">Feed</button>
+                        <button class="pet-btn pet-sell-btn">Sell</button>
+                    </div>
+                </div>
+                
+                <div class="pet-card rare">
+                    <span class="pet-quality">Rare</span>
+                    <div class="pet-image">
+                        <img src="/resources/images/pets/pet_placeholder.png" alt="Rare Pet">
+                    </div>
+                    <div class="pet-info">
+                        <h4>Rare Pet #004</h4>
+                        <div class="pet-id">ID: 004</div>
+                        <div class="pet-contract">
+                            <span class="contract-label">Contract:</span>
+                            <a href="#" class="contract-address" title="0x4567...8901">0x4567...8901</a>
+                        </div>
+                        <div class="pet-stats">
+                            <span class="stat">Satiety: 95</span>
+                        </div>
+                    </div>
+                    <div class="pet-actions">
+                        <button class="pet-btn pet-feed-btn">Feed</button>
+                        <button class="pet-btn pet-sell-btn">Sell</button>
+                    </div>
+                </div>
+                
+                <div class="pet-card legendary">
+                    <span class="pet-quality">Legendary</span>
+                    <div class="pet-image">
+                        <img src="/resources/images/pets/pet_placeholder.png" alt="Legendary Pet">
+                    </div>
+                    <div class="pet-info">
+                        <h4>Legendary Pet #005</h4>
+                        <div class="pet-id">ID: 005</div>
+                        <div class="pet-contract">
+                            <span class="contract-label">Contract:</span>
+                            <a href="#" class="contract-address" title="0x5678...9012">0x5678...9012</a>
+                        </div>
+                        <div class="pet-stats">
+                            <span class="stat">Satiety: 100</span>
+                        </div>
+                    </div>
+                    <div class="pet-actions">
+                        <button class="pet-btn pet-feed-btn">Feed</button>
+                        <button class="pet-btn pet-sell-btn">Sell</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <style>
+        /* Documentation styles */
+        .component-documentation {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        h1, h2 {
+            color: #333;
+        }
+        
+        pre {
+            background-color: #f5f5f5;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        
+        .preview-container {
+            margin-top: 30px;
+            border: 1px solid #ddd;
+            padding: 20px;
+            border-radius: 5px;
+            background: #f9f9f9;
+        }
+        
+        .card-examples {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        
+        /* Feed control styles */
+        .pet-feed-control {
+            display: flex;
+            margin-bottom: 8px;
+            width: 100%;
+        }
+        
+        .feed-hours-input {
+            width: 60px;
+            text-align: center;
+            border: 1px solid #ccc;
+            border-radius: 4px 0 0 4px;
+            padding: 6px 4px;
+            font-size: 14px;
+        }
+        
+        .pet-feed-control .pet-feed-btn {
+            flex-grow: 1;
+            border-radius: 0 4px 4px 0;
+            margin-left: -1px;
+        }
+        
+        /* Message styles */
+        .loading-toast, .success-toast {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 12px 24px;
+            border-radius: 4px;
+            background-color: rgba(0, 0, 0, 0.8);
+            color: white;
+            z-index: 1000;
+            transition: opacity 0.5s;
+        }
+        
+        .success-toast {
+            background-color: rgba(76, 175, 80, 0.9);
+        }
+    </style>
+    
+    <!-- Include Web3 related scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/web3@1.6.0/dist/web3.min.js"></script>
+    
+    <!-- Include contract related scripts -->
+    <script src="../../scripts/contracts/ABI/NFTFeedingManagerABI.js"></script>
+    <script src="../../scripts/contracts/ABI/PWFoodABI.js"></script>
+    <script src="../../scripts/contracts/contractAddresses.js"></script>
+    
+    <!-- Include contract management module -->
+    <script src="../../scripts/other/ContractApprovalManager.js"></script>
+    <script src="../../scripts/contracts/NFTFeedingManager.js"></script>
+    
+    <!-- Include card and contract initialization scripts -->
+    <script src="../../scripts/other/petCard.js"></script>
+    <script src="../../scripts/init_contracts/initNFTFeedingManager.js"></script>
+    <script src="../../scripts/init_contracts/initPwFood.js"></script>
+    
+    <!-- Global variable to make window.web3 available -->
+    <script>
+        // Update Web3 initialization method to use window.ethereum
+        window.web3 = null;
+        if (window.ethereum) {
+            window.web3 = new Web3(window.ethereum);
+            console.log('Initialized Web3 using window.ethereum');
+        } else {
+            console.warn('No MetaMask or other Web3 provider detected, some features may not be available');
+        }
+    </script>
+    
+    <!-- Example script: How to use the NFTFeedingManager contract to get feeding information -->
+    <script>
+        // Wait for the page to load
+        document.addEventListener('DOMContentLoaded', async function() {
+            try {
+                // Check if there is a Web3 environment
+                if (window.ethereum) {
+                    const web3 = new Web3(window.ethereum);
+                    
+                    // Initialize the NFTFeedingManager contract
+                    const nftFeedingManagerContract = initNFTFeedingManagerContract(web3, getContractAddress);
+                    
+                    if (nftFeedingManagerContract) {
+                        console.log('NFTFeedingManager contract initialized successfully, contract functions can be used');
+                        
+                        // If there are Pet cards, add functionality to get satiety from the contract
+                        const updatePetCards = async () => {
+                            const petCards = document.querySelectorAll('.pet-card');
+                            if (petCards.length > 0) {
+                                console.log('Found pet cards, preparing to update satiety information');
+                                
+                                for (const card of petCards) {
+                                    const tokenId = card.dataset.tokenId;
+                                    if (tokenId) {
+                                        try {
+                                            const feedingInfo = await getNFTFeedingInfo(nftFeedingManagerContract, tokenId);
+                                            if (feedingInfo && feedingInfo.isActive) {
+                                                console.log(`Retrieved feeding information for NFT #${tokenId}:`, feedingInfo);
+                                                
+                                                // Use PetCard module to update satiety display
+                                                PetCard.updatePetSatiety(card, feedingInfo.feedingHours);
+                                            }
+                                        } catch (error) {
+                                            console.error(`Failed to update satiety for NFT #${tokenId}:`, error);
+                                        }
+                                    }
+                                }
+                            }
+                        };
+                        
+                        // Attempt to update cards
+                        updatePetCards();
+                    }
+                } else {
+                    console.log('No Web3 environment detected, unable to connect to the blockchain');
+                }
+            } catch (error) {
+                console.error('Failed to initialize contract or retrieve feeding information:', error);
+            }
+        });
+    </script>
+</body>
+</html> 

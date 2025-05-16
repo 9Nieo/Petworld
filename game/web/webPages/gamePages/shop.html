@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title data-i18n="shop.title">Shop - PetWorld</title>
+    <link rel="stylesheet" href="../../css/gamePages/modals.css">
+    <link rel="stylesheet" href="../../css/gamePages/shop.css">
+    <!-- Add Font Awesome icon library -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Add script to disable source map loading -->
+    <script>
+        // Disable source map loading
+        window.process = { env: { NODE_DEBUG: false } };
+        window.global = window;
+    </script>
+</head>
+<body>
+    <!-- The shop content displayed in the modal -->
+    <div class="shop-container" id="shop-content">
+        <div class="shop-header">
+            <!-- NFT remaining quantity display -->
+            <div id="nft-remaining-container" class="nft-remaining-container">
+                <div class="remaining-item rare-remaining">
+                    <span class="remaining-label">Rare NFT Remaining:</span>
+                    <span id="rare-remaining-count" class="remaining-count">--</span>
+                </div>
+                <div class="remaining-item legendary-remaining">
+                    <span class="remaining-label">Legendary NFT Remaining:</span>
+                    <span id="legendary-remaining-count" class="remaining-count">--</span>
+                </div>
+            </div>
+            
+            <!-- Refresh button -->
+            <button id="refresh-shop-btn" class="refresh-btn" title="Refresh Shop">
+                <i class="fas fa-sync-alt"></i>
+            </button>
+        </div>
+        
+        <div class="shop-grid">
+            <!-- Free NFT claim -->
+            <div class="shop-item free-nft-item" data-id="free-nft" data-category="nft" data-contract-method="claimFreeNFT">
+                <div class="egg-rarity free" data-i18n="market.rarity.free">Free</div>
+                <img src="../../resources/images/icons/common.png" alt="Free Pet" onerror="this.outerHTML='<div class=\'emoji-fallback\'>🎁</div>'">
+                <h3 data-i18n="shop.items.freeNFT">Free Pet</h3>
+                <div class="item-price">Free</div>
+                <div class="inviter-input-container">
+                    <input type="text" id="inviter-address" placeholder="Inviter Address (Optional)" class="inviter-input">
+                    <div class="inviter-tip">Entering the inviter's address allows them to receive rewards</div>
+                </div>
+                <button class="buy-btn" id="claim-free-nft-btn" data-i18n="shop.claim">Claim</button>
+            </div>
+            
+            <!-- Claim unclaimed NFTs -->
+            <div class="shop-item free-nft-item" id="product-claim-eggs" data-id="claim-eggs" data-category="nft" data-contract-method="claimEggs">
+                <div class="egg-rarity free" data-i18n="market.rarity.free">Free</div>
+                <img src="../../resources/images/icons/legendary.png" alt="Claim Pet" onerror="this.outerHTML='<div class=\'emoji-fallback\'>🎁</div>'">
+                <h3 data-i18n="shop.items.claimEggs">Claim Unclaimed Pets</h3>
+                <div class="item-price">Free</div>
+                <div class="pending-eggs-info">
+                    <div class="pending-eggs-count">
+                        <span class="pending-rare">Rare: <span id="pending-rare-count">0</span></span>
+                        <span class="pending-legendary">Legendary: <span id="pending-legendary-count">0</span></span>
+                    </div>
+                    <div class="pending-eggs-total">Total: <span id="pending-eggs-total">0</span> unclaimed</div>
+                </div>
+                <button class="buy-btn" id="claim-eggs-btn" data-i18n="shop.claim">Claim</button>
+            </div>
+            
+            <!-- Claim daily free pet food -->
+            <div class="shop-item free-nft-item" id="product-free-pwfood" data-id="free-pwfood" data-category="food" data-contract-method="claimFreePwFood">
+                <div class="egg-rarity free" data-i18n="market.rarity.free">Free</div>
+                <img src="../../resources/images/items/pwfood.png" alt="Free Pet Food" onerror="this.outerHTML='<div class=\'emoji-fallback\'>🍖</div>'">
+                <h3 data-i18n="shop.items.freePwFood">Free Pet Food</h3>
+                <div class="item-price">Free</div>
+                <div class="free-pwfood-info">
+                    <div class="pwfood-reward">
+                        <span>Daily Reward: <span id="pwfood-day-reward">10</span> PWFOOD</span>
+                    </div>
+                    <div class="next-claim-time">
+                        Next Claim: <span id="next-claim-time">Never Claimed</span>
+                    </div>
+                </div>
+                <button class="buy-btn" id="free-pwfood-btn" data-i18n="shop.claim">Claim</button>
+            </div>
+            
+            <!-- Three types of lottery eggs -->
+            <div class="shop-item" data-id="egg-common" data-category="egg" data-contract-method="openCommonEgg">
+                <div class="egg-rarity common" data-i18n="market.rarity.common">Common</div>
+                <img src="../../resources/images/icons/common.png" alt="Common Egg" class="egg-icon">
+                <h3 data-i18n="shop.items.commonEgg">Common Egg</h3>
+                <div class="item-price">$9.9</div>
+                <div class="batch-amount-container">
+                    <label for="common-egg-amount" data-i18n="shop.batchAmount">Purchase Quantity:</label>
+                    <input type="number" id="common-egg-amount" min="1" max="10" value="1" class="batch-amount-input">
+                    <div class="batch-amount-tip" data-i18n="shop.batchAmountTip">Enter an integer between 1-10</div>
+                    <div class="batch-info">
+                        <span data-i18n="shop.totalPrice">Total Price:</span>
+                        <span class="batch-total-price">$9.9</span>
+                    </div>
+                </div>
+                <button class="buy-btn" data-i18n="button.buy">Buy</button>
+            </div>
+            
+            <div class="shop-item" data-id="egg-rare" data-category="egg" data-contract-method="openRareEgg">
+                <div class="egg-rarity rare" data-i18n="market.rarity.rare">Rare</div>
+                <img src="../../resources/images/icons/rare.png" alt="Rare Egg" class="egg-icon">
+                <h3 data-i18n="shop.items.rareEgg">Rare Egg</h3>
+                <div class="item-price">$99</div>
+                <div class="batch-amount-container">
+                    <label for="rare-egg-amount" data-i18n="shop.batchAmount">Purchase Quantity:</label>
+                    <input type="number" id="rare-egg-amount" min="1" max="10" value="1" class="batch-amount-input">
+                    <div class="batch-amount-tip" data-i18n="shop.batchAmountTip">Enter an integer between 1-10</div>
+                    <div class="batch-info">
+                        <span data-i18n="shop.totalPrice">Total Price:</span>
+                        <span class="batch-total-price">$99</span>
+                    </div>
+                </div>
+                <button class="buy-btn" data-i18n="button.buy">Buy</button>
+            </div>
+            
+            <div class="shop-item" data-id="egg-legendary" data-category="egg" data-contract-method="openLegendaryEgg">
+                <div class="egg-rarity legendary" data-i18n="market.rarity.legendary">Legendary</div>
+                <img src="../../resources/images/icons/legendary.png" alt="Legendary Egg" class="egg-icon">
+                <h3 data-i18n="shop.items.legendaryEgg">Legendary Egg</h3>
+                <div class="item-price">$599</div>
+                <div class="batch-amount-container">
+                    <label for="legendary-egg-amount" data-i18n="shop.batchAmount">Purchase Quantity:</label>
+                    <input type="number" id="legendary-egg-amount" min="1" max="10" value="1" class="batch-amount-input">
+                    <div class="batch-amount-tip" data-i18n="shop.batchAmountTip">Enter an integer between 1-10</div>
+                    <div class="batch-info">
+                        <span data-i18n="shop.totalPrice">Total Price:</span>
+                        <span class="batch-total-price">$599</span>
+                    </div>
+                </div>
+                <button class="buy-btn" data-i18n="button.buy">Buy</button>
+            </div>
+            
+            <!-- Add PWFood product -->
+            <div class="shop-item" data-id="pwfood" data-category="food" data-contract-method="buyPwFood">
+                <img src="../../resources/images/items/pwfood.png" alt="Pet Food" onerror="this.outerHTML='<div class=\'emoji-fallback\'>🍖</div>'">
+                <h3 data-i18n="shop.items.pwfood">Pet Food</h3>
+                <div class="item-price">$1 = 3000 PWFOOD</div>
+                <div class="food-amount-container">
+                    <label for="food-amount" data-i18n="shop.foodAmount">Purchase Amount ($):</label>
+                    <input type="number" id="food-amount" min="1" max="10000" value="1" class="food-amount-input">
+                    <div class="food-amount-tip" data-i18n="shop.foodAmountTip">Enter an integer amount between 1-10000</div>
+                </div>
+                <button class="buy-btn" data-i18n="button.buy">Buy</button>
+            </div>
+        </div>
+        
+        <!-- Status message -->
+        <div id="status-message" class="status-message"></div>
+        
+        <!-- Lottery result display container -->
+        <div id="lottery-result-container" class="lottery-result-container"></div>
+    </div>
+    
+    <!-- Include Web3.js -->
+    <script src="https://cdn.jsdelivr.net/npm/web3@1.8.2/dist/web3.min.js"></script>
+    
+    <!-- Include i18n -->
+    <script src="../../i18n/i18n.js"></script>
+    <script src="../../i18n/locales/zh_tw.js"></script>
+    <script src="../../i18n/locales/en.js"></script>
+    <script src="../../i18n/locales/es.js"></script>
+    <script src="../../i18n/locales/ko.js"></script>
+    <script src="../../i18n/locales/ja.js"></script>
+    <!-- Include contract addresses and ABIs -->
+    <script src="../../scripts/contracts/contractAddresses.js"></script>
+    <script src="../../scripts/contracts/ABI/NFTLotteryManagerABI.js"></script>
+    <script src="../../scripts/contracts/ABI/NFTManagerABI.js"></script>
+    <script src="../../scripts/contracts/ABI/PwNFTABI.js"></script>
+    <script src="../../scripts/contracts/ABI/PwFoodManagerABI.js"></script>
+    <script src="../../scripts/contracts/ABI/PaymentManagerABI.js"></script>
+    <script src="../../scripts/contracts/PaymentManager.js"></script>
+    <script src="../../scripts/contracts/ABI/GENERIC_ERC20_ABI.js"></script>
+    
+    <!-- Include TokenBalanceManager -->
+    <script src="../../scripts/wallets/tokenBalanceManager.js"></script>
+    
+    <!-- Include payment token configuration -->
+    <script src="../../scripts/other/supportedTokens.js"></script>
+    
+    <!-- Include contract approval manager -->
+    <script src="../../scripts/other/ContractApprovalManager.js"></script>
+    <script src="../../scripts/other/lotteryResultParser.js"></script>
+    
+    <!-- Include generic modal component -->
+    <script src="../../scripts/other/modalDialog.js"></script>
+    
+    <!-- Include contract initialization scripts -->
+    <script src="../../scripts/init_contracts/initNFTLotteryManager.js"></script>
+    <script src="../../scripts/init_contracts/initNFTManager.js"></script>
+    <script src="../../scripts/init_contracts/initPwNFT.js"></script>
+    <script src="../../scripts/init_contracts/initPwFoodManager.js"></script>
+    <script src="../../scripts/init_contracts/initPaymentManager.js"></script>
+    <script src="../../scripts/init_contracts/initERC20.js"></script>
+    
+    <!-- Include lottery transaction processing script -->
+    <script src="../../scripts/contracts/processLotteryTransaction.js"></script>
+    
+    <!-- Include shop page script -->
+    <script src="../../scripts/gamePages/shop.js"></script>
+</body>
+</html> 

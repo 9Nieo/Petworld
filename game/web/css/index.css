@@ -1,0 +1,255 @@
+/* Home page styles */
+
+/* Global style reset */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Arial', sans-serif;
+    background: linear-gradient(135deg, #f5f7fa 0%, #e4e7eb 100%);
+    min-height: 100vh;
+    color: #333;
+}
+
+/* Main container */
+.app-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
+
+/* Header */
+.app-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 0;
+    margin-bottom: 40px;
+}
+
+.logo-container {
+    display: flex;
+    align-items: center;
+}
+
+.logo-icon {
+    width: 60px;
+    height: 60px;
+    margin-right: 12px;
+    display: inline-block;
+}
+
+.logo-container h1 {
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: #3b82f6;
+}
+
+.wallet-info {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+#walletAddress {
+    font-size: 0.95rem;
+    color: #6b7280;
+    padding: 8px 12px;
+    background-color: #f3f4f6;
+    border-radius: 20px;
+}
+
+.wallet-btn {
+    background-color: #3b82f6;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    padding: 10px 20px;
+    font-size: 0.95rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.wallet-btn:hover {
+    background-color: #2563eb;
+}
+
+.wallet-btn.connected {
+    background-color: #10b981;
+}
+
+.wallet-btn.connected:hover {
+    background-color: #059669;
+}
+
+/* Main content */
+.app-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.welcome-section {
+    text-align: center;
+    margin-bottom: 48px;
+}
+
+.welcome-section h2 {
+    font-size: 2.5rem;
+    font-weight: 700;
+    margin-bottom: 12px;
+    color: #1e293b;
+}
+
+.welcome-section p {
+    font-size: 1.2rem;
+    color: #64748b;
+}
+
+/* Mode selection */
+.mode-selection {
+    display: flex;
+    justify-content: center;
+    gap: 40px;
+    width: 100%;
+    max-width: 900px;
+}
+
+.mode-card {
+    flex: 1;
+    max-width: 400px;
+    background-color: white;
+    border-radius: 16px;
+    padding: 32px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+    text-align: center;
+    transition: transform 0.3s, box-shadow 0.3s;
+}
+
+.mode-card:hover {
+    transform: translateY(-8px);
+    box-shadow: 0 15px 40px rgba(0, 0, 0, 0.1);
+}
+
+.mode-icon {
+    font-size: 3rem;
+    margin-bottom: 20px;
+}
+
+.mode-card h3 {
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin-bottom: 12px;
+    color: #1e293b;
+}
+
+.mode-card p {
+    color: #64748b;
+    margin-bottom: 24px;
+    line-height: 1.5;
+}
+
+.mode-btn {
+    background-color: #3b82f6;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    padding: 12px 24px;
+    font-size: 1rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    width: 100%;
+}
+
+.mode-btn:hover {
+    background-color: #2563eb;
+}
+
+#gameMode .mode-icon {
+    color: #3b82f6;
+}
+
+#simpleMode .mode-icon {
+    color: #8b5cf6;
+}
+
+#simpleMode .mode-btn {
+    background-color: #8b5cf6;
+}
+
+#simpleMode .mode-btn:hover {
+    background-color: #7c3aed;
+}
+
+/* Footer */
+.app-footer {
+    margin-top: 60px;
+    padding: 20px 0;
+    text-align: center;
+    color: #6b7280;
+    font-size: 0.9rem;
+}
+
+/* Wallet iframe */
+#walletFrame {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    border: none;
+    z-index: 1000;
+}
+
+/* Media queries */
+@media (max-width: 768px) {
+    .app-header {
+        flex-direction: column;
+        gap: 20px;
+    }
+    
+    .mode-selection {
+        flex-direction: column;
+        align-items: center;
+        gap: 24px;
+    }
+    
+    .mode-card {
+        width: 100%;
+    }
+    
+    .welcome-section h2 {
+        font-size: 2rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .wallet-info {
+        flex-direction: column;
+        gap: 10px;
+    }
+    
+    .logo-container h1 {
+        font-size: 1.5rem;
+    }
+}
+
+/* Address formatting */
+.truncated-address {
+    font-family: monospace;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 150px;
+    display: inline-block;
+} 

@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Connect Wallet - PetWorld</title>
+    <link rel="stylesheet" href="../../css/wallets/wallets.css">
+</head>
+<body>
+    <div class="wallet-modal" id="walletModal">
+        <div class="wallet-modal-content">
+            <div class="wallet-modal-header">
+                <h3 class="wallet-title" data-i18n="wallet.title">Connect Wallet</h3>
+                <button class="wallet-close-btn" id="closeWalletBtn">&times;</button>
+            </div>
+            
+            <div class="wallet-modal-body">
+                <!-- Wallet selection state -->
+                <div class="wallet-state" id="walletSelectState">
+                    <p class="wallet-subtitle" data-i18n="wallet.chooseWallet">Select the wallet to connect</p>
+                    
+                    <div class="wallet-options">
+                        <button class="wallet-option" id="connectMetamask">
+                            <div class="wallet-icon metamask-icon"></div>
+                            <div class="wallet-info">
+                                <h4 data-i18n="wallet.metamask.name">MetaMask</h4>
+                                <p data-i18n="wallet.metamask.description">Connect to your MetaMask wallet</p>
+                            </div>
+                        </button>
+                        
+                        <button class="wallet-option" id="connectWalletConnect">
+                            <div class="wallet-icon walletconnect-icon"></div>
+                            <div class="wallet-info">
+                                <h4 data-i18n="wallet.walletconnect.name">WalletConnect</h4>
+                                <p data-i18n="wallet.walletconnect.description">Connect using WalletConnect</p>
+                            </div>
+                        </button>
+                        
+                        <button class="wallet-option" id="connectOKX">
+                            <div class="wallet-icon okx-icon"></div>
+                            <div class="wallet-info">
+                                <h4 data-i18n="wallet.okx.name">OKX Wallet</h4>
+                                <p data-i18n="wallet.okx.description">Connect to your OKX wallet</p>
+                            </div>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Connecting state -->
+                <div class="wallet-state hidden" id="walletConnectingState">
+                    <div class="connecting-spinner"></div>
+                    <p class="connecting-text" data-i18n="wallet.states.connecting">Connecting to wallet...</p>
+                    <p class="connecting-wallet-name" id="connectingWalletName"></p>
+                    <p class="confirm-text" data-i18n="wallet.confirmInWallet">Please confirm the connection request in your wallet</p>
+                    <button class="cancel-btn" id="cancelConnectBtn" data-i18n="common.cancel">Cancel</button>
+                </div>
+                
+                <!-- Error state -->
+                <div class="wallet-state hidden" id="walletErrorState">
+                    <div class="error-icon">⚠️</div>
+                    <h4 class="error-title" data-i18n="common.error">Error</h4>
+                    <p class="error-message" id="errorMessage"></p>
+                    <button class="retry-btn" id="retryConnectBtn" data-i18n="common.retry">Retry</button>
+                    <button class="cancel-btn" id="closeErrorBtn" data-i18n="common.cancel">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Include web3 and wallet connection scripts -->
+    <!-- Disable source map loading script -->
+    <script>
+        // Disable source map loading
+        window.process = { env: { NODE_DEBUG: false } };
+        window.global = window;
+    </script>
+    <script src="../../i18n/i18n.js"></script>
+    <script src="../../i18n/locales/zh_tw.js"></script>
+    <script src="../../i18n/locales/en.js"></script>
+    <script src="../../i18n/modules/wallet-i18n.js"></script>
+    <!-- Include Web3.js -->
+    <script src="https://cdn.jsdelivr.net/npm/web3@1.8.2/dist/web3.min.js"></script>
+    <!-- Include WalletConnect -->
+    <script src="https://cdn.jsdelivr.net/npm/@walletconnect/web3-provider@1.8.0/dist/umd/index.min.js"></script>
+    <script src="../../scripts/wallets/wallet-connector.js"></script>
+</body>
+</html> 

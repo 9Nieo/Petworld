@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PetWorld Loading</title>
+    <link rel="stylesheet" href="../../css/gamePages/loading.css">
+</head>
+<body>
+    <div id="loadingContainer">
+        <div style="font-size: 64px; margin-bottom: 20px;">
+            <img src="../../resources/images/icons/logo.png" alt="PetWorld Logo" style="width: 150px; height: 150px;">
+        </div>
+        <h1 class="loading-title">PetWorld Loading</h1>
+        <p class="loading-description">Getting your pet NFT data, please wait...</p>
+        
+        <div class="loading-progress-container">
+            <div id="loadingProgressBar" class="loading-progress-bar"></div>
+        </div>
+        <div id="loadingProgressText" class="loading-progress-text">0%</div>
+        
+        <div class="pet-emoji-container">
+            <div class="bubble"></div>
+            <div class="bubble"></div>
+            <div class="bubble"></div>
+            <span id="loadingPetEmoji"></span>
+        </div>
+    </div>
+    
+    <div id="gameContainer" style="display: none;">
+        <h1>Game Loaded</h1>
+        <p>This is the game content area</p>
+    </div>
+    
+    <script src="../../scripts/gamePages/loading.js"></script>
+    <script>
+        setTimeout(() => {
+            console.log('Simulating NFT loading complete');
+            window.dispatchEvent(new CustomEvent('nftRefreshed', {
+                detail: { count: 5, source: 'test' }
+            }));
+        }, 5000);
+    </script>
+</body>
+</html> 

@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title data-i18n="navigation.shop">PetWorld - Shop</title>
+    <link rel="stylesheet" href="../../css/simplePages/shop.css">
+    <!-- Add wallet header styles -->
+    <link rel="stylesheet" href="../../css/common/walletHeader.css">
+    <!-- Disable source map loading script -->
+    <script>
+        // Disable source map loading
+        window.process = { env: { NODE_DEBUG: false } };
+        window.global = window;
+    </script>
+</head>
+<body>
+    <div class="app-container">
+        <header class="app-header">
+            <div class="header-left">
+                <a href="./home.html" class="back-btn">
+                    <span class="back-icon">&#8592;</span>
+                    <span data-i18n="button.back">Back</span>
+                </a>
+                <h1 class="app-title" data-i18n="navigation.shop">Shop</h1>
+            </div>
+            
+            <div class="wallet-info">
+                <span id="walletAddress" data-i18n="wallet.noWallet">No Wallet Connected</span>
+                <button id="connectWalletBtn" class="wallet-btn" data-i18n="wallet.connect">Connect Wallet</button>
+            </div>
+        </header>
+        
+        <main class="app-content">
+            <div class="shop-container">
+                <div class="section-header">
+                    <!-- NFT remaining quantity display container -->
+                    <div id="nft-remaining-container" class="nft-remaining-container">
+                        <div class="remaining-item rare-remaining">
+                            <span class="remaining-label">Rare NFT Remaining:</span>
+                            <span id="rare-remaining-count" class="remaining-count">--</span>
+                        </div>
+                        <div class="remaining-item legendary-remaining">
+                            <span class="remaining-label">Legendary NFT Remaining:</span>
+                            <span id="legendary-remaining-count" class="remaining-count">--</span>
+                        </div>
+                    </div>
+                    
+                    <div class="actions">
+                        <button class="action-btn" data-i18n="button.refresh">Refresh</button>
+                    </div>
+                </div>
+                
+                <div class="shop-items">
+                    <!-- Free NFT -->
+                    <div class="shop-item free-nft-item" id="product-free-nft" data-id="free-nft" data-category="nft" data-contract-method="claimFreeNFT">
+                        <div class="item-tag free" data-i18n="market.rarity.free">Free</div>
+                        <div class="item-image">
+                            <img src="../../resources/images/icons/common.png" alt="Free Pet" onerror="this.outerHTML='<div class=\'emoji-fallback\'>🎁</div>'">
+                        </div>
+                        <div class="item-info">
+                            <h3 data-i18n="shop.items.freeNFT">Free Pet</h3>
+                            <p class="item-description" data-i18n="shop.freeNFTDesc">Each address can claim one free pet NFT</p>
+                            <div class="item-price">Free</div>
+                        </div>
+                        <div class="inviter-input-container">
+                            <input type="text" id="inviter-address" placeholder="Inviter Address (Optional)" class="inviter-input">
+                            <div class="inviter-tip" data-i18n="shop.inviterTip">Entering an inviter address allows them to receive rewards</div>
+                        </div>
+                        <button class="buy-btn" id="free-nft-btn" data-i18n="shop.claim">Claim</button>
+                    </div>
+                    
+                    <!-- Claim unclaimed NFTs -->
+                    <div class="shop-item free-nft-item" id="product-claim-eggs" data-id="claim-eggs" data-category="nft" data-contract-method="claimEggs">
+                        <div class="item-tag free" data-i18n="market.rarity.free">Free</div>
+                        <div class="item-image">
+                            <img src="../../resources/images/icons/legendary.png" alt="Claim Pet" onerror="this.outerHTML='<div class=\'emoji-fallback\'>🎁</div>'">
+                        </div>
+                        <div class="item-info">
+                            <h3 data-i18n="shop.items.claimEggs">Claim Unclaimed Pets</h3>
+                            <p class="item-description" data-i18n="shop.claimEggsDesc">Claim pets that were not collected after the lottery</p>
+                            <div class="item-price">Free</div>
+                        </div>
+                        <div class="pending-eggs-info">
+                            <div class="pending-eggs-count">
+                                <span class="pending-rare">Rare: <span id="pending-rare-count">0</span></span>
+                                <span class="pending-legendary">Legendary: <span id="pending-legendary-count">0</span></span>
+                            </div>
+                            <div class="pending-eggs-total">Total: <span id="pending-eggs-total">0</span> unclaimed</div>
+                        </div>
+                        <button class="buy-btn" id="claim-eggs-btn" data-i18n="shop.claim">Claim</button>
+                    </div>
+                    
+                    <!-- Claim daily free pet food -->
+                    <div class="shop-item free-nft-item" id="product-free-pwfood" data-id="free-pwfood" data-category="food" data-contract-method="claimFreePwFood">
+                        <div class="item-tag free" data-i18n="market.rarity.free">Free</div>
+                        <div class="item-image">
+                            <img src="../../resources/images/items/pwfood.png" alt="Free Pet Food" onerror="this.outerHTML='<div class=\'emoji-fallback\'>🍖</div>'">
+                        </div>
+                        <div class="item-info">
+                            <h3 data-i18n="shop.items.freePwFood">Free Pet Food</h3>
+                            <p class="item-description" data-i18n="shop.freePwFoodDesc">You can claim pet food for free every day, must claim a free pet first</p>
+                            <div class="">Free</div>
+                        </div>
+                        <div class="free-pwfood-info">
+                            <div class="pwfood-reward">
+                                <span>Daily Reward: <span id="pwfood-day-reward">10</span> PWFOOD</span>
+                            </div>
+                            <div class="next-claim-time">
+                                Next Claim: <span id="next-claim-time">Never Claimed</span>
+                            </div>
+                        </div>
+                        <button class="buy-btn" id="free-pwfood-btn" data-i18n="shop.claim">Claim</button>
+                    </div>
+                    
+                    <!-- Three types of lottery eggs -->
+                    <div class="shop-item" data-id="egg-common" data-category="egg" data-contract-method="openCommonEgg">
+                        <div class="item-tag common" data-i18n="market.rarity.common">Common</div>
+                        <div class="item-image">
+                            <img src="../../resources/images/icons/common.png" alt="Common Egg" class="egg-icon">
+                        </div>
+                        <div class="item-info">
+                            <h3 data-i18n="shop.items.commonEgg">Common Egg</h3>
+                            <p class="item-description" data-i18n="shop.commonEggDesc">Higher chance of getting common and quality pets</p>
+                            <div class="item-price">$9.9</div>
+                        </div>
+                        <div class="batch-amount-container">
+                            <label for="common-egg-amount" data-i18n="shop.batchAmount">Quantity (1-10):</label>
+                            <input type="number" id="common-egg-amount" min="1" max="10" value="1" class="batch-amount-input">
+                            <div class="batch-info">
+                                <span data-i18n="shop.total">Total:</span>
+                                <span class="batch-total-price">$9.9</span>
+                            </div>
+                        </div>
+                        <button class="buy-btn" data-i18n="button.buy">Buy</button>
+                    </div>
+                    
+                    <div class="shop-item" data-id="egg-rare" data-category="egg" data-contract-method="openRareEgg">
+                        <div class="item-tag rare" data-i18n="market.rarity.rare">Rare</div>
+                        <div class="item-image">
+                            <img src="../../resources/images/icons/rare.png" alt="Rare Egg" class="egg-icon">
+                        </div>
+                        <div class="item-info">
+                            <h3 data-i18n="shop.items.rareEgg">Rare Egg</h3>
+                            <p class="item-description" data-i18n="shop.rareEggDesc">Higher chance of getting rare pets</p>
+                            <div class="item-price">$99</div>
+                        </div>
+                        <div class="batch-amount-container">
+                            <label for="rare-egg-amount" data-i18n="shop.batchAmount">Quantity (1-10):</label>
+                            <input type="number" id="rare-egg-amount" min="1" max="10" value="1" class="batch-amount-input">
+                            <div class="batch-info">
+                                <span data-i18n="shop.total">Total:</span>
+                                <span class="batch-total-price">$99</span>
+                            </div>
+                        </div>
+                        <button class="buy-btn" data-i18n="button.buy">Buy</button>
+                    </div>
+                    
+                    <div class="shop-item" data-id="egg-legendary" data-category="egg" data-contract-method="openLegendaryEgg">
+                        <div class="item-tag legendary" data-i18n="market.rarity.legendary">Legendary</div>
+                        <div class="item-image">
+                            <img src="../../resources/images/icons/legendary.png" alt="Legendary Egg" class="egg-icon">
+                        </div>
+                        <div class="item-info">
+                            <h3 data-i18n="shop.items.legendaryEgg">Legendary Egg</h3>
+                            <p class="item-description" data-i18n="shop.legendaryEggDesc">Chance to get legendary rare pets</p>
+                            <div class="item-price">$599</div>
+                        </div>
+                        <div class="batch-amount-container">
+                            <label for="legendary-egg-amount" data-i18n="shop.batchAmount">Quantity (1-10):</label>
+                            <input type="number" id="legendary-egg-amount" min="1" max="10" value="1" class="batch-amount-input">
+                            <div class="batch-info">
+                                <span data-i18n="shop.total">Total:</span>
+                                <span class="batch-total-price">$599</span>
+                            </div>
+                        </div>
+                        <button class="buy-btn" data-i18n="button.buy">Buy</button>
+                    </div>
+                    
+                    <!-- Add PWFood product -->
+                    <div class="shop-item" data-id="pwfood" data-category="food" data-contract-method="buyPwFood">
+                        <div class="item-image">
+                            <img src="../../resources/images/items/pwfood.png" alt="Pet Food" onerror="this.outerHTML='<div class=\'emoji-fallback\'>🍖</div>'">
+                        </div>
+                        <div class="item-info">
+                            <h3 data-i18n="shop.items.pwfood">Pet Food</h3>
+                            <p class="item-description" data-i18n="shop.pwfoodDesc">Used to feed your pets, restores satiety</p>
+                            <div class="item-price">$1 = 3000 PWFOOD</div>
+                        </div>
+                        <div class="food-amount-container">
+                            <label for="food-amount" data-i18n="shop.foodAmount">Purchase Amount ($):</label>
+                            <input type="number" id="food-amount" min="1" max="10000" value="1" class="food-amount-input">
+                            <div class="food-amount-tip" data-i18n="shop.foodAmountTip">Enter an integer amount between 1-10000</div>
+                        </div>
+                        <button class="buy-btn" data-i18n="button.buy">Buy</button>
+                    </div>
+                </div>
+                
+                <!-- Shop items section ends -->
+            </div>
+
+            <!-- Test section for development -->
+            <!-- <div class="testing-section">
+                <h2 class="test-section-heading">Development Testing</h2>
+                <div class="test-buttons">
+                    <button id="test-single-lottery" class="test-btn">Test Single Lottery Result</button>
+                    <button id="test-batch-lottery" class="test-btn">Test Batch Lottery Results</button>
+                </div>
+            </div> -->
+
+            <!-- Status message -->
+            <div id="status-message" class="status-message"></div>
+            
+            <!-- Lottery result display container -->
+            <div id="lottery-result-container" class="lottery-result-container"></div>
+        </main>
+        
+        <footer class="app-footer">
+            <!-- Footer content will be dynamically generated by CommonFooter component -->
+        </footer>
+    </div>
+    
+    <!-- Wallet connection iframe -->
+    <iframe id="walletFrame" src="../../webPages/wallets/wallets.html" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; border: none; z-index: 1000;"></iframe>
+    
+    <!-- Include Web3.js -->
+    <script src="https://cdn.jsdelivr.net/npm/web3@1.8.2/dist/web3.min.js"></script>
+    
+    <!-- Include i18n -->
+    <script src="../../i18n/i18n.js"></script>
+    <script src="../../i18n/locales/zh_tw.js"></script>
+    <script src="../../i18n/locales/en.js"></script>
+    <script src="../../i18n/locales/es.js"></script>
+    <script src="../../i18n/locales/ko.js"></script>
+    <script src="../../i18n/locales/ja.js"></script>
+    <!-- Include contract addresses and ABI -->
+    <script src="../../scripts/contracts/contractAddresses.js"></script>
+    <script src="../../scripts/contracts/ABI/GENERIC_ERC20_ABI.js"></script>
+    <script src="../../scripts/contracts/ABI/PwPointABI.js"></script>
+    <script src="../../scripts/contracts/ABI/PwBountyABI.js"></script>
+    <script src="../../scripts/contracts/ABI/PwFoodABI.js"></script>
+    <script src="../../scripts/contracts/ABI/PetWorldABI.js"></script>
+    <script src="../../scripts/contracts/ABI/PetWorldManagerABI.js"></script>
+    <script src="../../scripts/contracts/ABI/NFTManagerABI.js"></script>
+    <script src="../../scripts/contracts/ABI/NFTLotteryManagerABI.js"></script>
+    <script src="../../scripts/contracts/ABI/PwNFTABI.js"></script>
+    <script src="../../scripts/contracts/ABI/PwFoodManagerABI.js"></script>
+    <script src="../../scripts/contracts/ABI/PaymentManagerABI.js"></script>
+    <script src="../../scripts/contracts/PaymentManager.js"></script>
+    
+    <!-- Include TokenBalanceManager -->
+    <script src="../../scripts/wallets/tokenBalanceManager.js"></script>
+    
+    <!-- Include payment token configuration -->
+    <script src="../../scripts/other/supportedTokens.js"></script>
+    
+    <!-- Include contract approval manager -->
+    <script src="../../scripts/other/ContractApprovalManager.js"></script>
+    
+    <!-- Include lottery result parser -->
+    <script src="../../scripts/other/lotteryResultParser.js"></script>
+    
+    <!-- Include common modal dialog component -->
+    <script src="../../scripts/other/modalDialog.js"></script>
+    
+    <!-- Include contract initialization scripts -->
+    <script src="../../scripts/init_contracts/initERC20.js"></script>
+    <script src="../../scripts/init_contracts/initPwPoint.js"></script>
+    <script src="../../scripts/init_contracts/initPwBounty.js"></script>
+    <script src="../../scripts/init_contracts/initPwFood.js"></script>
+    <script src="../../scripts/init_contracts/initPetWorld.js"></script>
+    <script src="../../scripts/init_contracts/initPetWorldManager.js"></script>
+    <script src="../../scripts/init_contracts/initNFTManager.js"></script>
+    <script src="../../scripts/init_contracts/initNFTLotteryManager.js"></script>
+    <script src="../../scripts/init_contracts/initPwNFT.js"></script>
+    <script src="../../scripts/init_contracts/initPwFoodManager.js"></script>
+    <script src="../../scripts/init_contracts/initPaymentManager.js"></script>
+    
+    <!-- Add wallet header script -->
+    <script src="../../scripts/common/walletHeader.js"></script>
+    
+    <!-- Add common footer script -->
+    <script src="../../scripts/common/footer.js"></script>
+    
+    <!-- ShopManager -->
+    <script src="../../scripts/functionPackages/ShopManager.js"></script>
+    
+    <!-- Shop page script -->
+    <script src="../../scripts/simplePages/shop.js"></script>
+
+    <script src="../../scripts/contracts/NFTLotteryManager.js"></script>
+    
+    <!-- Initialize wallet header -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize wallet header
+            window.WalletHeader.init();
+            
+            // Initialize common footer
+            window.CommonFooter.init();
+            
+            // Listen for wallet connection event
+            window.addEventListener('wallet.walletConnected', function(event) {
+                console.log('Wallet connected:', event.detail);
+                // Trigger page refresh for product data
+                if (typeof refreshShopData === 'function') {
+                    refreshShopData();
+                }
+                // Check free NFT claim status
+                if (typeof checkFreeNFTClaimStatus === 'function') {
+                    checkFreeNFTClaimStatus();
+                }
+                // Check for claimable NFTs
+                if (typeof checkClaimableEggsStatus === 'function') {
+                    checkClaimableEggsStatus();
+                }
+                // Check free PwFood claim status
+                if (typeof checkFreePwFoodClaimStatus === 'function') {
+                    checkFreePwFoodClaimStatus();
+                }
+            });
+            
+            // Listen for wallet disconnection event
+            window.addEventListener('wallet.walletDisconnected', function(event) {
+                console.log('Wallet disconnected');
+                // Reset product status
+                const buyButtons = document.querySelectorAll('.buy-btn');
+                buyButtons.forEach(button => {
+                    button.disabled = false;
+                    button.textContent = i18n.t('button.buy');
+                    if (button.id === 'free-nft-btn') {
+                        button.textContent = i18n.t('shop.claim');
+                    }
+                });
+            });
+            
+            // Listen for Web3 ready event
+            window.addEventListener('wallet.web3Ready', function(event) {
+                console.log('Web3 ready:', event.detail);
+                // Initialize contracts
+                if (typeof initContracts === 'function') {
+                    initContracts();
+                }
+            });
+        });
+    </script>
+</body>
+</html> 

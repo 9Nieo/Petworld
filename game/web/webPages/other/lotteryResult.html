@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lottery Result</title>
+    <link rel="stylesheet" href="../../css/other/lotteryResult.css">
+    <!-- Disable source map loading -->
+    <script>
+        window.process = { env: { NODE_DEBUG: false } };
+        window.global = window;
+    </script>
+    <!-- Add Font Awesome icon library -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Add modern font -->
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+    <!-- Inline style to ensure close button is always visible -->
+    <style>
+        .close-btn {
+            display: flex !important;
+            z-index: 1000 !important;
+            opacity: 1 !important;
+            visibility: visible !important;
+            pointer-events: auto !important;
+        }
+        
+        /* Ensure proper container sizing */
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+        
+        .lottery-result-overlay {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }
+        
+        /* Loading animation */
+        .loading-indicator {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 5;
+        }
+        
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid rgba(59, 130, 246, 0.1);
+            border-radius: 50%;
+            border-left-color: var(--primary-color, #3b82f6);
+            animation: spin 1s linear infinite;
+            margin-bottom: 15px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        #loading-message {
+            font-family: 'Inter', sans-serif;
+            color: #64748b;
+            font-size: 0.95rem;
+            text-align: center;
+            max-width: 280px;
+            line-height: 1.4;
+        }
+    </style>
+</head>
+<body>
+    <div class="lottery-result-overlay" id="lottery-overlay">
+        <div class="lottery-result-container" id="lottery-container">
+            <div class="result-header">
+                <h2 id="result-title"><i class="fas fa-gift"></i> Lottery Result</h2>
+                <button class="close-btn" id="close-result-btn"><i class="fas fa-times"></i></button>
+            </div>
+            
+            <div class="result-content">
+                <div class="pet-image-container">
+                    <div class="pet-image" id="pet-image-box">
+                        <div class="glow-effect"></div>
+                        <img id="pet-image" src="../../resources/images/pets/pet-placeholder.png" alt="Pet">
+                        <div class="pet-emoji" id="pet-emoji">🐾</div>
+                    </div>
+                    <div class="quality-badge" id="quality-badge">Common</div>
+                    <div class="pet-name" id="pet-name">Unknown Pet</div>
+                </div>
+                
+                <div class="result-details">
+                    <div class="result-item">
+                        <span class="label">Lottery Type</span>
+                        <span class="value" id="lottery-type"><i class="fas fa-egg"></i> Common Egg</span>
+                    </div>
+                    <div class="result-item">
+                        <span class="label">Pet Name</span>
+                        <span class="value" id="pet-name-display"><i class="fas fa-tag"></i> Unknown</span>
+                    </div>
+                    <div class="result-item">
+                        <span class="label">Pet Quality</span>
+                        <span class="value" id="pet-quality"><i class="fas fa-star"></i> Common</span>
+                    </div>
+                    <div class="result-item">
+                        <span class="label">Pet ID</span>
+                        <span class="value" id="pet-id"><i class="fas fa-fingerprint"></i> #1234</span>
+                    </div>
+                    <div class="result-item">
+                        <span class="label">Rarity</span>
+                        <span class="value" id="pet-rarity"><i class="fas fa-gem"></i> Common</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="result-footer">
+                <div class="action-buttons">
+                    <button class="action-btn secondary" id="close-action-btn"><i class="fas fa-times"></i> Close</button>
+                    <button class="action-btn primary" id="view-pet-btn"><i class="fas fa-eye"></i> View Pet</button>
+                </div>
+            </div>
+            
+            <!-- Confetti container -->
+            <div id="confetti-container"></div>
+        </div>
+        
+        <!-- Loading indicator -->
+        <div class="loading-indicator" id="loading-indicator">
+            <div class="loading-spinner"></div>
+            <div id="loading-message">Loading lottery results...</div>
+        </div>
+    </div>
+
+    <!-- Include Web3.js -->
+    <script src="https://cdn.jsdelivr.net/npm/web3@1.8.2/dist/web3.min.js"></script>
+    
+    <!-- Include i18n -->
+    <script src="../../i18n/i18n.js"></script>
+    <script src="../../i18n/locales/zh_tw.js"></script>
+    <script src="../../i18n/locales/en.js"></script>
+    
+    <!-- Include contract ABIs -->
+    <script src="../../scripts/contracts/ABI/NFTManagerABI.js"></script>
+    <script src="../../scripts/contracts/contractAddresses.js"></script>
+    <script src="../../scripts/contracts/NFTManager.js"></script>
+    <script src="../../scripts/init_contracts/initNFTManager.js"></script>
+    
+    <!-- Include lottery result scripts -->
+    <script src="../../scripts/other/lotteryResultParser.js"></script>
+    <script src="../../scripts/other/lotteryResult.js"></script>
+
+    <script>
+        // Notify parent window that iframe is ready to receive data
+        window.addEventListener('DOMContentLoaded', function() {
+            // Hide result container initially until data is loaded
+            const container = document.getElementById('lottery-container');
+            if (container) {
+                container.style.display = 'none';
+            }
+            
+            // Short delay to ensure all scripts are loaded
+            setTimeout(function() {
+                if (window.parent) {
+                    window.parent.postMessage({ type: 'iframeReady' }, '*');
+                    console.log('Sent iframeReady message to parent');
+                }
+                
+                // Ensure close button is visible
+                const closeBtn = document.getElementById('close-result-btn');
+                if (closeBtn) {
+                    closeBtn.style.display = 'flex';
+                    closeBtn.style.visibility = 'visible';
+                    closeBtn.style.opacity = '1';
+                }
+            }, 300);
+        });
+    </script>
+</body>
+</html> 

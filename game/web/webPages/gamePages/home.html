@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title data-i18n="home.title">PetWorld - Game Mode</title>
+    <!-- Add loading page styles -->
+    <link rel="stylesheet" href="../../css/gamePages/loading.css">
+    <link rel="stylesheet" href="../../css/gamePages/home.css">
+    <link rel="stylesheet" href="../../css/gamePages/modals.css">
+    <!-- Add pet detail popup CSS -->
+    <link rel="stylesheet" href="../../css/other/petDetailPopup.css">
+
+    <!-- Add pet animation CSS -->
+    <link rel="stylesheet" href="../../css/pets/egg.css">
+    <link rel="stylesheet" href="../../css/pets/duck.css">
+    <link rel="stylesheet" href="../../css/pets/chicken.css">
+    <link rel="stylesheet" href="../../css/pets/cat.css">
+    <link rel="stylesheet" href="../../css/pets/white tiger.css">
+    <link rel="stylesheet" href="../../css/pets/unicorn.css">
+    <link rel="stylesheet" href="../../css/pets/dragon.css">
+    <link rel="stylesheet" href="../../css/pets/dog.css">
+    <link rel="stylesheet" href="../../css/pets/black panther.css">
+    <link rel="stylesheet" href="../../css/pets/moonlit wolf.css">
+    <link rel="stylesheet" href="../../css/pets/white lion.css">
+    <!-- Add pet size CSS -->
+    <link rel="stylesheet" href="../../css/pets/petSize.css">
+    <!-- Add general pet animation CSS -->
+    <link rel="stylesheet" href="../../css/other/directionControl.css">
+</head>
+<body>
+    <!-- Loading page -->
+    <div id="loadingContainer">
+        <!-- Use emoji as a logo instead of an image -->
+        <div style="font-size: 64px; margin-bottom: 20px;">
+            🐾 🐱 🐶
+        </div>
+        <h1 class="loading-title" data-i18n="loading.title">PetWorld is Loading</h1>
+        <p class="loading-description" data-i18n="loading.description">Getting your pet NFT data, please wait...</p>
+        
+        <!-- Prompts will be dynamically added by JS here -->
+        
+        <!-- Progress bar container -->
+        <div class="loading-progress-container">
+            <div id="loadingProgressBar" class="loading-progress-bar"></div>
+        </div>
+        <div id="loadingProgressText" class="loading-progress-text">0%</div>
+        
+        <!-- Use emoji instead of local images -->
+        <div class="pet-emoji-container">
+            <div class="bubble"></div>
+            <div class="bubble"></div>
+            <div class="bubble"></div>
+            <span id="loadingPetEmoji">🥚</span>
+        </div>
+    </div>
+
+    <!-- Game content container -->
+    <div id="gameContainer" class="game-container">
+        <!-- Game top information bar -->
+        <header class="game-header">
+            <!-- Left side game title and back button -->
+            <div class="header-left">
+                <a href="../../index.html" class="back-btn">
+                    <span class="back-icon">&#8592;</span>
+                    <span data-i18n="button.back">Back</span>
+                </a>
+                <h1 class="game-title" data-i18n="game.title">PetWorld</h1>
+            </div>
+            
+            <!-- Right side resources and wallet information -->
+            <div class="header-right">
+                <!-- Game currency and diamond resources -->
+                <div class="game-resources">
+                    <!-- PwPoint token -->
+                    <div class="resource">
+                        <span class="resource-icon">🌟</span>
+                        <div class="resource-info">
+                            <span class="resource-label">PWP</span>
+                            <span class="resource-amount" id="pwPointBalance">0</span>
+                        </div>
+                    </div>
+                    
+                    <!-- PwBounty token -->
+                    <div class="resource">
+                        <span class="resource-icon">🪙</span>
+                        <div class="resource-info">
+                            <span class="resource-label">PWBOT</span>
+                            <span class="resource-amount" id="pwBountyBalance">0</span>
+                        </div>
+                    </div>
+                    
+                    <!-- PwFood token -->
+                    <div class="resource">
+                        <span class="resource-icon">🍗</span>
+                        <div class="resource-info">
+                            <span class="resource-label">PWFOOD</span>
+                            <span class="resource-amount" id="pwFoodBalance">0</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Wallet information -->
+                <div class="wallet-info">
+                    <span id="walletAddress" data-i18n="wallet.noWallet">No Wallet Connected</span>
+                    <button id="connectWalletBtn" class="wallet-btn" data-i18n="wallet.connect">Connect Wallet</button>
+                </div>
+            </div>
+        </header>
+        
+        <!-- Main farm area of the game -->
+        <main class="farm-container">
+            <!-- Farm background and animal area -->
+            <div class="farm-background">
+                <!-- This is where dynamic farm animals will be generated -->
+                <div class="farm-animals" id="farm-animals-container">
+                    <!-- All animals will be dynamically generated by JS -->
+                </div>
+            </div>
+            
+            <!-- Game bottom action bar -->
+            <div class="game-bottom-bar">
+                <div class="bottom-nav">
+                    <div class="nav-item" data-modal="shop">
+                        <div class="nav-icon">🛍️</div>
+                        <span class="nav-text" data-i18n="navigation.shop">Shop</span>
+                    </div>
+                    <div class="nav-item" data-modal="pets">
+                        <div class="nav-icon">🐾</div>
+                        <span class="nav-text" data-i18n="navigation.pets">Pets</span>
+                    </div>
+                    <div class="nav-item" data-modal="market">
+                        <div class="nav-icon">🛒</div>
+                        <span class="nav-text" data-i18n="navigation.market">Market</span>
+                    </div>
+                    <div class="nav-item" id="moreButton">
+                        <div class="nav-icon">⋮</div>
+                        <span class="nav-text" data-i18n="navigation.more">More</span>
+                    </div>
+                </div>
+            </div>
+        </main>
+        
+        <!-- Modal container -->
+        <div class="modal-container" id="modalContainer">
+            <!-- Shop modal -->
+            <div class="game-modal" id="shop-modal">
+                <div class="modal-header">
+                    <h2 data-i18n="shop.title">Shop</h2>
+                    <button class="close-modal">&times;</button>
+                </div>
+                <div class="modal-content">
+                    <iframe class="modal-iframe" id="shop-iframe" src="" frameborder="0"></iframe>
+                </div>
+            </div>
+            
+            <!-- Pets modal -->
+            <div class="game-modal" id="pets-modal">
+                <div class="modal-header">
+                    <h2 data-i18n="pets.title">Pets</h2>
+                    <button class="close-modal">&times;</button>
+                </div>
+                <div class="modal-content">
+                    <iframe class="modal-iframe" id="pets-iframe" src="" frameborder="0"></iframe>
+                </div>
+            </div>
+            
+            <!-- Market modal -->
+            <div class="game-modal" id="market-modal">
+                <div class="modal-header">
+                    <h2 data-i18n="market.title">Market</h2>
+                    <button class="close-modal">&times;</button>
+                </div>
+                <div class="modal-content">
+                    <iframe class="modal-iframe" id="market-iframe" src="" frameborder="0"></iframe>
+                </div>
+            </div>
+            
+            <!-- Settings modal -->
+            <div class="game-modal" id="settings-modal">
+                <div class="modal-header">
+                    <h2 data-i18n="settings.title">Settings</h2>
+                    <button class="close-modal">&times;</button>
+                </div>
+                <div class="modal-content">
+                    <iframe class="modal-iframe" id="settings-iframe" src="" frameborder="0"></iframe>
+                </div>
+            </div>
+            
+            <!-- Stablecoin staking modal -->
+            <div class="game-modal" id="stableStaking-modal">
+                <div class="modal-header">
+                    <h2 data-i18n="stableStaking.title">Stablecoin Staking</h2>
+                    <button class="close-modal">&times;</button>
+                </div>
+                <div class="modal-content">
+                    <iframe class="modal-iframe" id="stableStaking-iframe" src="" frameborder="0"></iframe>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Wallet connection iframe -->
+        <iframe id="walletFrame" src="../../webPages/wallets/wallets.html" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; border: none; z-index: 1000;"></iframe>
+    </div>
+    
+    <!-- Include related scripts -->
+    <!-- Add script to disable source map loading -->
+    <script>
+        // Disable source map loading
+        window.process = { env: { NODE_DEBUG: false } };
+        window.global = window;
+    </script>
+    <script src="../../i18n/i18n.js"></script>
+    <script src="../../i18n/locales/zh_tw.js"></script>
+    <script src="../../i18n/locales/en.js"></script>
+    <script src="../../i18n/locales/es.js"></script>
+    <script src="../../i18n/locales/ko.js"></script>
+    <script src="../../i18n/locales/ja.js"></script>
+    <!-- Add Web3.js reference -->
+    <script src="https://cdn.jsdelivr.net/npm/web3@1.8.2/dist/web3.min.js"></script>
+    
+    <!-- Add contract address script -->
+    <script src="../../scripts/contracts/contractAddresses.js"></script>
+    
+    <!-- Add contract ABIs -->
+    <script src="../../scripts/contracts/ABI/GENERIC_ERC20_ABI.js"></script>
+    <script src="../../scripts/contracts/ABI/PwPointABI.js"></script>
+    <script src="../../scripts/contracts/ABI/PwBountyABI.js"></script>
+    <script src="../../scripts/contracts/ABI/PwFoodABI.js"></script>
+    <script src="../../scripts/contracts/ABI/PetWorldABI.js"></script>
+    <script src="../../scripts/contracts/ABI/PetWorldManagerABI.js"></script>
+    <script src="../../scripts/contracts/ABI/NFTManagerABI.js"></script>
+    <script src="../../scripts/contracts/ABI/PwNFTABI.js"></script>
+    <script src="../../scripts/contracts/ABI/PwFoodManagerABI.js"></script>
+    <script src="../../scripts/contracts/ABI/PaymentManagerABI.js"></script>
+    <script src="../../scripts/contracts/ABI/NFTFeedingManagerABI.js"></script>
+    
+    <!-- Add contract initialization scripts -->
+    <script src="../../scripts/init_contracts/initERC20.js"></script>
+    <script src="../../scripts/init_contracts/initPwPoint.js"></script>
+    <script src="../../scripts/init_contracts/initPwBounty.js"></script>
+    <script src="../../scripts/init_contracts/initPwFood.js"></script>
+    <script src="../../scripts/init_contracts/initPetWorld.js"></script>
+    <script src="../../scripts/init_contracts/initPetWorldManager.js"></script>
+    <script src="../../scripts/init_contracts/initNFTManager.js"></script>
+    <script src="../../scripts/init_contracts/initPwNFT.js"></script>
+    <script src="../../scripts/init_contracts/initPaymentManager.js"></script>
+    <script src="../../scripts/init_contracts/initNFTFeedingManager.js"></script>
+    
+    <!-- Add contract manager -->
+    <script src="../../scripts/init_contracts/contractManager.js"></script>
+    
+    <!-- Add network detection tool -->
+    <script src="../../scripts/other/networkDetector.js"></script>
+    
+    <!-- Add PetNFTService -->
+    <script src="../../scripts/other/petNFTService.js"></script>
+    
+    <!-- Add card component -->
+    <script src="../../scripts/other/petCard.js"></script>
+    
+    <!-- Add modal dialog component -->
+    <script src="../../scripts/other/modalDialog.js"></script>
+    
+    <!-- Add pet detail popup component -->
+    <script src="../../scripts/other/petDetailPopup.js"></script>
+    
+    <!-- Add dropdown menu component -->
+    <script src="../../scripts/components/dropupMenu.js"></script>
+    
+    <!-- Add pet movement manager -->
+    <script src="../../scripts/functionPackages/petMovement.js"></script>
+    
+    <!-- Add pet shadow system -->
+    <script src="../../scripts/functionPackages/petShadow.js"></script>
+    
+    <!-- Add sprite atlas helper -->
+    <script src="../../scripts/functionPackages/spriteAtlasHelper.js"></script>
+    
+    <!-- Add general pet animation and logic -->
+    <script src="../../scripts/functionPackages/directionControl.js"></script>
+    <script src="../../scripts/functionPackages/PetAnimationBase.js"></script>
+    
+    <!-- Add pet size manager -->
+    <script src="../../scripts/other/petSizeManager.js"></script>
+    
+    <!-- Add pet Z-Index manager -->
+    <script src="../../scripts/functionPackages/petZIndexManager.js"></script>
+    
+    <!-- Add pet animations and logic -->
+    <script src="../../scripts/pets/egg.js"></script>
+    <script src="../../scripts/pets/duck.js"></script>
+    <script src="../../scripts/pets/chicken.js"></script>
+    <script src="../../scripts/pets/cat.js"></script>
+    <script src="../../scripts/pets/white tiger.js"></script>
+    <script src="../../scripts/pets/unicorn.js"></script>
+    <script src="../../scripts/pets/dragon.js"></script>
+    <script src="../../scripts/pets/dog.js"></script>
+    <script src="../../scripts/pets/black panther.js"></script>
+    <script src="../../scripts/pets/moonlit wolf.js"></script>
+    <script src="../../scripts/pets/white lion.js"></script>
+    
+    <!-- Add loading page script -->
+    <script src="../../scripts/gamePages/loading.js"></script>
+    <!-- Home script must be included after loading scripts -->
+    <script src="../../scripts/gamePages/home.js"></script>
+</body>
+</html> 

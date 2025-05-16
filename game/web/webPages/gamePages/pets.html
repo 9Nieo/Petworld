@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title data-i18n="pets.title">Pets - PetWorld</title>
+    <link rel="stylesheet" href="../../css/gamePages/modals.css">
+    <link rel="stylesheet" href="../../css/gamePages/pets.css">
+    <link rel="stylesheet" href="../../css/other/gamePetCard.css">
+    <style>
+        /* Pet page specific styles */
+        .pets-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .pets-actions {
+            display: flex;
+            gap: 10px;
+        }
+        
+        /* Batch action buttons styles */
+        .batch-actions {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .action-btn {
+            padding: 8px 16px;
+            border-radius: 4px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            border: none;
+            transition: all 0.2s ease;
+        }
+        
+        .feed-btn {
+            background-color: #5cb85c;
+            color: white;
+        }
+        
+        .feed-btn:hover {
+            background-color: #4cae4c;
+            box-shadow: 0 2px 6px rgba(92, 184, 92, 0.3);
+        }
+        
+        .claim-btn {
+            background-color: #f0ad4e;
+            color: white;
+        }
+        
+        .claim-btn:hover {
+            background-color: #eea236;
+            box-shadow: 0 2px 6px rgba(240, 173, 78, 0.3);
+        }
+        
+        .adopt-pet-btn {
+            background-color: #4d7bef;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 8px 16px;
+            font-size: 0.9rem;
+            cursor: pointer;
+        }
+        
+        .sort-select {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        
+        .pet-rarity {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            font-weight: bold;
+            color: white;
+        }
+        
+        .legendary {
+            background-color: #FF9800;
+        }
+        
+        .rare {
+            background-color: #03A9F4;
+        }
+        
+        .uncommon {
+            background-color: #4CAF50;
+        }
+        
+        .common {
+            background-color: #9E9E9E;
+        }
+        
+        .pet-level {
+            font-size: 0.85rem;
+            color: #666;
+            margin-bottom: 10px;
+        }
+        
+        /* Loading indicator styles */
+        .loading-indicator {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 200px;
+            width: 100%;
+            grid-column: span 3;
+        }
+        
+        .loading-indicator .spinner {
+            width: 50px;
+            height: 50px;
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid #3498db;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        /* No pets message styles */
+        .no-pets-message {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 30px;
+            background-color: rgba(255, 255, 255, 0.9);
+            border-radius: 10px;
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            grid-column: span 3;
+            margin: 20px auto;
+            max-width: 400px;
+        }
+        
+        .no-pets-message img {
+            width: 120px;
+            height: 120px;
+            margin-bottom: 20px;
+            object-fit: contain;
+        }
+        
+        .no-pets-message h3 {
+            font-size: 1.5rem;
+            margin-bottom: 10px;
+            color: #333;
+        }
+        
+        .no-pets-message p {
+            font-size: 1rem;
+            color: #666;
+            margin-bottom: 20px;
+        }
+        
+        .adopt-pet-btn-large,
+        .connect-wallet-btn-large {
+            background-color: #4d7bef;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 12px 24px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        
+        .adopt-pet-btn-large:hover,
+        .connect-wallet-btn-large:hover {
+            background-color: #3a68d8;
+        }
+        
+        /* Pagination control styles */
+        .pagination-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-top: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .pagination {
+            display: flex;
+            gap: 5px;
+            align-items: center;
+        }
+        
+        .page-item {
+            display: inline-block;
+        }
+        
+        .page-link {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 36px;
+            height: 36px;
+            padding: 0 5px;
+            background-color: #fff;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            color: #4d7bef;
+            text-decoration: none;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .page-link:hover {
+            background-color: #f0f4ff;
+            border-color: #4d7bef;
+        }
+        
+        .page-item.active .page-link {
+            background-color: #4d7bef;
+            border-color: #4d7bef;
+            color: white;
+        }
+        
+        .page-item.disabled .page-link {
+            background-color: #f5f5f5;
+            border-color: #ddd;
+            color: #aaa;
+            cursor: default;
+        }
+        
+        .page-info {
+            margin: 0 15px;
+            font-size: 0.9rem;
+            color: #666;
+        }
+        
+        .page-size-select {
+            padding: 5px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-left: 10px;
+            font-size: 0.9rem;
+        }
+        
+        /* Responsive adaptation */
+        @media (max-width: 992px) {
+            .pets-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+        
+        @media (max-width: 576px) {
+            .pets-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .pets-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 15px;
+            }
+            
+            .batch-actions, .pets-actions {
+                width: 100%;
+                flex-wrap: wrap;
+            }
+            
+            .action-btn, .adopt-pet-btn, .sort-select {
+                flex: 1;
+                min-width: 120px;
+                text-align: center;
+            }
+        }
+        
+        /* Game message notification styles */
+        .game-message {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 12px 16px;
+            border-radius: 6px;
+            font-size: 0.95rem;
+            color: white;
+            max-width: 300px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            z-index: 9999;
+            opacity: 0;
+            transform: translateY(-20px);
+            transition: opacity 0.3s, transform 0.3s;
+        }
+        
+        .game-message.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        
+        .game-message.info {
+            background-color: #2196F3;
+        }
+        
+        .game-message.success {
+            background-color: #4CAF50;
+        }
+        
+        .game-message.warning {
+            background-color: #FF9800;
+        }
+        
+        .game-message.error {
+            background-color: #F44336;
+        }
+    </style>
+</head>
+<body>
+    <!-- The pet content displayed in the modal -->
+    <div class="pets-container" id="pets-content">
+        <div class="pets-header">
+            <div class="batch-actions">
+                <button id="feedAllPetsBtn" class="action-btn feed-btn" data-i18n="pets.feedAll">Feed All Pets</button>
+                <button id="claimAllRewardsBtn" class="action-btn claim-btn" data-i18n="pets.claimAll">Claim All Rewards</button>
+            </div>
+            <div class="pets-actions">
+                <button id="feedFriendNFTBtn" class="action-btn feed-friend-btn" data-i18n="pets.feedFriend">Feed Friend's NFT</button>
+            </div>
+        </div>
+        
+        <div class="pets-grid">
+            <!-- The pet cards will be generated by JavaScript -->
+        </div>
+        
+        <!-- The pagination control -->
+        <div class="pagination-container">
+            <div class="pagination">
+                <span class="page-item disabled">
+                    <a class="page-link" id="prevPageBtn">&laquo;</a>
+                </span>
+                <div id="paginationLinks">
+                    <!-- The page number buttons will be generated by JavaScript -->
+                </div>
+                <span class="page-item disabled">
+                    <a class="page-link" id="nextPageBtn">&raquo;</a>
+                </span>
+            </div>
+            <span class="page-info" id="paginationInfo">1-6 / 6</span>
+            <select class="page-size-select" id="pageSizeSelect">
+                <option value="6" selected>6 / Page</option>
+                <option value="9">9 / Page</option>
+                <option value="12">12 / Page</option>
+                <option value="18">18 / Page</option>
+            </select>
+        </div>
+    </div>
+    
+    <!-- Web3 related libraries and dependencies -->
+    <script src="../../libs/web3.min.js"></script>
+    <script src="../../scripts/contracts/contractAddresses.js"></script>
+    
+    <!-- Contract ABI -->
+    <script src="../../scripts/contracts/ABI/PwNFTABI.js"></script>
+    <script src="../../scripts/contracts/ABI/NFTManagerABI.js"></script>
+    <script src="../../scripts/contracts/ABI/NFTFeedingManagerABI.js"></script>
+    <script src="../../scripts/contracts/ABI/PwPointABI.js"></script>
+    <script src="../../scripts/contracts/ABI/GENERIC_ERC20_ABI.js"></script>
+    
+    <!-- Import the contract approval manager -->
+    <script src="../../scripts/other/ContractApprovalManager.js"></script>
+    
+    <!-- Contract initialization scripts -->
+    <script src="../../scripts/init_contracts/initPwNFT.js"></script>
+    <script src="../../scripts/init_contracts/initNFTManager.js"></script>
+    <script src="../../scripts/init_contracts/initNFTFeedingManager.js"></script>
+    <script src="../../scripts/contracts/NFTFeedingManager.js"></script>
+    
+    <!-- Preload the reward modal related resources -->
+    <link rel="stylesheet" href="../../css/other/rewardClaimModal.css">
+    <script src="../../scripts/other/rewardClaimModal.js"></script>
+    
+    <!-- Import the pet page script -->
+    <script src="../../i18n/i18n.js"></script>
+    <script src="../../i18n/locales/zh_tw.js"></script>
+    <script src="../../i18n/locales/en.js"></script>
+    <script src="../../i18n/locales/es.js"></script>
+    <script src="../../i18n/locales/ko.js"></script>
+    <script src="../../i18n/locales/ja.js"></script>
+    <script src="../../scripts/other/petNFTService.js"></script>
+    <!-- Import the game mode pet card component -->
+    <script src="../../scripts/other/gamePetCard.js"></script>
+    <!-- Import the feed friend NFT dialog -->
+    <script src="../../scripts/other/feedFriendDialog.js"></script>
+    <script src="../../scripts/gamePages/pets.js"></script>
+</body>
+</html> 

@@ -1,0 +1,299 @@
+/* Loading page styles */
+
+/* Loading container */
+#loadingContainer {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: #f9f4ff; /* Softer purple background */
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
+    transition: opacity 0.5s ease;
+    font-family: 'Comic Sans MS', 'Marker Felt', cursive; /* Cuter font */
+}
+
+/* Game logo */
+.loading-logo {
+    margin-bottom: 30px;
+    max-width: 180px;
+    filter: drop-shadow(0 5px 15px rgba(150, 90, 220, 0.3)); /* Add subtle shadow */
+    transform-origin: center;
+    animation: logo-pulse 2s infinite ease-in-out;
+}
+
+@keyframes logo-pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+}
+
+/* Loading title */
+.loading-title {
+    font-size: 28px;
+    font-weight: bold;
+    color: #8a63d2; /* Warmer purple */
+    margin-bottom: 20px;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    letter-spacing: 1px;
+}
+
+/* Loading description */
+.loading-description {
+    font-size: 16px;
+    color: #9d7fc9; /* Color matching title */
+    margin-bottom: 30px;
+    text-align: center;
+    max-width: 400px;
+    line-height: 1.5;
+}
+
+/* Loading hint */
+.loading-tip {
+    margin: 20px 0;
+    color: #a686d7;
+    font-size: 15px;
+    text-align: center;
+    max-width: 400px;
+    min-height: 42px; /* Fixed height to prevent jump when changing hints */
+    opacity: 1;
+    transition: opacity 0.5s ease;
+    font-style: italic;
+    padding: 10px 15px;
+    background-color: rgba(255, 255, 255, 0.6);
+    border-radius: 15px;
+    box-shadow: 0 3px 8px rgba(0,0,0,0.05);
+}
+
+/* Loading progress container */
+.loading-progress-container {
+    width: 80%;
+    max-width: 400px;
+    background-color: rgba(255, 255, 255, 0.7);
+    height: 24px;
+    border-radius: 30px;
+    overflow: hidden;
+    margin-bottom: 10px;
+    box-shadow: 0 3px 8px rgba(0,0,0,0.1);
+    border: 2px solid #e1d3f9;
+    padding: 3px;
+}
+
+/* Loading progress bar */
+.loading-progress-bar {
+    height: 100%;
+    width: 0%; /* Initial width 0% */
+    background: linear-gradient(90deg, #bb7eff, #8248e5);
+    border-radius: 30px;
+    transition: width 0.3s ease;
+    box-shadow: 0 0 10px rgba(138, 99, 210, 0.7);
+    position: relative;
+    overflow: hidden;
+}
+
+.loading-progress-bar::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(
+        90deg,
+        rgba(255,255,255,0) 0%,
+        rgba(255,255,255,0.4) 50%,
+        rgba(255,255,255,0) 100%
+    );
+    animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+}
+
+/* Loading progress text */
+.loading-progress-text {
+    font-size: 14px;
+    color: #8a63d2;
+    margin-top: 8px;
+    font-weight: bold;
+}
+
+/* Pet loading animation */
+.loading-pet-animation {
+    margin-top: 30px;
+    position: relative;
+    width: 120px;
+    height: 120px;
+    filter: drop-shadow(0 5px 15px rgba(150, 90, 220, 0.2));
+}
+
+.loading-pet-animation img {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+/* Loading page disappear animation */
+.fade-out {
+    opacity: 0;
+}
+
+/* Game page appear animation */
+#gameContainer {
+    opacity: 0;
+    transition: opacity 0.5s ease;
+}
+
+#gameContainer.fade-in {
+    opacity: 1;
+}
+
+/* Loop rotation animation */
+.spin-animation {
+    animation: spin 2s linear infinite;
+}
+
+@keyframes spin {
+    0% {
+        transform: rotate(0deg);
+    }
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+/* Jump animation */
+.bounce-animation {
+    animation: bounce 1.5s ease infinite;
+}
+
+@keyframes bounce {
+    0% {
+        transform: translateY(0);
+    }
+    50% {
+        transform: translateY(-20px);
+    }
+    100% {
+        transform: translateY(0);
+    }
+}
+
+/* Pet animation alternative container */
+.pet-emoji-container {
+    font-size: 60px;
+    position: relative;
+    animation: float 3s ease-in-out infinite;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 30px;
+    height: 80px;
+}
+
+@keyframes float {
+    0% { transform: translateY(0px) rotate(0deg); }
+    50% { transform: translateY(-15px) rotate(5deg); }
+    100% { transform: translateY(0px) rotate(0deg); }
+}
+
+/* Decorative bubble */
+.bubble {
+    position: absolute;
+    background-color: rgba(255, 255, 255, 0.7);
+    border-radius: 50%;
+    box-shadow: 0 0 10px rgba(138, 99, 210, 0.3);
+    opacity: 0.7;
+    z-index: -1;
+}
+
+.bubble:nth-child(1) {
+    width: 20px;
+    height: 20px;
+    top: -15px;
+    left: 15px;
+    animation: bubble-float 4s ease-in-out infinite;
+}
+
+.bubble:nth-child(2) {
+    width: 30px;
+    height: 30px;
+    top: 20px;
+    right: -10px;
+    animation: bubble-float 6s ease-in-out infinite 1s;
+}
+
+.bubble:nth-child(3) {
+    width: 15px;
+    height: 15px;
+    bottom: 0;
+    left: 0;
+    animation: bubble-float 5s ease-in-out infinite 0.5s;
+}
+
+@keyframes bubble-float {
+    0% { transform: translateY(0); opacity: 0.7; }
+    50% { transform: translateY(-30px); opacity: 0.3; }
+    100% { transform: translateY(-60px); opacity: 0; }
+}
+
+/* Responsive adjustment */
+@media (max-width: 768px) {
+    .loading-title {
+        font-size: 24px;
+    }
+    
+    .loading-description {
+        font-size: 14px;
+        max-width: 300px;
+    }
+    
+    .loading-tip {
+        font-size: 13px;
+        max-width: 300px;
+    }
+    
+    .loading-progress-container {
+        width: 90%;
+    }
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+    #loadingContainer {
+        background-color: #291f45;
+    }
+    
+    .loading-title {
+        color: #c2a8f3;
+    }
+    
+    .loading-description {
+        color: #b49dea;
+    }
+    
+    .loading-tip {
+        color: #c2a8f3;
+        background-color: rgba(30, 20, 50, 0.6);
+    }
+    
+    .loading-progress-container {
+        background-color: rgba(30, 20, 50, 0.7);
+        border-color: #4a3980;
+    }
+    
+    .loading-progress-bar {
+        background: linear-gradient(90deg, #9d68db, #6b37c5);
+    }
+    
+    .loading-progress-text {
+        color: #c2a8f3;
+    }
+} 

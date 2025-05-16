@@ -1,0 +1,670 @@
+/* Marketplace page styles */
+
+/* Global style reset */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Arial', sans-serif;
+    background-color: #f5f8fa;
+    color: #333;
+    line-height: 1.6;
+}
+
+/* Application container */
+.app-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Application header */
+.app-header {
+    background-color: #ffffff;
+    padding: 15px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+
+.header-left {
+    display: flex;
+    align-items: center;
+}
+
+.back-btn {
+    display: flex;
+    align-items: center;
+    color: #666;
+    text-decoration: none;
+    font-size: 0.9rem;
+    padding: 6px 10px;
+    margin-right: 15px;
+    border-radius: 4px;
+    transition: background-color 0.2s;
+}
+
+.back-btn:hover {
+    background-color: #f1f1f1;
+}
+
+.back-icon {
+    margin-right: 5px;
+}
+
+.app-title {
+    font-size: 1.4rem;
+    font-weight: 600;
+    color: #333;
+}
+
+.wallet-info {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+#walletAddress {
+    font-size: 0.85rem;
+    color: #666;
+    padding: 6px 12px;
+    background-color: #f5f5f5;
+    border-radius: 20px;
+}
+
+.wallet-btn {
+    background-color: #5c6bc0;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 8px 16px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.wallet-btn:hover {
+    background-color: #3f51b5;
+}
+
+.wallet-btn.connected {
+    background-color: #43a047;
+}
+
+.wallet-btn.connected:hover {
+    background-color: #388e3c;
+}
+
+/* Application content */
+.app-content {
+    flex: 1;
+    padding: 20px;
+}
+
+/* Marketplace container */
+.marketplace-container {
+    background-color: white;
+    border-radius: 8px;
+    padding: 25px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+/* Section header */
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+/* Marketplace actions area */
+.market-actions {
+    display: flex;
+    gap: 15px;
+}
+
+/* Button icon styles */
+.btn-icon {
+    margin-right: 8px;
+    font-size: 1.2rem;
+    font-weight: bold;
+}
+
+/* Common action button styles */
+.action-btn {
+    padding: 10px 18px;
+    border: none;
+    border-radius: 6px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* List NFT button - red */
+.list-nft-btn {
+    background-color: #f9807e; /* Red */
+    color: white;
+}
+
+.list-nft-btn:hover {
+    background-color: #d94f4f; /* Dark red */
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(198, 40, 40, 0.3);
+}
+
+.list-nft-btn:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 4px rgba(198, 40, 40, 0.3);
+}
+
+/* Manage listings button - blue */
+.manage-listings-btn {
+    background-color: #60a2e3; /* Blue */
+    color: white;
+}
+
+.manage-listings-btn:hover {
+    background-color: #407cd7; /* Dark blue */
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(25, 118, 210, 0.3);
+}
+
+.manage-listings-btn:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 4px rgba(25, 118, 210, 0.3);
+}
+
+/* Filter tools */
+.filter-tools {
+    display: flex;
+    gap: 10px;
+}
+
+.search-input {
+    padding: 8px 12px;
+    border-radius: 4px;
+    border: 1px solid #ddd;
+    font-size: 0.85rem;
+}
+
+.sort-select {
+    padding: 8px 12px;
+    border-radius: 4px;
+    border: 1px solid #ddd;
+    font-size: 0.85rem;
+    background-color: #fff;
+}
+
+/* Market items list */
+.market-items {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 20px;
+    margin-bottom: 30px;
+}
+
+.market-item {
+    background-color: #f9f9f9;
+    border-radius: 8px;
+    padding: 20px;
+    border: 1px solid #eee;
+    display: flex;
+    flex-direction: column;
+    transition: transform 0.2s, box-shadow 0.2s;
+    position: relative;
+}
+
+.market-item:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+}
+
+.item-image {
+    font-size: 4rem;
+    text-align: center;
+    margin-bottom: 15px;
+}
+
+.item-info {
+    flex: 1;
+    margin-bottom: 15px;
+}
+
+.item-info h4 {
+    font-size: 1.2rem;
+    margin-bottom: 5px;
+    color: #333;
+    text-align: center;
+}
+
+.item-level, .item-price {
+    font-size: 0.9rem;
+    color: #666;
+    margin-bottom: 5px;
+    text-align: center;
+}
+
+.item-price {
+    font-weight: 600;
+    color: #5c6bc0;
+}
+
+.item-description {
+    font-size: 0.85rem;
+    color: #777;
+    text-align: center;
+    margin-top: 10px;
+    line-height: 1.4;
+}
+
+.item-btn {
+    background-color: #5c6bc0;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 8px 0;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    width: 100%;
+}
+
+.item-btn:hover {
+    background-color: #3f51b5;
+}
+
+/* Pagination */
+.pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 15px;
+}
+
+.page-btn {
+    background-color: #f1f1f1;
+    color: #333;
+    border: none;
+    border-radius: 4px;
+    padding: 8px 16px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.page-btn:hover {
+    background-color: #e0e0e0;
+}
+
+.page-info {
+    font-size: 0.85rem;
+    color: #777;
+}
+
+/* Application footer */
+.app-footer {
+    background-color: #f5f5f5;
+    padding: 20px;
+    text-align: center;
+    color: #666;
+    margin-top: 40px;
+    border-top: 1px solid #eee;
+}
+
+.footer-links {
+    margin-top: 10px;
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+}
+
+.footer-links a {
+    color: #5c6bc0;
+    text-decoration: none;
+    font-size: 0.85rem;
+}
+
+.footer-links a:hover {
+    text-decoration: underline;
+}
+
+/* Wallet iframe */
+#walletFrame {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    border: none;
+    z-index: 1000;
+}
+
+/* Address formatting */
+.truncated-address {
+    font-family: monospace;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 130px;
+    display: inline-block;
+}
+
+/* Media queries */
+@media (max-width: 768px) {
+    .market-items {
+        grid-template-columns: 1fr;
+    }
+    
+    .app-header {
+        flex-direction: column;
+        align-items: start;
+    }
+    
+    .wallet-info {
+        margin-top: 15px;
+        width: 100%;
+        justify-content: flex-end;
+    }
+    
+    .section-header {
+        flex-direction: column;
+        align-items: start;
+        gap: 15px;
+    }
+    
+    .market-actions {
+        width: 100%;
+        justify-content: space-between;
+    }
+    
+    .filter-tools {
+        margin-top: 10px;
+        width: 100%;
+        flex-direction: column;
+        gap: 10px;
+    }
+    
+    .search-input, .sort-select {
+        width: 100%;
+    }
+    
+    .pagination {
+        flex-direction: column;
+        gap: 10px;
+    }
+    
+    .page-btn {
+        width: 100%;
+    }
+}
+
+@media (max-width: 480px) {
+    .item-image {
+        font-size: 3rem;
+    }
+}
+
+/* Quality filter tab options */
+.quality-tabs {
+    display: flex;
+    margin-bottom: 20px;
+    overflow-x: auto;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 10px;
+}
+
+.quality-tab {
+    background: none;
+    border: none;
+    padding: 8px 16px;
+    margin-right: 10px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: #777;
+    cursor: pointer;
+    border-radius: 20px;
+    transition: all 0.2s;
+}
+
+.quality-tab:hover {
+    background-color: #f0f2f5;
+    color: #333;
+}
+
+.quality-tab.active {
+    background-color: #5c6bc0;
+    color: white;
+}
+
+/* Quality tag */
+.quality-tag {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    padding: 3px 8px;
+    border-radius: 12px;
+    font-size: 0.7rem;
+    font-weight: bold;
+    color: white;
+}
+
+.quality-tag.good {
+    background-color: #4CAF50;
+}
+
+.quality-tag.excellent {
+    background-color: #2196F3;
+}
+
+.quality-tag.rare {
+    background-color: #9C27B0;
+}
+
+.quality-tag.legendary {
+    background-color: #FF9800;
+}
+
+/* NFT info modal */
+.nft-modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.7);
+    z-index: 1000;
+    overflow: auto;
+}
+
+.nft-modal-content {
+    background-color: white;
+    margin: 50px auto;
+    width: 90%;
+    max-width: 600px;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+    position: relative;
+}
+
+.nft-modal-close {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    font-size: 1.5rem;
+    cursor: pointer;
+    color: #aaa;
+}
+
+.nft-modal-close:hover {
+    color: #333;
+}
+
+.nft-detail-image {
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.nft-detail-image img {
+    max-width: 100%;
+    max-height: 300px;
+    border-radius: 8px;
+}
+
+.nft-details-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 20px;
+}
+
+.nft-details-table tr {
+    border-bottom: 1px solid #eee;
+}
+
+.nft-details-table th {
+    text-align: left;
+    padding: 10px;
+    width: 40%;
+    color: #666;
+}
+
+.nft-details-table td {
+    padding: 10px;
+    color: #333;
+}
+
+.nft-action-buttons {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.nft-action-buttons button {
+    flex: 1;
+    padding: 10px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 500;
+}
+
+.buy-btn {
+    background-color: #5c6bc0;
+    color: white;
+}
+
+.buy-btn:hover {
+    background-color: #3f51b5;
+}
+
+.cancel-btn {
+    background-color: #f1f1f1;
+    color: #333;
+}
+
+.cancel-btn:hover {
+    background-color: #e0e0e0;
+}
+
+/* Loading animation */
+.loading-spinner {
+    display: none;
+    text-align: center;
+    padding: 20px;
+}
+
+.spinner {
+    border: 4px solid rgba(0, 0, 0, 0.1);
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border-left-color: #5c6bc0;
+    animation: spin 1s linear infinite;
+    margin: 0 auto;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Transaction status messages */
+.transaction-status {
+    padding: 10px;
+    margin-top: 10px;
+    border-radius: 4px;
+    display: none;
+}
+
+.status-success {
+    background-color: #e8f5e9;
+    color: #2e7d32;
+    border: 1px solid #c8e6c9;
+}
+
+.status-error {
+    background-color: #ffebee;
+    color: #c62828;
+    border: 1px solid #ffcdd2;
+}
+
+.status-warning {
+    background-color: #fff8e1;
+    color: #f57f17;
+    border: 1px solid #ffecb3;
+}
+
+/* Price tag */
+.token-icon {
+    width: 16px;
+    height: 16px;
+    margin-right: 5px;
+    vertical-align: middle;
+}
+
+/* Styles for no-NFT message */
+.no-items-message {
+    text-align: center;
+    padding: 30px;
+    color: #666;
+    font-style: italic;
+    background-color: #f9f9f9;
+    border-radius: 8px;
+    margin: 20px 0;
+    border: 1px dashed #ddd;
+}
+
+/* Market item image styles */
+.market-item .item-image img {
+    max-width: 100%;
+    max-height: 120px;
+    border-radius: 4px;
+    object-fit: contain;
+}
+
+/* Market item description styles */
+.item-description {
+    font-size: 0.85rem;
+    color: #777;
+    margin: 10px 0;
+    padding: 0 10px;
+    line-height: 1.4;
+    max-height: 60px;
+    overflow: hidden;
+} 

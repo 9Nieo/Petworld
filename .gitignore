@@ -1,0 +1,44 @@
+node_modules
+.env
+.env.enc
+/test
+/scripts
+/temp
+/src
+/src.ts
+.vscode
+.cursor
+/deployments
+/NoTest
+game/web/webPages/simplePages/Hide
+game/web/webPages/gamePages/Hide
+game/web/scripts/gamePages/Hide
+game/web/scripts/simplePages/Hide
+game/web/css/gamePages/Hide
+game/web/css/simplePages/Hide
+game/web/scripts/init_contracts/Hide
+# Contracts files
+contracts/mocks
+hide_contracts
+tge_contracts
+
+# Game files
+game/web/scripts/contracts/ABI/Hide
+game/web/scripts/contracts/Hide
+game/web/scripts/contracts/Test
+
+# Hardhat files
+/cache
+/artifacts
+hardhat.config.js
+
+# TypeChain files
+/typechain
+/typechain-types
+
+# solidity-coverage files
+/coverage
+/coverage.json
+
+# Hardhat Ignition default folder for deployments against a local node
+ignition/deployments/chain-31337

@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title data-i18n="stableStaking.title">Stablecoin Staking - PetWorld</title>
+    <link rel="stylesheet" href="../../css/gamePages/modals.css">
+    <link rel="stylesheet" href="../../css/gamePages/stableStaking.css">
+</head>
+<body>
+    <div class="game-staking-container">
+        <div class="dashboard">
+            <div class="dashboard-header">
+                <h2 data-i18n="stableStaking.title">Stablecoin Staking</h2>
+                <div class="actions">
+                    <button id="refreshBtn" class="action-btn" data-i18n="button.refresh">Refresh</button>
+                </div>
+            </div>
+            
+            <div class="info-card">
+                <p data-i18n="stableStaking.description">Stake your stablecoins to earn PwUSD and PwPoint rewards. Stablecoins are exchanged for PwUSD at a 1:1 ratio, while earning PwPoint rewards based on the staking period.</p>
+            </div>
+            
+            <div class="staking-stats">
+                <div class="stat-card">
+                    <h3 data-i18n="stableStaking.stats.currentCycle">Current Cycle</h3>
+                    <div id="currentCycle" class="stat-value">-</div>
+                    <div id="nextCycleUpdate" class="stat-sub-value"></div>
+                </div>
+                <div class="stat-card">
+                    <h3 data-i18n="stableStaking.stats.rewardRate">Reward (24h)</h3>
+                    <div id="rewardRate" class="stat-value">-</div>
+                </div>
+                <div class="stat-card">
+                    <h3 data-i18n="stableStaking.stats.totalStaked">Total Staked Amount</h3>
+                    <div id="totalStakedAmount" class="stat-value">-</div>
+                </div>
+                <div class="stat-card">
+                    <h3 data-i18n="stableStaking.stats.totalClaimed">Total Claimed PWP</h3>
+                    <div id="totalClaimedPwPoints" class="stat-value">-</div>
+                </div>
+            </div>
+            
+            <div class="tabs">
+                <button class="tab-btn active" data-tab="stake" data-i18n="stableStaking.tabs.stake">Stake</button>
+                <button class="tab-btn" data-tab="withdraw" data-i18n="stableStaking.tabs.withdraw">Withdraw</button>
+            </div>
+            
+            <div class="tab-content">
+                <!-- Staking panel -->
+                <div class="tab-pane active" id="stakePane">
+                    <div class="form-group">
+                        <label for="stableCoinSelect" data-i18n="stableStaking.form.selectStableCoin">Select Stablecoin</label>
+                        <select id="stableCoinSelect" class="form-control">
+                            <option value="" disabled selected data-i18n="stableStaking.form.selectPlaceholder">Please select a stablecoin</option>
+                            <!-- Supported stablecoins will be dynamically added in JS -->
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="stakeAmount" data-i18n="stableStaking.form.stakeAmount">Stake Amount</label>
+                        <div class="input-with-button">
+                            <input type="number" id="stakeAmount" class="form-control" placeholder="0.00" min="0">
+                            <button id="maxStakeBtn" class="secondary-btn" data-i18n="button.max">Max</button>
+                        </div>
+                        <div class="balance-info">
+                            <span data-i18n="stableStaking.form.balance">Balance</span>: <span id="selectedStableCoinBalance">0</span>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <button id="stakeBtn" class="primary-btn" data-i18n="stableStaking.form.stake">Stake</button>
+                    </div>
+                </div>
+                
+                <!-- Withdraw panel -->
+                <div class="tab-pane" id="withdrawPane">
+                    <div class="form-group">
+                        <label for="withdrawStableCoinSelect" data-i18n="stableStaking.form.selectStakedCoin">Select Staked Stablecoin</label>
+                        <select id="withdrawStableCoinSelect" class="form-control">
+                            <option value="" disabled selected data-i18n="stableStaking.form.selectPlaceholder">Please select a stablecoin</option>
+                            <!-- User's staked stablecoins will be dynamically added in JS -->
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="withdrawAmount" data-i18n="stableStaking.form.withdrawAmount">Withdraw Amount</label>
+                        <div class="input-with-button">
+                            <input type="number" id="withdrawAmount" class="form-control" placeholder="0.00" min="0">
+                            <button id="maxWithdrawBtn" class="secondary-btn" data-i18n="button.max">Max</button>
+                        </div>
+                        <div class="balance-info">
+                            <span data-i18n="stableStaking.form.stakedBalance">Staked Balance</span>: <span id="stakedBalance">0</span>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <button id="withdrawBtn" class="primary-btn" data-i18n="stableStaking.form.withdraw">Withdraw</button>
+                    </div>
+                </div>
+                
+                <!-- Rewards panel -->
+                <div class="tab-pane" id="rewardsPane">
+                    <div class="rewards-list">
+                        <div class="rewards-header">
+                            <h3 data-i18n="stableStaking.rewards.yourRewards">Your Rewards</h3>
+                        </div>
+                        
+                        <div class="no-rewards" id="noRewardsMessage" style="display: none;">
+                            <p data-i18n="stableStaking.rewards.noRewards">You have no rewards to claim</p>
+                        </div>
+                        
+                        <div id="rewardsList">
+                            <!-- Rewards list will be dynamically added in JS -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="staking-history">
+            <h2 data-i18n="stableStaking.history.title">Staking History</h2>
+            <div class="history-table">
+                <div class="table-header">
+                    <div class="header-cell" data-i18n="stableStaking.history.stableCoin">Stablecoin</div>
+                    <div class="header-cell" data-i18n="stableStaking.history.amount">Amount</div>
+                    <div class="header-cell" data-i18n="stableStaking.history.lastClaimed">Last Claimed</div>
+                    <div class="header-cell" data-i18n="stableStaking.history.pendingRewards">Pending Rewards</div>
+                    <div class="header-cell" data-i18n="stableStaking.history.actions">Actions</div>
+                </div>
+                <div id="stakingHistoryList">
+                    <div class="no-history" id="noHistoryMessage">
+                        <p data-i18n="stableStaking.history.noHistory">You have no staking records</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Include scripts -->
+    <script>
+        // Disable source map loading
+        window.process = { env: { NODE_DEBUG: false } };
+        window.global = window;
+    </script>
+    <script src="../../i18n/i18n.js"></script>
+    <script src="../../i18n/locales/zh_tw.js"></script>
+    <script src="../../i18n/locales/en.js"></script>
+    <script src="../../i18n/locales/es.js"></script>
+    <script src="../../i18n/locales/ko.js"></script>
+    <script src="../../i18n/locales/ja.js"></script>
+    <!-- Web3.js reference -->
+    <script src="https://cdn.jsdelivr.net/npm/web3@1.8.2/dist/web3.min.js"></script>
+    
+    <!-- Contract address scripts -->
+    <script src="../../scripts/contracts/contractAddresses.js"></script>
+    
+    <!-- Contract ABIs -->
+    <script src="../../scripts/contracts/ABI/GENERIC_ERC20_ABI.js"></script>
+    <script src="../../scripts/contracts/ABI/PwPointABI.js"></script>
+    <script src="../../scripts/contracts/ABI/PwUSDStakingABI.js"></script>
+    <script src="../../scripts/contracts/ABI/PwUSDABI.js"></script>
+    <script src="../../scripts/contracts/ABI/PwPointManagerABI.js"></script>
+    
+    <!-- Contract initialization scripts -->
+    <script src="../../scripts/init_contracts/initERC20.js"></script>
+    <script src="../../scripts/init_contracts/initPwPoint.js"></script>
+    <script src="../../scripts/init_contracts/initPwUSDStaking.js"></script>
+    <script src="../../scripts/init_contracts/initPwPointManager.js"></script>
+    
+    <!-- Contract manager -->
+    <script src="../../scripts/init_contracts/contractManager.js"></script>
+    
+    <!-- Auxiliary scripts -->
+    <script src="../../scripts/other/modalDialog.js"></script>
+    <script src="../../scripts/other/ContractApprovalManager.js"></script>
+    <script src="../../scripts/other/supportedStableCoins.js"></script>
+    
+    <!-- Game mode stablecoin staking script -->
+    <script src="../../scripts/gamePages/stableStaking.js"></script>
+</body>
+</html> 

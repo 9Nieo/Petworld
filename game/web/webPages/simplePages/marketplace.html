@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title data-i18n="navigation.market">PetWorld - Marketplace</title>
+    <link rel="stylesheet" href="../../css/simplePages/marketplace.css">
+    <!-- add wallet header styles -->
+    <link rel="stylesheet" href="../../css/common/walletHeader.css">
+    <!-- add marketplace modal styles -->
+    <link rel="stylesheet" href="../../css/other/marketplace/marketplaceModals.css">
+    <!-- add script to disable source map loading -->
+    <script>
+        // disable source map loading
+        window.process = { env: { NODE_DEBUG: false } };
+        window.global = window;
+    </script>
+    <link rel="stylesheet" href="../../css/other/marketplace/marketItemCard.css">
+    <!-- add transaction history styles -->
+    <link rel="stylesheet" href="../../css/other/marketplace/premiumCardSaleHis.css">
+</head>
+<body>
+    <div class="app-container">
+        <header class="app-header">
+            <div class="header-left">
+                <a href="./home.html" class="back-btn">
+                    <span class="back-icon">&#8592;</span>
+                    <span data-i18n="button.back">back</span>
+                </a>
+                <h1 class="app-title" data-i18n="navigation.market">PetWorld - Marketplace</h1>
+            </div>
+            
+            <div class="wallet-info">
+                <span id="walletAddress" data-i18n="wallet.noWallet">No Wallet Connected</span>
+                <button id="connectWalletBtn" class="wallet-btn" data-i18n="wallet.connect">Connect Wallet</button>
+            </div>
+        </header>
+        
+        <main class="app-content">
+            <div class="marketplace-container">
+                <div class="section-header">
+                    <!-- remove title, directly place buttons -->
+                    <div class="market-actions">
+                        <!-- move list NFT and manage buttons to title position, and add icons -->
+                        <button id="listNFTBtn" class="action-btn list-nft-btn" data-i18n="market.listNFT">
+                            <span class="btn-icon">&#10010;</span>
+                            List NFT
+                        </button>
+                        <button id="manageListingsBtn" class="action-btn manage-listings-btn" data-i18n="market.manageListings">
+                            <span class="btn-icon">&#8801;</span>
+                            Manage My Listings
+                        </button>
+                        <!-- add transaction history button -->
+                        <button id="viewTransactionHistoryBtn" class="action-btn transaction-history-btn" data-i18n="market.viewTransactionHistory">
+                            <span class="btn-icon">&#128202;</span>
+                            Transaction History
+                        </button>
+                    </div>
+                    <div class="filter-tools">
+                        <input type="text" data-i18n-placeholder="search_marketplace" placeholder="Search for pets..." class="search-input">
+                        <select class="sort-select">
+                            <option value="price-asc" data-i18n="price_low_to_high">Price: Low to High</option>
+                            <option value="price-desc" data-i18n="price_high_to_low">Price: High to Low</option>
+                            <option value="id-desc" data-i18n="id_high_to_low">ID: High to Low</option>
+                            <option value="id-asc" data-i18n="id_low_to_high">ID: Low to High</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <!-- quality category option tabs -->
+                <div class="quality-tabs">
+                    <button class="quality-tab active" data-quality="1" data-i18n="GOOD">GOOD</button>
+                    <button class="quality-tab" data-quality="2" data-i18n="EXCELLENT">EXCELLENT</button>
+                    <button class="quality-tab" data-quality="3" data-i18n="RARE">RARE</button>
+                    <button class="quality-tab" data-quality="4" data-i18n="LEGENDARY">LEGENDARY</button>
+                </div>
+                
+                <!-- loading animation -->
+                <div class="loading-spinner">
+                    <div class="spinner"></div>
+                    <p data-i18n="loading">Loading...</p>
+                </div>
+                
+                <!-- transaction status prompt -->
+                <div class="transaction-status"></div>
+                
+                <!-- market items container -->
+                <div class="market-items">
+                    <!-- items will be generated through JavaScript -->
+                </div>
+                
+                <div class="pagination">
+                    <button class="page-btn" data-i18n="common.previous">Previous</button>
+                    <span class="page-info" data-i18n="common.pageInfo">Page 1 of 1</span>
+                    <button class="page-btn" data-i18n="common.next">Next</button>
+                </div>
+            </div>
+        </main>
+        
+        <footer class="app-footer">
+            <!-- bottom bar content will be generated by CommonFooter component -->
+        </footer>
+    </div>
+    
+    <!-- NFT detail modal -->
+    <div class="nft-modal" id="nftDetailModal">
+        <div class="nft-modal-content">
+            <span class="nft-modal-close">&times;</span>
+            <div class="nft-detail-image">
+                <img id="nftDetailImage" src="" alt="NFT image">
+            </div>
+            <table class="nft-details-table">
+                <tr>
+                    <th data-i18n="nft.tokenId">Token ID</th>
+                    <td id="nftTokenId"></td>
+                </tr>
+                <tr>
+                    <th data-i18n="nft.name">Name</th>
+                    <td id="nftName"></td>
+                </tr>
+                <tr>
+                    <th data-i18n="nft.quality">Quality</th>
+                    <td id="nftQuality"></td>
+                </tr>
+                <tr>
+                    <th data-i18n="nft.level">Level</th>
+                    <td id="nftLevel"></td>
+                </tr>
+                <tr>
+                    <th data-i18n="nft.food">Cumulative Food</th>
+                    <td id="nftFood"></td>
+                </tr>
+                <tr>
+                    <th data-i18n="nft.seller">Seller</th>
+                    <td id="nftSeller"></td>
+                </tr>
+                <tr>
+                    <th data-i18n="nft.price">Price</th>
+                    <td id="nftPrice"></td>
+                </tr>
+                <tr>
+                    <th data-i18n="nft.paymentToken">Payment Token</th>
+                    <td id="nftPaymentToken"></td>
+                </tr>
+                <tr>
+                    <th data-i18n="nft.listTime">List Time</th>
+                    <td id="nftListTime"></td>
+                </tr>
+            </table>
+            <div class="nft-action-buttons">
+                <button class="cancel-btn" data-i18n="button.cancel">Cancel</button>
+                <button class="buy-btn" data-i18n="button.buy">Buy</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- transaction history modal -->
+    <div class="transaction-history-modal" id="transactionHistoryModal">
+        <div class="transaction-history-content">
+            <span class="transaction-history-close">&times;</span>
+            <h2 data-i18n="market.transactionHistoryTitle">Premium Card Transaction History</h2>
+            
+            <!-- transaction history filter options -->
+            <div class="transaction-history-filters">
+                <div class="filter-group">
+                    <label data-i18n="market.sortBy">Sort by:</label>
+                    <select id="transactionSortSelect">
+                        <option value="time" data-i18n="market.sortByTime">Sort by Time</option>
+                        <option value="price" data-i18n="market.sortByPrice">Sort by Price</option>
+                    </select>
+                </div>
+                
+                <div class="filter-group">
+                    <label data-i18n="market.filterByQuality">Filter by Quality:</label>
+                    <select id="transactionQualitySelect">
+                        <option value="all" data-i18n="market.allQualities">All Premium Qualities</option>
+                        <option value="3" data-i18n="RARE">Rare</option>
+                        <option value="4" data-i18n="LEGENDARY">Legendary</option>
+                    </select>
+                </div>
+            </div>
+            
+            <!-- transaction history loading container -->
+            <div class="transaction-history-loading">
+                <div class="spinner"></div>
+                <p data-i18n="loading">Loading...</p>
+            </div>
+            
+            <div class="transaction-history-container">
+                <table class="transaction-table">
+                    <thead>
+                        <tr>
+                            <th data-i18n="nft.tokenId">Token ID</th>
+                            <th data-i18n="nft.quality">Quality</th>
+                            <th data-i18n="nft.level">Level</th>
+                            <th data-i18n="nft.buyer">Buyer</th>
+                            <th data-i18n="nft.price">Price</th>
+                            <th data-i18n="nft.transactionTime">Transaction Time</th>
+                        </tr>
+                    </thead>
+                    <tbody id="transactionHistoryBody">
+                        <!-- transaction records will be generated through JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- transaction history pagination -->
+            <div class="transaction-history-pagination">
+                <button class="th-page-btn" id="thPrevPage" data-i18n="common.previous">Previous</button>
+                <span class="th-page-info" data-i18n="common.pageInfo">Page 1 of 1</span>
+                <button class="th-page-btn" id="thNextPage" data-i18n="common.next">Next</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- wallet connection iframe -->
+    <iframe id="walletFrame" src="../../webPages/wallets/wallets.html" style="display: none;"></iframe>
+    
+    <!-- import Web3.js -->
+    <script src="https://cdn.jsdelivr.net/npm/web3@1.8.2/dist/web3.min.js"></script>
+    
+    <!-- import contract addresses and ABIs -->
+    <script src="../../scripts/contracts/contractAddresses.js"></script>
+    <script src="../../scripts/contracts/ABI/NFTMarketplaceABI.js"></script>
+    <script src="../../scripts/contracts/ABI/RareNFTTransactionIndexerABI.js"></script>
+    <script src="../../scripts/contracts/ABI/GENERIC_ERC20_ABI.js"></script>
+    <script src="../../scripts/contracts/ABI/PwNFTABI.js"></script>
+    <script src="../../scripts/contracts/ABI/NFTManagerABI.js"></script>
+    <script src="../../scripts/contracts/ABI/NFTFeedingManagerABI.js"></script>
+    
+    <!-- import contract initialization scripts -->
+    <script src="../../scripts/init_contracts/initNFTMarketplace.js"></script>
+    <script src="../../scripts/init_contracts/initRareNFTTransactionIndexer.js"></script>
+    <script src="../../scripts/init_contracts/initPwNFT.js"></script>
+    <script src="../../scripts/init_contracts/initNFTManager.js"></script>
+    <script src="../../scripts/init_contracts/initNFTFeedingManager.js"></script>
+    
+    <!-- import NFT service -->
+    <script src="../../scripts/other/petNFTService.js"></script>
+    
+    <!-- import contract authorization management scripts -->
+    <script src="../../scripts/other/ContractApprovalManager.js"></script>
+    
+    <!-- import i18n scripts -->
+    <script src="../../i18n/i18n.js"></script>
+    <script src="../../i18n/locales/zh_tw.js"></script>
+    <script src="../../i18n/locales/en.js"></script>
+    <script src="../../i18n/locales/es.js"></script>
+    <script src="../../i18n/locales/ko.js"></script>
+    <script src="../../i18n/locales/ja.js"></script>
+    <!-- import wallet header scripts -->
+    <script src="../../scripts/common/walletHeader.js"></script>
+    
+    <!-- import common footer scripts -->
+    <script src="../../scripts/common/footer.js"></script>
+    
+    <!-- import NFT listing and management modal scripts -->
+    <script src="../../scripts/other/marketplace/listNFTModal.js"></script>
+    <script src="../../scripts/other/marketplace/manageListingsModal.js"></script>
+
+    
+    <!-- import marketItemCard.js -->
+    <script src="../../scripts/other/marketplace/marketItemCard.js"></script>
+    <!-- import supportedMarketTokens.js -->
+    <script src="../../scripts/other/marketplace/supportedMarketTokens.js"></script>
+    
+    <!-- import premiumCardSaleHis.js -->
+    <script src="../../scripts/other/marketplace/premiumCardSaleHis.js"></script>
+    
+    <!-- marketplace page scripts -->
+    <script src="../../scripts/simplePages/marketplace.js"></script>
+</body>
+</html> 

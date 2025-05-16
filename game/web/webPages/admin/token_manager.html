@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Token Manager - PetWorld</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #4caf50;
+            margin-top: 0;
+        }
+        .section {
+            margin-bottom: 30px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input, select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        button {
+            background-color: #4caf50;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        button:hover {
+            background-color: #3d8b40;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        th, td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background-color: #f5f5f5;
+        }
+        .token-icon {
+            width: 24px;
+            height: 24px;
+            vertical-align: middle;
+            margin-right: 5px;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            display: none;
+        }
+        .success {
+            background-color: #e8f5e9;
+            color: #4caf50;
+            display: block;
+        }
+        .error {
+            background-color: #ffebee;
+            color: #f44336;
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Token Manager</h1>
+        
+        <div class="section">
+            <h2>Current Supported Tokens</h2>
+            <table id="tokens-table">
+                <thead>
+                    <tr>
+                        <th>Icon</th>
+                        <th>Name</th>
+                        <th>ID</th>
+                        <th>Contract Address</th>
+                        <th>Decimals</th>
+                        <th>Default</th>
+                    </tr>
+                </thead>
+                <tbody id="tokens-body">
+                    <!-- Will be dynamically filled by JS -->
+                </tbody>
+            </table>
+        </div>
+        
+        <div class="section">
+            <h2>Add New Token</h2>
+            <div id="status-message" class="status"></div>
+            
+            <form id="add-token-form">
+                <div class="form-group">
+                    <label for="token-id">Token ID</label>
+                    <input type="text" id="token-id" name="token-id" placeholder="e.g.: USDT, USDC" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="token-name">Token Name</label>
+                    <input type="text" id="token-name" name="token-name" placeholder="e.g.: Tether USD, USD Coin" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="token-address">Contract Address</label>
+                    <input type="text" id="token-address" name="token-address" placeholder="0x..." required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="token-icon">Icon URL</label>
+                    <input type="text" id="token-icon" name="token-icon" placeholder="../../resources/images/icons/usdt-coin.png">
+                </div>
+                
+                <div class="form-group">
+                    <label for="token-decimals">Token Decimals</label>
+                    <input type="number" id="token-decimals" name="token-decimals" value="18" min="0" max="18">
+                </div>
+                
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="token-default" name="token-default"> 
+                        Set as Default Payment Token
+                    </label>
+                </div>
+                
+                <button type="submit">Add Token</button>
+            </form>
+        </div>
+        
+        <div class="section">
+            <h2>Usage Instructions</h2>
+            <p>To add a new payment token, please fill out the form above:</p>
+            <ul>
+                <li><strong>Token ID</strong>: The identifier used internally by the system, should be uppercase letters, no spaces</li>
+                <li><strong>Token Name</strong>: The name displayed to users</li>
+                <li><strong>Contract Address</strong>: The contract address of the token on the current network</li>
+                <li><strong>Icon URL</strong>: The path to the token icon, can be a relative path or absolute URL</li>
+                <li><strong>Token Decimals</strong>: The number of decimal places of the token, e.g. ETH is 18, USDT is usually 6</li>
+                <li><strong>Default Payment Token</strong>: If checked, this token will become the default payment option</li>
+            </ul>
+        </div>
+    </div>
+    
+    <!-- Include supported tokens configuration -->
+    <script src="../../scripts/contracts/supportedTokens.js"></script>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // Get DOM elements
+            const tokensBody = document.getElementById('tokens-body');
+            const addTokenForm = document.getElementById('add-token-form');
+            const statusMessage = document.getElementById('status-message');
+            
+            // Initialize
+            init();
+            
+            /**
+             * Initialization function
+             */
+            function init() {
+                // Display currently supported tokens
+                refreshTokensTable();
+                
+                // Bind form submit event
+                addTokenForm.addEventListener('submit', handleFormSubmit);
+            }
+            
+            /**
+             * Refresh tokens table
+             */
+            function refreshTokensTable() {
+                // Clear the table
+                tokensBody.innerHTML = '';
+                
+                // Ensure SUPPORTED_PAYMENT_TOKENS exists
+                if (!window.SUPPORTED_PAYMENT_TOKENS || !Array.isArray(window.SUPPORTED_PAYMENT_TOKENS)) {
+                    showStatus('Unable to load the list of supported tokens', 'error');
+                    return;
+                }
+                
+                // Fill the table
+                window.SUPPORTED_PAYMENT_TOKENS.forEach(token => {
+                    const row = document.createElement('tr');
+                    
+                    row.innerHTML = `
+                        <td><img src="${token.icon}" alt="${token.name}" class="token-icon"></td>
+                        <td>${token.name}</td>
+                        <td>${token.id}</td>
+                        <td>${truncateAddress(token.contractAddress)}</td>
+                        <td>${token.decimals}</td>
+                        <td>${token.isDefault ? '✓' : ''}</td>
+                    `;
+                    
+                    tokensBody.appendChild(row);
+                });
+            }
+            
+            /**
+             * Handle form submission
+             */
+            function handleFormSubmit(event) {
+                event.preventDefault();
+                
+                // Get form data
+                const tokenId = document.getElementById('token-id').value.trim();
+                const tokenName = document.getElementById('token-name').value.trim();
+                const tokenAddress = document.getElementById('token-address').value.trim();
+                const tokenIcon = document.getElementById('token-icon').value.trim();
+                const tokenDecimals = parseInt(document.getElementById('token-decimals').value);
+                const isDefault = document.getElementById('token-default').checked;
+                
+                // Validate data
+                if (!tokenId || !tokenName || !tokenAddress) {
+                    showStatus('Please fill in all required fields', 'error');
+                    return;
+                }
+                
+                // Validate contract address format
+                if (!tokenAddress.startsWith('0x') || tokenAddress.length !== 42) {
+                    showStatus('Invalid contract address format', 'error');
+                    return;
+                }
+                
+                // Construct token information object
+                const tokenInfo = {
+                    id: tokenId,
+                    name: tokenName,
+                    contractAddress: tokenAddress,
+                    icon: tokenIcon || '../../resources/images/icons/default-coin.png',
+                    decimals: tokenDecimals,
+                    isDefault: isDefault
+                };
+                
+                // Add token
+                try {
+                    if (window.addSupportedToken(tokenInfo)) {
+                        showStatus(`Successfully added token: ${tokenName}`, 'success');
+                        
+                        // Refresh table
+                        refreshTokensTable();
+                        
+                        // Reset form
+                        addTokenForm.reset();
+                    } else {
+                        showStatus('Failed to add token, a token with the same ID may already exist', 'error');
+                    }
+                } catch (error) {
+                    showStatus(`Error adding token: ${error.message}`, 'error');
+                    console.error('Error adding token:', error);
+                }
+            }
+            
+            /**
+             * Show status message
+             */
+            function showStatus(message, type) {
+                statusMessage.textContent = message;
+                statusMessage.className = 'status ' + type;
+                
+                // If it's a success message, automatically hide after 3 seconds
+                if (type === 'success') {
+                    setTimeout(() => {
+                        statusMessage.style.display = 'none';
+                    }, 3000);
+                }
+            }
+            
+            /**
+             * Truncate address display
+             */
+            function truncateAddress(address) {
+                if (!address) return '';
+                if (address.length <= 14) return address;
+                return address.slice(0, 6) + '...' + address.slice(-8);
+            }
+        });
+    </script>
+</body>
+</html> 

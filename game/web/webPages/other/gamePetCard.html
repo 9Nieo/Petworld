@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Game Mode Pet Card Component</title>
+    <link rel="stylesheet" href="../../css/other/gamePetCard.css">
+</head>
+<body>
+    <!-- Game Pet Card Template -->
+    <template id="game-pet-card-template">
+        <div class="game-pet-card">
+            <div class="game-pet-rarity"></div>
+            
+            <div class="game-pet-image">
+                <img src="" alt="" onerror="this.outerHTML='<div style=\'font-size:5rem;text-align:center;\'></div>'">
+            </div>
+            
+            <div class="game-pet-info">
+                <div class="game-pet-header">
+                    <h3></h3>
+                    <div class="game-pet-token-id"></div>
+                </div>
+                
+                <div class="game-pet-stats">
+                    <div class="game-stat-row game-stat-health">
+                        <span class="game-stat-label">Hunger Level</span>
+                        <div class="game-stat-bar">
+                            <div class="game-stat-value" style="width: 0%"></div>
+                        </div>
+                        <span class="game-stat-number">0/0h</span>
+                    </div>
+                </div>
+                
+                <div class="game-pet-rewards">
+                    <div class="rewards-title">Hourly Rewards:</div>
+                    <div class="rewards-detail">
+                        <span class="pwpot-reward">0 PWPOT</span>
+                        <span class="pwbot-reward">0 PWBOT</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="game-pet-actions">
+                <button class="game-pet-action-btn feed-btn" data-action="feed">Feed</button>
+                <button class="game-pet-action-btn claim-btn" data-action="claim">Claim Reward</button>
+            </div>
+        </div>
+    </template>
+    
+    <!-- Include Card Script -->
+    <script src="../../scripts/other/gamePetCard.js"></script>
+</body>
+</html> 

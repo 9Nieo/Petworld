@@ -1,0 +1,861 @@
+/* Standard mode shop page styles */
+
+/* Global style reset */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Arial', sans-serif;
+    background-color: #f5f8fa;
+    color: #333;
+    line-height: 1.6;
+}
+
+/* Application container */
+.app-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Application header */
+.app-header {
+    background-color: #ffffff;
+    padding: 15px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+
+.header-left {
+    display: flex;
+    align-items: center;
+}
+
+.back-btn {
+    display: flex;
+    align-items: center;
+    color: #666;
+    text-decoration: none;
+    font-size: 0.9rem;
+    padding: 6px 10px;
+    margin-right: 15px;
+    border-radius: 4px;
+    transition: background-color 0.2s;
+}
+
+.back-btn:hover {
+    background-color: #f1f1f1;
+}
+
+.back-icon {
+    margin-right: 5px;
+}
+
+.app-title {
+    font-size: 1.4rem;
+    font-weight: 600;
+    color: #333;
+}
+
+.wallet-info {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+#walletAddress {
+    font-size: 0.85rem;
+    color: #666;
+    padding: 6px 12px;
+    background-color: #f5f5f5;
+    border-radius: 20px;
+}
+
+.wallet-btn {
+    background-color: #5c6bc0;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 8px 16px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.wallet-btn:hover {
+    background-color: #3f51b5;
+}
+
+.wallet-btn.connected {
+    background-color: #43a047;
+}
+
+.wallet-btn.connected:hover {
+    background-color: #388e3c;
+}
+
+/* Application content */
+.app-content {
+    flex: 1;
+    padding: 20px;
+}
+
+/* Shop container */
+.shop-container {
+    background-color: white;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 30px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 10px;
+}
+
+.section-header h2 {
+    font-size: 1.5rem;
+    color: #333;
+    font-weight: 600;
+}
+
+.actions {
+    display: flex;
+    gap: 10px;
+}
+
+.action-btn {
+    background-color: #f5f5f5;
+    color: #333;
+    border: none;
+    border-radius: 4px;
+    padding: 8px 12px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.action-btn:hover {
+    background-color: #e0e0e0;
+}
+
+/* Product grid */
+.shop-items {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 25px;
+}
+
+.shop-item {
+    background-color: #f9f9f9;
+    border-radius: 8px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    border: 1px solid #eee;
+    transition: transform 0.2s, box-shadow 0.2s;
+    position: relative;
+    overflow: hidden;
+}
+
+.shop-item:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+}
+
+.item-tag {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    padding: 5px 10px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: white;
+}
+
+.item-tag.common {
+    background-color: #78909c;
+}
+
+.item-tag.rare {
+    background-color: #8a2be2; /* Purple */
+    color: white;
+}
+
+.item-tag.legendary {
+    background-color: #ffa000;
+}
+
+.item-tag.food {
+    background-color: #66bb6a;
+}
+
+.item-image {
+    text-align: center;
+    margin-bottom: 15px;
+    height: 120px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.item-image img {
+    max-height: 100%;
+    max-width: 100%;
+    object-fit: contain;
+}
+
+.emoji-fallback {
+    font-size: 4rem;
+}
+
+.item-info {
+    flex: 1;
+    margin-bottom: 15px;
+}
+
+.item-info h3 {
+    font-size: 1.1rem;
+    margin-bottom: 8px;
+    color: #333;
+}
+
+.item-description {
+    font-size: 0.85rem;
+    color: #666;
+    margin-bottom: 10px;
+    line-height: 1.4;
+}
+
+.item-price {
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: #5c6bc0;
+    margin-top: auto;
+}
+
+.buy-btn {
+    background-color: #5c6bc0;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 10px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    width: 100%;
+    margin-top: 10px;
+}
+
+.buy-btn:hover {
+    background-color: #3f51b5;
+}
+
+/* Status messages */
+.status-message {
+    margin-top: 20px;
+    padding: 10px;
+    border-radius: 4px;
+    text-align: center;
+    font-weight: bold;
+}
+
+.status-message.info {
+    background-color: #e3f2fd;
+    color: #0d47a1;
+}
+
+.status-message.success {
+    background-color: #e8f5e9;
+    color: #1b5e20;
+}
+
+.status-message.warning {
+    background-color: #fff3e0;
+    color: #e65100;
+}
+
+.status-message.error {
+    background-color: #ffebee;
+    color: #b71c1c;
+}
+
+/* Footer */
+.app-footer {
+    background-color: #f9f9f9;
+    padding: 20px;
+    text-align: center;
+    border-top: 1px solid #eee;
+    margin-top: auto;
+}
+
+.footer-links {
+    margin-top: 10px;
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+}
+
+.footer-links a {
+    color: #666;
+    text-decoration: none;
+    font-size: 0.9rem;
+}
+
+.footer-links a:hover {
+    color: #5c6bc0;
+    text-decoration: underline;
+}
+
+/* Wallet iframe */
+#walletFrame {
+    width: 100%;
+    height: 100%;
+    border: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 1000;
+    display: none;
+}
+
+/* Responsive styles */
+@media (max-width: 768px) {
+    .shop-items {
+        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    }
+    
+    .app-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    
+    .wallet-info {
+        margin-top: 15px;
+        width: 100%;
+        justify-content: space-between;
+    }
+}
+
+@media (max-width: 480px) {
+    .section-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    
+    .actions {
+        margin-top: 10px;
+        width: 100%;
+    }
+    
+    .action-btn {
+        flex: 1;
+        text-align: center;
+    }
+    
+    .shop-items {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Free NFT styles */
+.free-nft-item {
+    position: relative;
+    border: 2px solid #4CAF50 !important;
+    box-shadow: 0 0 15px rgba(76, 175, 80, 0.5);
+    animation: pulse 2s infinite;
+}
+
+.free-nft-item::before {
+    content: '';
+    position: absolute;
+    top: -10px;
+    right: -10px;
+    background: url('../../resources/images/icons/new.png') no-repeat;
+    background-size: contain;
+    width: 50px;
+    height: 50px;
+    z-index: 2;
+}
+
+.item-tag.free {
+    background-color: #4CAF50;
+}
+
+@keyframes pulse {
+    0% {
+        box-shadow: 0 0 10px rgba(76, 175, 80, 0.5);
+    }
+    50% {
+        box-shadow: 0 0 20px rgba(76, 175, 80, 0.8);
+    }
+    100% {
+        box-shadow: 0 0 10px rgba(76, 175, 80, 0.5);
+    }
+}
+
+#free-nft-btn {
+    background-color: #4CAF50;
+}
+
+#free-nft-btn:hover {
+    background-color: #45a049;
+}
+
+/* Claim unclaimed pet button styles */
+#claim-eggs-btn {
+    background-color: #2196F3;
+}
+
+#claim-eggs-btn:hover {
+    background-color: #0b7dda;
+}
+
+/* Claimed styles */
+.claimed-badge {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background-color: #f44336;
+    color: white;
+    padding: 5px 10px;
+    border-radius: 4px;
+    font-weight: bold;
+    z-index: 3;
+    transform: rotate(15deg);
+}
+
+/* Unclaimed eggs count styles */
+.pending-eggs-info {
+    background-color: #f5f5f5;
+    border-radius: 6px;
+    padding: 8px 12px;
+    margin-bottom: 10px;
+    font-size: 0.9rem;
+}
+
+.pending-eggs-count {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 5px;
+}
+
+.pending-rare {
+    color: #03A9F4;
+    font-weight: 500;
+}
+
+.pending-legendary {
+    color: #FF9800;
+    font-weight: 500;
+}
+
+.pending-eggs-total {
+    text-align: center;
+    font-weight: 600;
+    color: #333;
+    border-top: 1px dashed #ccc;
+    padding-top: 5px;
+}
+
+/* Free pet food info styles */
+.free-pwfood-info {
+    background-color: #f5f5f5;
+    border-radius: 6px;
+    padding: 8px 12px;
+    margin-bottom: 10px;
+    font-size: 0.9rem;
+}
+
+.pwfood-reward {
+    color: #66bb6a;
+    font-weight: 500;
+    text-align: center;
+    margin-bottom: 5px;
+}
+
+.next-claim-time {
+    text-align: center;
+    color: #555;
+    font-size: 0.85rem;
+    border-top: 1px dashed #ccc;
+    padding-top: 5px;
+}
+
+/* Add styles for next claim availability state */
+#next-claim-time {
+    font-weight: 500;
+}
+
+/* Adding a new rule for available-now class */
+#next-claim-time.available-now {
+    color: #4caf50;
+    font-weight: bold;
+}
+
+/* Free pet food button colors */
+#free-pwfood-btn {
+    background-color: #66bb6a;
+}
+
+#free-pwfood-btn:hover {
+    background-color: #4caf50;
+}
+
+.already-claimed {
+    opacity: 0.8;
+    border: 1px solid #ddd !important;
+    box-shadow: none !important;
+    animation: none !important;
+}
+
+.nft-required {
+    opacity: 0.8;
+    border: 1px dashed #ffc107 !important;
+    box-shadow: 0 0 10px rgba(255, 193, 7, 0.5) !important;
+    animation: none !important;
+}
+
+.buy-btn.disabled {
+    background-color: #cccccc !important;
+    cursor: not-allowed !important;
+    opacity: 0.7;
+}
+
+.buy-btn.disabled:hover {
+    background-color: #cccccc !important;
+    transform: none !important;
+}
+
+/* Referrer input field styles */
+.inviter-input-container {
+    margin-top: 10px;
+    margin-bottom: 10px;
+    width: 100%;
+}
+
+.inviter-input {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    margin-bottom: 5px;
+}
+
+.inviter-tip {
+    font-size: 0.75rem;
+    color: #888;
+    margin-top: 5px;
+    text-align: center;
+}
+
+/* Food amount input container */
+.food-amount-container {
+    margin: 10px 0;
+    border-top: 1px solid #eee;
+    padding-top: 10px;
+}
+
+.food-amount-container label {
+    display: block;
+    font-size: 0.9rem;
+    margin-bottom: 5px;
+    color: #555;
+}
+
+.food-amount-input {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 0.95rem;
+    background-color: #fff;
+    transition: border-color 0.2s;
+}
+
+.food-amount-input:focus {
+    border-color: #5c6bc0;
+    outline: none;
+}
+
+.food-amount-input::-webkit-inner-spin-button,
+.food-amount-input::-webkit-outer-spin-button {
+    opacity: 1;
+}
+
+.food-amount-tip {
+    font-size: 0.75rem;
+    color: #888;
+    margin-top: 5px;
+}
+
+/* Batch amount input container */
+.batch-amount-container {
+    margin: 10px 0;
+    padding-top: 10px;
+    border-top: 1px solid #eee;
+}
+
+.batch-amount-container label {
+    display: block;
+    font-size: 0.9rem;
+    margin-bottom: 5px;
+    color: #555;
+}
+
+.batch-amount-input {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 0.95rem;
+    background-color: #fff;
+    transition: border-color 0.2s;
+}
+
+.batch-amount-input:focus {
+    border-color: #5c6bc0;
+    outline: none;
+}
+
+.batch-amount-input::-webkit-inner-spin-button,
+.batch-amount-input::-webkit-outer-spin-button {
+    opacity: 1;
+}
+
+.batch-amount-tip {
+    font-size: 0.75rem;
+    color: #888;
+    margin-top: 5px;
+}
+
+.batch-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 8px;
+    font-size: 0.85rem;
+}
+
+.batch-total-price {
+    font-weight: bold;
+    color: #5c6bc0;
+}
+
+/* Lottery result container styles */
+.lottery-result-container {
+    margin-top: 20px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+}
+
+/* Simple alert overlay styles */
+.simple-alert-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 2000;
+}
+
+.simple-alert-box {
+    background-color: white;
+    border-radius: 8px;
+    padding: 20px;
+    min-width: 300px;
+    max-width: 90%;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+    text-align: center;
+}
+
+.simple-alert-box h3 {
+    margin-top: 0;
+    color: #333;
+    font-size: 1.2rem;
+    margin-bottom: 10px;
+}
+
+.simple-alert-box p {
+    margin-bottom: 20px;
+    color: #555;
+    font-size: 1rem;
+    line-height: 1.5;
+}
+
+.simple-alert-button {
+    background-color: #5c6bc0;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 8px 20px;
+    font-size: 0.95rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.simple-alert-button:hover {
+    background-color: #3f51b5;
+}
+
+.simple-alert-button:focus {
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(92, 107, 192, 0.5);
+}
+
+/* Add NFT remaining count styles */
+.nft-remaining-container {
+    display: flex;
+    flex: 1;
+    justify-content: flex-start;
+    align-items: center;
+    gap: 30px;
+    margin: 0;
+    padding: 0;
+}
+
+.remaining-item {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+}
+
+.remaining-label {
+    font-size: 14px;
+    font-weight: 500;
+    color: #555;
+    margin: 0;
+}
+
+.rare-remaining .remaining-count {
+    color: #9c27b0; /* Purple */
+    font-size: 20px;
+    font-weight: bold;
+}
+
+.legendary-remaining .remaining-count {
+    color: #FF9800; /* Orange */
+    font-size: 20px;
+    font-weight: bold;
+}
+
+/* Modify section-header styles to fit new layout */
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 10px;
+}
+
+/* Modify media queries to fit different screen sizes */
+@media (max-width: 768px) {
+    .nft-remaining-container {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 5px;
+    }
+    
+    .section-header {
+        flex-wrap: wrap;
+    }
+    
+    .actions {
+        margin-top: 10px;
+    }
+    
+    .remaining-count {
+        font-size: 18px;
+    }
+}
+
+@media (max-width: 480px) {
+    .section-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    
+    .actions {
+        width: 100%;
+        margin-top: 10px;
+        text-align: right;
+    }
+}
+
+/* Add styles for testing section */
+.testing-section {
+    margin: 20px 0;
+    padding: 15px;
+    background-color: #f8f9fa;
+    border: 2px dashed #dc3545;
+    border-radius: 8px;
+    position: relative;
+}
+
+.test-section-heading {
+    color: #dc3545;
+    font-size: 18px;
+    margin-bottom: 15px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #dee2e6;
+}
+
+.test-buttons {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.test-btn {
+    background-color: #6c757d;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 8px 16px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background-color 0.2s;
+}
+
+.test-btn:hover {
+    background-color: #5a6268;
+}
+
+/* Responsive styles for test section */
+@media (max-width: 600px) {
+    .test-buttons {
+        flex-direction: column;
+    }
+    
+    .test-btn {
+        width: 100%;
+    }
+} 

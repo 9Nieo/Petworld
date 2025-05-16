@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title data-i18n="settings.title">PetWorld - Settings</title>
+    <link rel="stylesheet" href="../../css/simplePages/settings.css">
+    <!-- Add wallet header styles -->
+    <link rel="stylesheet" href="../../css/common/walletHeader.css">
+    <style>
+        /* Message prompt styles */
+        .settings-message {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 4px;
+            z-index: 1000;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            animation: fadeInOut 3s ease;
+        }
+        
+        @keyframes fadeInOut {
+            0% { opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { opacity: 0; }
+        }
+        
+        /* Language option styles */
+        .language-option {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        
+        .language-option input[type="radio"] {
+            margin-right: 10px;
+        }
+        
+        .language-options-container {
+            padding: 10px 0;
+        }
+        
+        /* Display flag icon */
+        .flag {
+            display: inline-block;
+            width: 20px;
+            height: 14px;
+            margin-right: 8px;
+            background-size: contain;
+            background-repeat: no-repeat;
+            background-position: center;
+        }
+        
+        /* Flag icon styles */
+        .flag-en {
+            background-image: url('../../assets/images/flags/en.png');
+        }
+        
+        .flag-zh {
+            background-image: url('../../assets/images/flags/zh_tw.png');
+        }
+        
+        /* Token Import Styles */
+        .token-import-container {
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            margin-top: 10px;
+        }
+        
+        .token-description {
+            margin-bottom: 15px;
+            font-size: 0.9rem;
+            color: #555;
+        }
+        
+        .import-tokens-btn {
+            background-color: #5c6bc0;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 10px 20px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .import-tokens-btn:hover {
+            background-color: #3f51b5;
+        }
+        
+        .import-tokens-btn:disabled {
+            background-color: #b0bec5;
+            cursor: not-allowed;
+        }
+        
+        .import-tokens-btn::before {
+            content: '+';
+            margin-right: 5px;
+            font-size: 1.2rem;
+        }
+        
+        /* Token List Styles */
+        .token-list {
+            margin-top: 10px;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+        
+        .token-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 5px 0;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .token-item:last-child {
+            border-bottom: none;
+        }
+        
+        .token-name {
+            font-weight: 500;
+        }
+        
+        .token-address {
+            font-size: 0.8rem;
+            color: #888;
+            font-family: monospace;
+        }
+        
+        /* Token status styles */
+        .token-status-container {
+            margin-top: 15px;
+            border-top: 1px solid #eee;
+            padding-top: 15px;
+        }
+        
+        .token-status-title {
+            font-size: 1rem;
+            margin-bottom: 10px;
+            color: #333;
+        }
+        
+        .token-status-list {
+            max-height: 200px;
+            overflow-y: auto;
+            background-color: #f9f9f9;
+            border-radius: 4px;
+            padding: 10px;
+        }
+        
+        .token-status-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 6px 0;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .token-status-item:last-child {
+            border-bottom: none;
+        }
+        
+        .token-info {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .token-name {
+            font-weight: 500;
+            font-size: 0.9rem;
+        }
+        
+        .token-address-short {
+            font-size: 0.75rem;
+            color: #888;
+            font-family: monospace;
+        }
+        
+        .token-status {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+        
+        .status-deployed {
+            background-color: #e8f5e9;
+            color: #2e7d32;
+        }
+        
+        .status-not-deployed {
+            background-color: #ffebee;
+            color: #c62828;
+        }
+        
+        .status-unknown {
+            background-color: #e0e0e0;
+            color: #616161;
+        }
+        
+        .token-status-loading {
+            text-align: center;
+            padding: 10px;
+            color: #757575;
+            font-style: italic;
+        }
+        
+        .token-network-info {
+            margin-top: 15px;
+            padding-top: 10px;
+            border-top: 1px dashed #ddd;
+            font-size: 0.8rem;
+            color: #757575;
+            text-align: center;
+        }
+    </style>
+    <!-- Disable source map loading script -->
+    <script>
+        // Disable source map loading
+        window.process = { env: { NODE_DEBUG: false } };
+        window.global = window;
+    </script>
+</head>
+<body>
+    <div class="app-container">
+        <header class="app-header">
+            <div class="header-left">
+                <a href="./home.html" class="back-btn">
+                    <span class="back-icon">&#8592;</span>
+                    <span data-i18n="button.back">Back</span>
+                </a>
+                <h1 class="app-title" data-i18n="settings.title">Settings</h1>
+            </div>
+            
+            <div class="wallet-info">
+                <span id="walletAddress" data-i18n="wallet.noWallet">No wallet connected</span>
+                <button id="connectWalletBtn" class="wallet-btn" data-i18n="wallet.connect">Connect Wallet</button>
+            </div>
+        </header>
+        
+        <main class="app-content">
+            <div class="settings-container">
+                <div class="section-header">
+                    <h3 data-i18n="settings.appSettings">Application Settings</h3>
+                </div>
+                
+                <div class="settings-form">
+                    <div class="form-group">
+                        <label data-i18n="settings.audioSettings">Audio Settings</label>
+                        <div class="range-group">
+                            <span class="range-label" data-i18n="settings.backgroundMusic">Background Music</span>
+                            <input type="range" min="0" max="100" value="70" class="range-input" id="musicVolume">
+                            <span class="range-value">70%</span>
+                        </div>
+                        <div class="range-group">
+                            <span class="range-label" data-i18n="settings.soundEffects">Sound Effects</span>
+                            <input type="range" min="0" max="100" value="80" class="range-input" id="soundVolume">
+                            <span class="range-value">80%</span>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label data-i18n="settings.languageSettings">Language Settings</label>
+                        <div class="language-options">
+                            <label>
+                                <input type="radio" name="language" value="en"> English
+                            </label>
+                            <label>
+                                <input type="radio" name="language" value="zh_tw"> 繁體中文
+                            </label>
+                            <label>
+                                <input type="radio" name="language" value="es"> Español
+                            </label>
+                            <label>
+                                <input type="radio" name="language" value="ko"> 한국어
+                            </label>
+                            <label>
+                                <input type="radio" name="language" value="ja"> 日本語
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <!-- Token Import Section -->
+                    <div class="form-group">
+                        <label data-i18n="settings.tokenSettings">Token Settings</label>
+                        <div class="token-import-container">
+                            <p class="token-description" data-i18n="settings.tokenDescription">Import game tokens to your wallet for easy access and transactions.</p>
+                            <button id="importTokensBtn" class="import-tokens-btn" data-i18n="settings.importTokens">Import Game Tokens</button>
+                            
+                            <div class="token-status-container">
+                                <div class="token-status-header" id="toggle-token-status">
+                                    <span data-i18n="settings.tokenStatus">Token Status</span>
+                                    <span class="toggle-icon">▼</span>
+                                </div>
+                                <div id="tokenStatusList" class="token-status-list collapsed">
+                                    <!-- Token status will be dynamically generated in JS -->
+                                    <div class="token-status-loading">
+                                        <span data-i18n="settings.tokenStatusLoading">Loading token status...</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="button-group">
+                        <button class="reset-btn" id="resetSettingsBtn" data-i18n="settings.resetButton">Reset Settings</button>
+                        <button class="settings-btn" id="saveSettingsBtn" data-i18n="settings.saveButton">Save Settings</button>
+                    </div>
+                </div>
+            </div>
+        </main>
+        
+        <footer class="app-footer">
+            <!-- Footer content will be dynamically generated by CommonFooter component -->
+        </footer>
+    </div>
+    
+    <!-- Wallet connection iframe -->
+    <iframe id="walletFrame" src="../../webPages/wallets/wallets.html" style="display: none;"></iframe>
+    
+    <!-- Include Web3.js -->
+    <script src="https://cdn.jsdelivr.net/npm/web3@1.8.2/dist/web3.min.js"></script>
+    
+    <!-- Include contract addresses file -->
+    <script src="../../scripts/contracts/contractAddresses.js"></script>
+    
+    <!-- Include language packs -->
+    <script src="../../i18n/locales/en.js"></script>
+    <script src="../../i18n/locales/zh_tw.js"></script>
+    <script src="../../i18n/locales/es.js"></script>
+    <script src="../../i18n/locales/ko.js"></script>
+    <script src="../../i18n/locales/ja.js"></script>
+    
+    <!-- Include i18n tool -->
+    <script src="../../i18n/i18n.js"></script>
+    
+    <!-- Add wallet header script -->
+    <script src="../../scripts/common/walletHeader.js"></script>
+    
+    <!-- Add common footer script -->
+    <script src="../../scripts/common/footer.js"></script>
+    
+    <!-- Settings page script -->
+    <script src="../../scripts/simplePages/settings.js"></script>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize wallet header
+            window.WalletHeader.init();
+            
+            // Initialize common footer
+            window.CommonFooter.init();
+            
+            // Bind save settings button click event
+            const saveBtn = document.getElementById('saveSettingsBtn');
+            if (saveBtn) {
+                saveBtn.addEventListener('click', function() {
+                    // Get the currently selected language
+                    const selectedLang = document.querySelector('input[name="language"]:checked');
+                    const langValue = selectedLang ? selectedLang.value : 'en';
+                    const fullLocale = langValue === 'zh_tw' ? 'zh-TW' : langValue;
+                    
+                    // Collect audio settings
+                    const musicVolumeInput = document.getElementById('musicVolume');
+                    const soundVolumeInput = document.getElementById('soundVolume');
+                    
+                    const settings = {
+                        audio: {
+                            music: musicVolumeInput.value,
+                            sound: soundVolumeInput.value
+                        },
+                        language: fullLocale
+                    };
+                    
+                    // Save to local storage
+                    localStorage.setItem('userSettings', JSON.stringify(settings));
+                    localStorage.setItem('app_locale', fullLocale);
+                    
+                    // Show success message
+                    showMessage(i18n.t('settings.saved') || 'Settings saved successfully');
+                    
+                    // If the language has changed, apply the new language setting and refresh the page
+                    if (i18n.getCurrentLocale() !== fullLocale) {
+                        i18n.setLocale(fullLocale);
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 1500);
+                    }
+                });
+            }
+            
+            // Bind reset settings button click event
+            const resetBtn = document.getElementById('resetSettingsBtn');
+            if (resetBtn) {
+                resetBtn.addEventListener('click', function() {
+                    // Default settings
+                    const defaultSettings = {
+                        audio: {
+                            music: 70,
+                            sound: 80
+                        },
+                        language: 'en'
+                    };
+                    
+                    // Update UI
+                    const musicVolumeInput = document.getElementById('musicVolume');
+                    const soundVolumeInput = document.getElementById('soundVolume');
+                    
+                    musicVolumeInput.value = defaultSettings.audio.music;
+                    soundVolumeInput.value = defaultSettings.audio.sound;
+                    
+                    // Update language radio button
+                    const langRadio = document.querySelector('input[name="language"][value="en"]');
+                    if (langRadio) {
+                        langRadio.checked = true;
+                    }
+                    
+                    // Save to local storage
+                    localStorage.setItem('userSettings', JSON.stringify(defaultSettings));
+                    localStorage.setItem('app_locale', defaultSettings.language);
+                    
+                    // Show message
+                    showMessage(i18n.t('settings.resetSuccess') || 'Settings reset to defaults');
+                    
+                    // Update slider display values
+                    updateRangeValues();
+                    
+                    // If the current language is not the default language, refresh the page
+                    if (i18n.getCurrentLocale() !== defaultSettings.language) {
+                        i18n.setLocale(defaultSettings.language);
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 1500);
+                    }
+                });
+            }
+            
+            // Initialize and update slider display values
+            function updateRangeValues() {
+                const rangeInputs = document.querySelectorAll('.range-input');
+                rangeInputs.forEach(input => {
+                    const valueDisplay = input.nextElementSibling;
+                    if (valueDisplay && valueDisplay.classList.contains('range-value')) {
+                        valueDisplay.textContent = `${input.value}%`;
+                    }
+                });
+            }
+            
+            // Add event listeners for range sliders
+            const rangeInputs = document.querySelectorAll('.range-input');
+            rangeInputs.forEach(input => {
+                // Initial update display values
+                updateRangeValues();
+                
+                // Listen for slider changes
+                input.addEventListener('input', updateRangeValues);
+            });
+            
+            // Show message function
+            function showMessage(message, type = 'success') {
+                // Create message element
+                const messageEl = document.createElement('div');
+                messageEl.className = `settings-message ${type}`;
+                messageEl.textContent = message;
+                
+                // Add to the page
+                document.body.appendChild(messageEl);
+                
+                // Remove after 3 seconds
+                setTimeout(() => {
+                    document.body.removeChild(messageEl);
+                }, 3000);
+            }
+            
+            // Load saved settings
+            function loadSettings() {
+                const savedSettings = localStorage.getItem('userSettings');
+                
+                if (savedSettings) {
+                    try {
+                        const settings = JSON.parse(savedSettings);
+                        
+                        // Update audio settings
+                        const musicVolumeInput = document.getElementById('musicVolume');
+                        const soundVolumeInput = document.getElementById('soundVolume');
+                        
+                        if (settings.audio) {
+                            if (settings.audio.music !== undefined && musicVolumeInput) {
+                                musicVolumeInput.value = settings.audio.music;
+                            }
+                            
+                            if (settings.audio.sound !== undefined && soundVolumeInput) {
+                                soundVolumeInput.value = settings.audio.sound;
+                            }
+                        }
+                        
+                        // Update slider display values
+                        updateRangeValues();
+                        
+                        // Update language radio button
+                        if (settings.language) {
+                            // Simplify language code, keeping only the main part
+                            const simplifiedLocale = settings.language.split('-')[0];
+                            const radioBtn = document.querySelector(`input[name="language"][value="${simplifiedLocale}"]`);
+                            if (radioBtn) {
+                                radioBtn.checked = true;
+                            }
+                        }
+                    } catch (error) {
+                        console.error('Error loading settings:', error);
+                    }
+                }
+            }
+            
+            // Load settings
+            loadSettings();
+        });
+    </script>
+</body>
+</html> 

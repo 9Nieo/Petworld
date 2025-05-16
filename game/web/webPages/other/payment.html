@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title data-i18n="payment.title">Confirm Payment - PetWorld</title>
+    <link rel="stylesheet" href="../../css/other/payment.css">
+    <!-- Add script to disable source map loading -->
+    <script>
+        // Disable source map loading
+        window.process = { env: { NODE_DEBUG: false } };
+        window.global = window;
+    </script>
+</head>
+<body>
+    <div class="payment-container">
+        <div class="payment-header">
+            <h2 data-i18n="payment.title">Confirm Payment</h2>
+            <span class="close-btn">&times;</span>
+        </div>
+        
+        <!-- Supported payment token information -->
+        <div class="supported-tokens-info">
+            <h3 data-i18n="payment.supportedTokens">Supported Payment Tokens</h3>
+            <div class="token-list" id="supported-tokens-list">
+                <!-- Will be dynamically filled by JS -->
+            </div>
+        </div>
+        
+        <div class="payment-body">
+            <div class="payment-item">
+                <img id="item-image" src="" alt="Item Image">
+                <div class="item-details">
+                    <h3 id="item-name"></h3>
+                    <div class="item-price">
+                        <span id="item-price"></span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="payment-method">
+                <h3 data-i18n="payment.selectToken">Select Payment Token</h3>
+                <select id="token-select">
+                    <!-- Will be dynamically filled by JS -->
+                </select>
+                
+                <div class="token-balance">
+                    <span data-i18n="payment.balance">Balance</span>: <span id="token-balance">0</span>
+                </div>
+            </div>
+            
+            <div class="payment-summary">
+                <div class="summary-row">
+                    <span data-i18n="payment.itemPrice">Item Price</span>
+                    <span id="summary-price"></span>
+                </div>
+                <div class="summary-row">
+                    <span data-i18n="payment.gasFee">Gas Fee (Estimated)</span>
+                    <span id="gas-fee">~0.001 BNB</span>
+                </div>
+                <div class="summary-row total">
+                    <span data-i18n="payment.total">Total</span>
+                    <span id="total-price"></span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="payment-actions">
+            <button id="confirm-btn" class="confirm-btn" data-i18n="payment.confirm">Confirm Payment</button>
+            <button id="cancel-btn" class="cancel-btn" data-i18n="payment.cancel">Cancel</button>
+        </div>
+        
+        <!-- Status message -->
+        <div id="status-message" class="status-message"></div>
+    </div>
+    
+    <!-- Include Web3.js -->
+    <script src="https://cdn.jsdelivr.net/npm/web3@1.8.2/dist/web3.min.js"></script>
+    
+    <!-- Include i18n -->
+    <script src="../../i18n/i18n.js"></script>
+    <script src="../../i18n/locales/zh_tw.js"></script>
+    <script src="../../i18n/locales/en.js"></script>
+    
+    <!-- Include contract addresses and ABIs -->
+    <script src="../../scripts/contracts/contractAddresses.js"></script>
+    
+    <!-- Include PaymentManager ABI -->
+    <script src="../../scripts/contracts/ABI/PaymentManagerABI.js"></script>
+    
+    <!-- Use generic ERC20 ABI instead of individual token ABI -->
+    <script src="../../scripts/contracts/ABI/GENERIC_ERC20_ABI.js"></script>
+    
+    <!-- Include contract initialization scripts -->
+    <script src="../../scripts/init_contracts/initERC20.js"></script>
+    
+    <!-- Include payment token configuration -->
+    <script src="../../scripts/other/supportedTokens.js"></script>
+    
+    <!-- Include TokenBalanceManager -->
+    <script src="../../scripts/wallets/tokenBalanceManager.js"></script>
+    
+    <!-- Include payment page script -->
+    <script src="../../scripts/other/payment.js"></script>
+</body>
+</html> 

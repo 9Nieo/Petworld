@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title data-i18n="navigation.home">PetWorld - Normal Mode</title>
+    <link rel="stylesheet" href="../../css/simplePages/home.css">
+    <!-- Add wallet header styles -->
+    <link rel="stylesheet" href="../../css/common/walletHeader.css">
+</head>
+<body>
+    <div class="app-container">
+        <header class="app-header">
+            <div class="header-left">
+                <a href="../../index.html" class="back-btn">
+                    <span class="back-icon">&#8592;</span>
+                    <span data-i18n="button.back">Back</span>
+                </a>
+                <h1 class="app-title" data-i18n="game.title">PetWorld</h1>
+            </div>
+            
+            <div class="wallet-info">
+                <span id="walletAddress" data-i18n="wallet.noWallet">No Wallet Connected</span>
+                <button id="connectWalletBtn" class="wallet-btn" data-i18n="wallet.connect">Connect Wallet</button>
+            </div>
+        </header>
+        
+        <main class="app-content">
+            <div class="dashboard">
+                <div class="dashboard-header">
+                    <h2 data-i18n="home.myAssets">My Assets</h2>
+                    <div class="actions">
+                        <button class="action-btn" data-i18n="button.refresh">Refresh</button>
+                    </div>
+                </div>
+                
+                <div class="asset-cards">
+                    <div class="asset-card">
+                        <div class="asset-icon">🌟</div>
+                        <div class="asset-info">
+                            <h3 data-i18n="PWP">PWP</h3>
+                            <div class="asset-balance" id="pwPointBalance">0</div>
+                        </div>
+                    </div>
+                    
+                    <div class="asset-card">
+                        <div class="asset-icon">🪙</div>
+                        <div class="asset-info">
+                            <h3 data-i18n="PWB">PWB</h3>
+                            <div class="asset-balance" id="pwBountyBalance">0</div>
+                        </div>
+                    </div>
+                    
+                    <div class="asset-card">
+                        <div class="asset-icon">🍗</div>
+                        <div class="asset-info">
+                            <h3 data-i18n="PWFOOD">PWFOOD</h3>
+                            <div class="asset-balance" id="pwFoodBalance">0</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="navigation-menu">
+                <a href="./shop.html" class="nav-item">
+                    <div class="nav-icon">🛍️</div>
+                    <span class="nav-label" data-i18n="navigation.shop">Shop</span>
+                </a>
+                <a href="./pets.html" class="nav-item">
+                    <div class="nav-icon">🐾</div>
+                    <span class="nav-label" data-i18n="navigation.pets">My Pets</span>
+                </a>
+                <a href="./marketplace.html" class="nav-item">
+                    <div class="nav-icon">🛒</div>
+                    <span class="nav-label" data-i18n="navigation.market">Marketplace</span>
+                </a>
+                <div class="nav-item" id="stableStakingBtn">
+                    <div class="nav-icon">💰</div>
+                    <span class="nav-label" data-i18n="navigation.stableStaking">Stablecoin Staking</span>
+                </div>
+                <div class="nav-item" id="burnBtn">
+                    <div class="nav-icon">🔥</div>
+                    <span class="nav-label" data-i18n="navigation.burn">Burn</span>
+                </div>
+                <div class="nav-item" id="pwStakingBtn">
+                    <div class="nav-icon">⏳</div>
+                    <span class="nav-label" data-i18n="navigation.pwStaking">PW Staking</span>
+                </div>
+                <div class="nav-item" id="reverseBurnBtn">
+                    <div class="nav-icon">♻️</div>
+                    <span class="nav-label" data-i18n="navigation.reverseBurn">Reverse Burn</span>
+                </div>
+                <div class="nav-item" id="exchangeBtn">
+                    <div class="nav-icon">🔄</div>
+                    <span class="nav-label" data-i18n="navigation.exchange">Exchange</span>
+                </div>
+                <a href="./settings.html" class="nav-item">
+                    <div class="nav-icon">⚙️</div>
+                    <span class="nav-label" data-i18n="navigation.settings">Settings</span>
+                </a>
+            </div>
+        </main>
+        
+        <footer class="app-footer">
+            <!-- Footer content will be dynamically generated by CommonFooter component -->
+        </footer>
+    </div>
+    
+    <!-- Wallet connection iframe -->
+    <iframe id="walletFrame" src="../../webPages/wallets/wallets.html" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; border: none; z-index: 1000;"></iframe>
+    
+    <!-- Include scripts -->
+    <!-- Add script to disable source map loading -->
+    <script>
+        // Disable source map loading
+        window.process = { env: { NODE_DEBUG: false } };
+        window.global = window;
+    </script>
+    <script src="../../i18n/i18n.js"></script>
+    <script src="../../i18n/locales/zh_tw.js"></script>
+    <script src="../../i18n/locales/en.js"></script>
+    <script src="../../i18n/locales/es.js"></script>
+    <script src="../../i18n/locales/ko.js"></script>
+    <script src="../../i18n/locales/ja.js"></script>
+    <!-- Add Web3.js reference -->
+    <script src="https://cdn.jsdelivr.net/npm/web3@1.8.2/dist/web3.min.js"></script>
+    
+    <!-- Add contract address script -->
+    <script src="../../scripts/contracts/contractAddresses.js"></script>
+    
+    <!-- Add contract ABIs -->
+    <script src="../../scripts/contracts/ABI/GENERIC_ERC20_ABI.js"></script>
+    <script src="../../scripts/contracts/ABI/PwPointABI.js"></script>
+    <script src="../../scripts/contracts/ABI/PwBountyABI.js"></script>
+    <script src="../../scripts/contracts/ABI/PwFoodABI.js"></script>
+    <script src="../../scripts/contracts/ABI/PetWorldABI.js"></script>
+    <script src="../../scripts/contracts/ABI/PetWorldManagerABI.js"></script>
+    <script src="../../scripts/contracts/ABI/NFTManagerABI.js"></script>
+    <script src="../../scripts/contracts/ABI/PwNFTABI.js"></script>
+    
+    <!-- Add contract initialization scripts -->
+    <script src="../../scripts/init_contracts/initERC20.js"></script>
+    <script src="../../scripts/init_contracts/initPwPoint.js"></script>
+    <script src="../../scripts/init_contracts/initPwBounty.js"></script>
+    <script src="../../scripts/init_contracts/initPwFood.js"></script>
+    <script src="../../scripts/init_contracts/initPetWorld.js"></script>
+    <script src="../../scripts/init_contracts/initPetWorldManager.js"></script>
+    <script src="../../scripts/init_contracts/initNFTManager.js"></script>
+    <script src="../../scripts/init_contracts/initPwNFT.js"></script>
+    <script src="../../scripts/init_contracts/initPwFoodManager.js"></script>
+    <script src="../../scripts/init_contracts/initPaymentManager.js"></script>
+    
+    <!-- Add contract manager -->
+    <script src="../../scripts/init_contracts/contractManager.js"></script>
+    
+    <!-- Add network detection tool -->
+    <script src="../../scripts/other/networkDetector.js"></script>
+    
+    <!-- Add modal dialog component -->
+    <script src="../../scripts/other/modalDialog.js"></script>
+    
+    <!-- Add wallet header script -->
+    <script src="../../scripts/common/walletHeader.js"></script>
+    
+    <!-- Add common footer script -->
+    <script src="../../scripts/common/footer.js"></script>
+    
+    <!-- Home page script -->
+    <script src="../../scripts/simplePages/home.js"></script>
+    
+    <!-- Initialize wallet header -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize wallet header
+            window.WalletHeader.init();
+            
+            // Initialize common footer
+            window.CommonFooter.init();
+            
+            // Listen for wallet connection event
+            window.addEventListener('wallet.walletConnected', function(event) {
+                console.log('Wallet connected:', event.detail);
+                // Trigger page refresh assets
+                if (typeof refreshAssets === 'function') {
+                    refreshAssets();
+                }
+            });
+            
+            // Listen for wallet disconnection event
+            window.addEventListener('wallet.walletDisconnected', function(event) {
+                console.log('Wallet disconnected');
+                // Reset asset display
+                const balanceElements = document.querySelectorAll('.asset-balance');
+                balanceElements.forEach(elem => {
+                    elem.textContent = '0';
+                });
+            });
+            
+            // Listen for Web3 ready event
+            window.addEventListener('wallet.web3Ready', function(event) {
+                console.log('Web3 is ready:', event.detail);
+                // Initialize contracts and update balances
+                if (typeof initializeContracts === 'function') {
+                    initializeContracts();
+                }
+            });
+        });
+    </script>
+</body>
+</html> 

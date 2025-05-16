@@ -1,0 +1,288 @@
+/* Payment confirmation page styles */
+:root {
+    --primary-color: #4caf50;
+    --secondary-color: #2196f3;
+    --error-color: #f44336;
+    --success-color: #4caf50;
+    --warning-color: #ff9800;
+    --info-color: #2196f3;
+    --text-primary: #333;
+    --text-secondary: #666;
+    --border-color: #ddd;
+    --bg-light: #f9f9f9;
+    --bg-dark: #333;
+}
+
+body {
+    font-family: Arial, sans-serif;
+    background: transparent;
+    color: var(--text-primary);
+    margin: 0;
+    padding: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+}
+
+.payment-container {
+    background: white;
+    border-radius: 10px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    width: 100%;
+    max-width: 500px;
+    overflow: hidden;
+}
+
+.payment-header {
+    background: var(--primary-color);
+    color: white;
+    padding: 15px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.payment-header h2 {
+    margin: 0;
+    font-size: 1.4rem;
+}
+
+.close-btn {
+    cursor: pointer;
+    font-size: 24px;
+    line-height: 1;
+}
+
+.close-btn:hover {
+    color: rgba(255, 255, 255, 0.8);
+}
+
+/* Supported token information */
+.supported-tokens-info {
+    background-color: var(--bg-light);
+    padding: 10px 20px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.supported-tokens-info h3 {
+    margin: 5px 0;
+    font-size: 1rem;
+    color: var(--text-secondary);
+}
+
+.token-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 5px;
+}
+
+.token-item {
+    display: flex;
+    align-items: center;
+    background-color: white;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-size: 0.85rem;
+}
+
+.token-item img {
+    width: 16px;
+    height: 16px;
+    margin-right: 4px;
+}
+
+.payment-body {
+    padding: 20px;
+}
+
+.payment-item {
+    display: flex;
+    align-items: center;
+    margin-bottom: 20px;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 20px;
+}
+
+.payment-item img {
+    width: 80px;
+    height: 80px;
+    object-fit: contain;
+    border-radius: 8px;
+    margin-right: 15px;
+    background-color: var(--bg-light);
+}
+
+.item-details h3 {
+    margin: 0 0 8px 0;
+    font-size: 1.2rem;
+}
+
+.item-price {
+    font-weight: bold;
+    color: var(--primary-color);
+}
+
+.payment-method {
+    margin-bottom: 20px;
+}
+
+.payment-method h3 {
+    margin-top: 0;
+    margin-bottom: 10px;
+    font-size: 1.1rem;
+}
+
+#token-select {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 5px;
+    background-color: white;
+    font-size: 1rem;
+    margin-bottom: 10px;
+}
+
+.token-balance {
+    text-align: right;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+}
+
+.payment-summary {
+    background-color: var(--bg-light);
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+}
+
+.summary-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 8px;
+}
+
+.summary-row.total {
+    margin-top: 15px;
+    padding-top: 10px;
+    border-top: 1px dashed var(--border-color);
+    font-weight: bold;
+    font-size: 1.1rem;
+}
+
+.payment-actions {
+    padding: 15px 20px;
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    background-color: var(--bg-light);
+}
+
+.confirm-btn, .cancel-btn {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 1rem;
+    font-weight: bold;
+    transition: background-color 0.2s;
+}
+
+.confirm-btn {
+    background-color: var(--primary-color);
+    color: white;
+}
+
+.confirm-btn:hover {
+    background-color: #3d8b40;
+}
+
+.cancel-btn {
+    background-color: #f5f5f5;
+    color: var(--text-primary);
+}
+
+.cancel-btn:hover {
+    background-color: #e0e0e0;
+}
+
+.status-message {
+    margin: 10px 20px;
+    padding: 10px;
+    border-radius: 5px;
+    display: none;
+}
+
+.status-message.info {
+    background-color: #e3f2fd;
+    color: var(--info-color);
+    display: block;
+}
+
+.status-message.success {
+    background-color: #e8f5e9;
+    color: var(--success-color);
+    display: block;
+}
+
+.status-message.error {
+    background-color: #ffebee;
+    color: var(--error-color);
+    display: block;
+}
+
+.status-message.warning {
+    background-color: #fff3e0;
+    color: var(--warning-color);
+    display: block;
+}
+
+/* Supported token icons */
+.token-icon {
+    width: 20px;
+    height: 20px;
+    margin-right: 5px;
+    vertical-align: middle;
+}
+
+.token-option {
+    display: flex;
+    align-items: center;
+}
+
+/* Responsive adjustments */
+@media (max-width: 600px) {
+    .payment-container {
+        width: 95%;
+        margin: 0 auto;
+    }
+    
+    .payment-item img {
+        width: 60px;
+        height: 60px;
+    }
+}
+
+/* Disabled state */
+.confirm-btn:disabled {
+    background-color: #b0b0b0;
+    cursor: not-allowed;
+}
+
+/* Loading animation */
+.loading {
+    position: relative;
+}
+
+.loading::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(255, 255, 255, 0.8) url('../../resources/images/loading.gif') no-repeat center;
+    background-size: 40px;
+} 

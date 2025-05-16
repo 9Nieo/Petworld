@@ -1,0 +1,87 @@
+/**
+ * Black Panther Animation Styles
+ */
+
+/* Black Panther NFT element styling */
+.animal.black-panther-nft {
+    transform-style: preserve-3d;
+    position: relative;
+    z-index: 2; 
+    overflow: visible !important;
+}
+
+/* Animation container */
+.black-panther-animation-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 10;
+    pointer-events: none; 
+    overflow: visible;
+    transform-origin: center center;
+}
+
+/* Canvas for Black Panther animation */
+.black-panther-animation-canvas {
+    position: absolute;
+    transform-origin: center center;
+    image-rendering: -webkit-optimize-contrast;
+    image-rendering: crisp-edges;
+    overflow: visible;
+    object-fit: contain;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 100%;
+    height: 100%;
+}
+
+.facing-right .black-panther-animation-container {
+    transform: scaleX(-1);
+}
+
+.facing-right .black-panther-animation-canvas {
+    transform: translate(-50%, -50%) scaleX(-1);
+}
+
+.black-panther-moving.facing-right .black-panther-animation-container {
+    transform: scaleX(-1);
+}
+
+.black-panther-moving.facing-right .black-panther-animation-canvas {
+    transform: translate(-50%, -50%) scaleX(-1);
+}
+
+/* Black Panther shadow styling enhancements */
+.animal.black-panther-nft .pet-shadow {
+    opacity: 0.6 !important;
+    display: block !important;
+    width: 70% !important; 
+    height: 20% !important; 
+    z-index: -10 !important; 
+    bottom: 22px !important;
+    left: 10% !important; 
+    transform: translateZ(-10px); 
+}
+
+.black-panther-nft .black-panther-animation-canvas {
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+    -webkit-perspective: 1000;
+    perspective: 1000;
+}
+
+
+@media screen and (max-width: 768px) {
+    .black-panther-animation-canvas {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+    }
+    
+    .animal.black-panther-nft {
+        overflow: visible !important;
+    }
+} 

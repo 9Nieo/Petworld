@@ -1,0 +1,55 @@
+/**
+ * General animations and direction styles for all pets
+ */
+
+/* Pet direction classes - basic styles */
+.animal {
+    /* Default left orientation, no additional handling needed */
+    transition: transform 0.3s ease;
+}
+
+/* Right-facing orientation needs flipping */
+.animal.facing-right img {
+    transform: scaleX(-1);
+}
+
+/* Ensure NFT pets also flip correctly */
+.nft-animal.facing-right img {
+    transform: scaleX(-1);
+}
+
+/* Styling for moving pets */
+.pet-moving {
+    /* General move animations can be added here, if needed */
+}
+
+/* Ensure correct flipping even when other elements inside image */
+.animal.facing-right .pet-image-container img,
+.animal.facing-right > img {
+    transform: scaleX(-1);
+}
+
+/* Ensure transformations are not applied multiple times */
+.animal.facing-right .egg-animation-container {
+    /* Egg animation container already handles flipping in egg.css */
+    transform: scaleX(-1);
+}
+
+/* Ensure shadow is not flipped */
+.animal.facing-right .pet-shadow {
+    transform: none !important;
+}
+
+/* Basic shadow style */
+.animal .pet-shadow {
+    opacity: 0.6 !important;
+    display: block !important;
+}
+
+/* Responsive adjustments */
+@media screen and (max-width: 768px) {
+    .animal img {
+        max-width: 100%;
+        height: auto;
+    }
+} 

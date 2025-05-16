@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title data-i18n="game.selectMode">PetWorld - Select Mode</title>
+    <link rel="stylesheet" href="css/index.css">
+</head>
+<body>
+    <div class="app-container">
+        <header class="app-header">
+            <div class="logo-container">
+                <img src="resources/images/icons/logo.png" alt="PetWorld Logo" class="logo-icon">
+                <h1 data-i18n="game.title">PetWorld</h1>
+            </div>
+            <div class="wallet-info">
+                <span id="walletAddress" data-i18n="wallet.noWallet">No Wallet Connected</span>
+                <button id="connectWalletBtn" class="wallet-btn" data-i18n="wallet.connect">Connect Wallet</button>
+            </div>
+        </header>
+        
+        <main class="app-content">
+            <div class="welcome-section">
+                <h2 data-i18n="index.welcome">Welcome to PetWorld!</h2>
+                <p data-i18n="index.selectMode">Please select the game mode you want to enter</p>
+            </div>
+            
+            <div class="mode-selection">
+                <div class="mode-card" id="gameMode">
+                    <div class="mode-icon">🎮</div>
+                    <h3 data-i18n="index.gameMode">Game Mode</h3>
+                    <p data-i18n="index.gameModeDesc">An immersive pet-raising game experience, interact with pets and complete tasks to earn rewards</p>
+                    <button class="mode-btn" data-i18n="index.enterGame">Enter Game</button>
+                </div>
+                
+                <div class="mode-card" id="simpleMode">
+                    <div class="mode-icon">📱</div>
+                    <h3 data-i18n="index.simpleMode">Simple Mode</h3>
+                    <p data-i18n="index.simpleModeDesc">A clean interface to easily manage your pets and assets</p>
+                    <button class="mode-btn" data-i18n="index.enterApp">Enter App</button>
+                </div>
+            </div>
+        </main>
+        
+        <footer class="app-footer">
+            <p data-i18n="common.copyright">&copy; 2025 PetWorld - All Rights Reserved</p>
+        </footer>
+    </div>
+    
+    <!-- Wallet connection iframe -->
+    <iframe id="walletFrame" src="webPages/wallets/wallets.html" style="display: none;"></iframe>
+    
+    <!-- Include i18n internationalization support -->
+    <script src="i18n/i18n.js"></script>
+    <script src="i18n/locales/zh_tw.js"></script>
+    <script src="i18n/locales/en.js"></script>
+    <script src="i18n/locales/es.js"></script>
+    <script src="i18n/locales/ko.js"></script>
+    <script src="i18n/locales/ja.js"></script>
+    <!-- Include Web3.js library -->
+    <script src="https://cdn.jsdelivr.net/npm/web3@1.8.2/dist/web3.min.js"></script>
+    
+    <!-- Include contract addresses and ABI -->
+    <script src="scripts/contracts/contractAddresses.js"></script>
+    <script src="scripts/contracts/ABI/GENERIC_ERC20_ABI.js"></script>
+    <script src="scripts/contracts/ABI/PwPointABI.js"></script>
+    <script src="scripts/contracts/ABI/PwBountyABI.js"></script>
+    <script src="scripts/contracts/ABI/PwFoodABI.js"></script>
+    <script src="scripts/contracts/ABI/PetWorldABI.js"></script>
+    <script src="scripts/contracts/ABI/PetWorldManagerABI.js"></script>
+    
+    <!-- Include contract initialization scripts -->
+    <script src="scripts/init_contracts/initERC20.js"></script>
+    <script src="scripts/init_contracts/initPwPoint.js"></script>
+    <script src="scripts/init_contracts/initPwBounty.js"></script>
+    <script src="scripts/init_contracts/initPwFood.js"></script>
+    <script src="scripts/init_contracts/initPetWorld.js"></script>
+    <script src="scripts/init_contracts/initPetWorldManager.js"></script>
+    <script src="scripts/init_contracts/contractManager.js"></script>
+    
+    <!-- Include network detection tool -->
+    <script src="scripts/other/networkDetector.js"></script>
+    
+    <!-- Include main page script -->
+    <script src="scripts/init.js"></script>
+    <script src="scripts/index.js"></script>
+</body>
+</html> 

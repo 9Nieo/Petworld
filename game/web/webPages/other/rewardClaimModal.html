@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reward Claim Modal</title>
+    <link rel="stylesheet" href="../../css/other/rewardClaimModal.css">
+</head>
+<body>
+    <!-- Modal overlay -->
+    <div id="rewardModalOverlay" class="modal-overlay hidden">
+        <!-- Modal body -->
+        <div id="rewardClaimModal" class="reward-claim-modal hidden">
+            <div class="modal-content">
+                <!-- Close button -->
+                <span class="close-btn">&times;</span>
+                
+                <!-- Modal title -->
+                <h3 class="modal-title">Confirm Reward Claim</h3>
+                
+                <!-- NFT information area -->
+                <div class="nft-info">
+                    <div class="nft-image">
+                        <img src="" alt="NFT Image" id="nftModalImage">
+                    </div>
+                    <div class="nft-details">
+                        <h4 class="nft-name" id="nftModalName">NFT Name</h4>
+                        <p class="nft-id" id="nftModalId">ID: #000000</p>
+                        <p class="nft-quality" id="nftModalQuality">Quality: Common</p>
+                    </div>
+                </div>
+                
+                <!-- Reward information area -->
+                <div class="reward-info">
+                    <h4>Estimated Reward</h4>
+                    
+                    <!-- Reward calculation period -->
+                    <div class="reward-period">
+                        <span>Reward Calculation Period: </span>
+                        <span class="reward-start-time" id="rewardStartTime">-</span>
+                        <span> to </span>
+                        <span class="reward-end-time" id="rewardEndTime">-</span>
+                    </div>
+                    
+                    <!-- Accumulated duration -->
+                    <div class="reward-hours">
+                        <span>Accumulated Duration: </span>
+                        <span class="hours-value" id="rewardHours">0</span>
+                        <span> hours</span>
+                    </div>
+                    
+                    <!-- Reward amounts -->
+                    <div class="reward-amounts">
+                        <!-- PWPOT token reward -->
+                        <div class="reward-item">
+                            <span class="reward-icon">🪙</span>
+                            <div>
+                                <span class="reward-name">PWPOT:</span>
+                                <span class="reward-value" id="pwpotReward">0</span>
+                            </div>
+                        </div>
+                        
+                        <!-- PWBOT token reward -->
+                        <div class="reward-item">
+                            <span class="reward-icon">💎</span>
+                            <div>
+                                <span class="reward-name">PWBOT:</span>
+                                <span class="reward-value" id="pwbotReward">0</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Error message -->
+                <div id="errorMessage" class="error-message hidden">
+                    An error occurred while processing the request. Please try again later.
+                </div>
+                
+                <!-- Action buttons -->
+                <div class="modal-actions">
+                    <button id="cancelClaimBtn" class="cancel-btn">Cancel</button>
+                    <button id="confirmClaimBtn" class="confirm-btn">Confirm Claim</button>
+                </div>
+                
+                <!-- Loading indicator -->
+                <div id="loadingIndicator" class="loading-indicator hidden">
+                    <div class="spinner"></div>
+                    <p>Processing, please wait...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- In actual use, this file should be imported into the main application, not loaded separately -->
+    <!-- Include related JavaScript files -->
+    <script src="../../scripts/other/rewardClaimModal.js"></script>
+</body>
+</html> 

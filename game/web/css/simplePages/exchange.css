@@ -1,0 +1,249 @@
+/* Exchange page specific styles */
+.exchange-container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 20px;
+    background-color: #fff;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* Token balance cards */
+.token-balances {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+    margin-bottom: 25px;
+}
+
+.token-balance {
+    flex: 1;
+    min-width: 200px;
+    display: flex;
+    align-items: center;
+    background-color: #f8f9fa;
+    border-radius: 10px;
+    padding: 15px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+    transition: transform 0.2s ease;
+}
+
+.token-balance:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.token-icon {
+    font-size: 24px;
+    margin-right: 15px;
+    background-color: #e9ecef;
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.token-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.token-name {
+    font-weight: bold;
+    font-size: 16px;
+    color: #333;
+}
+
+.token-amount {
+    font-size: 18px;
+    color: #0066cc;
+    margin-top: 5px;
+}
+
+/* Exchange tabs */
+.option-tab-container {
+    margin-bottom: 20px;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.option-tabs {
+    display: flex;
+    gap: 10px;
+}
+
+.option-tab {
+    padding: 12px 20px;
+    background-color: transparent;
+    border: none;
+    border-bottom: 3px solid transparent;
+    font-size: 16px;
+    font-weight: 500;
+    color: #666;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.option-tab:hover {
+    color: #0066cc;
+}
+
+.option-tab.active {
+    color: #0066cc;
+    border-bottom-color: #0066cc;
+}
+
+/* Exchange form */
+.exchange-form-container {
+    background-color: #f9f9f9;
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+.exchange-form {
+    display: none;
+}
+
+.exchange-form.active {
+    display: block;
+}
+
+.exchange-form h3 {
+    margin-top: 0;
+    margin-bottom: 10px;
+    font-size: 18px;
+    color: #333;
+}
+
+.exchange-rate {
+    color: #666;
+    margin-bottom: 20px;
+    font-size: 14px;
+    padding: 5px 10px;
+    background-color: #e9ecef;
+    border-radius: 5px;
+    display: inline-block;
+}
+
+.input-group {
+    margin-bottom: 15px;
+    position: relative;
+}
+
+.input-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 14px;
+    color: #555;
+}
+
+.exchange-input {
+    width: 100%;
+    padding: 12px 70px 12px 15px;
+    border: 1px solid #ced4da;
+    border-radius: 5px;
+    font-size: 16px;
+    color: #333;
+    background-color: #fff;
+    transition: border-color 0.2s;
+}
+
+.exchange-input:focus {
+    border-color: #0066cc;
+    outline: none;
+}
+
+.exchange-input::-webkit-inner-spin-button,
+.exchange-input::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+.max-btn {
+    position: absolute;
+    right: 5px;
+    bottom: 5px;
+    background-color: #e9ecef;
+    border: none;
+    border-radius: 4px;
+    padding: 6px 12px;
+    color: #0066cc;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.max-btn:hover {
+    background-color: #dee2e6;
+}
+
+/* Result preview */
+.result-preview {
+    background-color: #e9f7fe;
+    border-radius: 5px;
+    padding: 15px;
+    margin-bottom: 20px;
+}
+
+.result-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.result-row span:first-child {
+    color: #666;
+}
+
+.result-amount {
+    font-size: 18px;
+    font-weight: bold;
+    color: #0066cc;
+}
+
+/* Exchange button */
+.exchange-btn {
+    width: 100%;
+    padding: 14px;
+    background-color: #0066cc;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.exchange-btn:hover {
+    background-color: #0056b3;
+}
+
+.exchange-btn:disabled {
+    background-color: #b3d7ff;
+    cursor: not-allowed;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .token-balances {
+        flex-direction: column;
+    }
+    
+    .token-balance {
+        min-width: auto;
+    }
+}
+
+@media (max-width: 480px) {
+    .option-tabs {
+        flex-direction: column;
+    }
+    
+    .option-tab {
+        width: 100%;
+        text-align: center;
+    }
+} 

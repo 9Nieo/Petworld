@@ -1,0 +1,239 @@
+/* Wallet connection modal styles */
+
+/* Modal container */
+.wallet-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+/* Modal content */
+.wallet-modal-content {
+    background-color: white;
+    border-radius: 10px;
+    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.2);
+    width: 90%;
+    max-width: 450px;
+    overflow: hidden;
+}
+
+/* Modal header */
+.wallet-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 20px;
+    border-bottom: 1px solid #eee;
+}
+
+.wallet-title {
+    font-size: 1.4rem;
+    margin: 0;
+    color: #333;
+}
+
+.wallet-close-btn {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    color: #888;
+}
+
+.wallet-close-btn:hover {
+    color: #333;
+}
+
+/* Modal body */
+.wallet-modal-body {
+    padding: 20px;
+}
+
+/* Wallet state general styles */
+.wallet-state {
+    text-align: center;
+}
+
+/* Hidden state */
+.hidden {
+    display: none !important;
+}
+
+/* Wallet selection state */
+.wallet-subtitle {
+    font-size: 1rem;
+    color: #666;
+    margin-bottom: 20px;
+}
+
+/* Wallet options */
+.wallet-options {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.wallet-option {
+    display: flex;
+    align-items: center;
+    padding: 15px;
+    background-color: #f9f9f9;
+    border: 1px solid #eee;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.wallet-option:hover {
+    background-color: #f0f0f0;
+    transform: translateY(-2px);
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.05);
+}
+
+.wallet-icon {
+    width: 40px;
+    height: 40px;
+    margin-right: 15px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 2rem;
+}
+
+.wallet-info {
+    flex: 1;
+    text-align: left;
+}
+
+.wallet-info h4 {
+    margin: 0 0 5px 0;
+    font-size: 1rem;
+    color: #333;
+}
+
+.wallet-info p {
+    margin: 0;
+    font-size: 0.85rem;
+    color: #666;
+}
+
+/* Connecting state */
+.connecting-spinner {
+    width: 50px;
+    height: 50px;
+    border: 5px solid #f3f3f3;
+    border-top: 5px solid #3498db;
+    border-radius: 50%;
+    margin: 0 auto 20px;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.connecting-text {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #333;
+}
+
+.connecting-wallet-name {
+    font-size: 1rem;
+    color: #3498db;
+    margin: 10px 0;
+}
+
+.confirm-text {
+    font-size: 0.9rem;
+    color: #666;
+    margin: 20px 0;
+}
+
+.cancel-btn {
+    background-color: #f0f0f0;
+    color: #333;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 0.9rem;
+}
+
+.cancel-btn:hover {
+    background-color: #e0e0e0;
+}
+
+/* Error state */
+.error-icon {
+    font-size: 3rem;
+    margin-bottom: 10px;
+    color: #e74c3c;
+}
+
+.error-title {
+    font-size: 1.2rem;
+    color: #e74c3c;
+    margin: 0 0 10px 0;
+}
+
+.error-message {
+    font-size: 0.9rem;
+    color: #666;
+    margin-bottom: 20px;
+}
+
+.retry-btn {
+    background-color: #3498db;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    margin-right: 10px;
+}
+
+.retry-btn:hover {
+    background-color: #2980b9;
+}
+
+/* Wallet icon styles */
+.metamask-icon {
+    background: url('../../resources/images/wallets/metamask.png') no-repeat center;
+    background-size: contain;
+}
+
+.walletconnect-icon {
+    background: url('../../resources/images/wallets/walletconnect.png') no-repeat center;
+    background-size: contain;
+}
+
+.okx-icon {
+    background: url('../../resources/images/wallets/okx.png') no-repeat center;
+    background-size: contain;
+}
+
+/* Fallback styles if images fail to load */
+.metamask-icon:empty::before {
+    content: '🦊';
+    font-size: 1.8rem;
+}
+
+.walletconnect-icon:empty::before {
+    content: '🔗';
+    font-size: 1.8rem;
+}
+
+.okx-icon:empty::before {
+    content: '💼';
+    font-size: 1.8rem;
+} 

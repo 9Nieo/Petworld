@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title data-i18n="market_title">Market - PetWorld</title>
+    <link rel="stylesheet" href="../../css/gamePages/modals.css">
+    <link rel="stylesheet" href="../../css/gamePages/market.css">
+    <!-- Add market NFT card styles -->
+    <link rel="stylesheet" href="../../css/other/marketplace/marketItemCard.css">
+    <!-- Add market modal styles -->
+    <link rel="stylesheet" href="../../css/other/marketplace/marketplaceModals.css">
+    <!-- Add transaction history styles -->
+    <link rel="stylesheet" href="../../css/other/marketplace/premiumCardSaleHis.css">
+    <style>
+        /* Market page specific styles */
+        .market-header {
+            margin-bottom: 20px;
+        }
+        
+        .market-tabs {
+            display: flex;
+            margin: 20px 0;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .market-tab {
+            background: none;
+            border: none;
+            padding: 10px 20px;
+            margin-right: 5px;
+            cursor: pointer;
+            font-size: 1rem;
+            color: #666;
+            border-bottom: 3px solid transparent;
+        }
+        
+        .market-tab.active {
+            color: #4d7bef;
+            border-bottom-color: #4d7bef;
+            font-weight: 500;
+        }
+        
+        .market-filters {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+        
+        .search-box {
+            display: flex;
+            flex: 1;
+            max-width: 300px;
+            margin-right: 15px;
+        }
+        
+        .search-box input {
+            flex: 1;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-right: none;
+            border-radius: 4px 0 0 4px;
+        }
+        
+        .search-btn {
+            background-color: #4d7bef;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 0 4px 4px 0;
+            cursor: pointer;
+        }
+        
+        .filter-select {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        
+        .tab-panel {
+            display: none;
+        }
+        
+        .tab-panel.active {
+            display: block;
+        }
+        
+        .market-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: 20px;
+        }
+        
+        .market-card {
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+            position: relative;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .market-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.15);
+        }
+        
+        .card-tag {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background-color: #ff6b6b;
+            color: white;
+            font-size: 0.7rem;
+            font-weight: bold;
+            padding: 3px 8px;
+            border-radius: 4px;
+            z-index: 1;
+        }
+        
+        .card-tag.nft {
+            background-color: #ffc107;
+            color: #333;
+        }
+        
+        .card-rarity {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            font-size: 0.7rem;
+            font-weight: bold;
+            padding: 3px 8px;
+            border-radius: 4px;
+            z-index: 1;
+            color: white;
+        }
+        
+        .legendary {
+            background-color: #FF9800;
+        }
+        
+        .rare {
+            background-color: #03A9F4;
+        }
+        
+        .uncommon {
+            background-color: #4CAF50;
+        }
+        
+        .common {
+            background-color: #9E9E9E;
+        }
+        
+        .card-image {
+            height: 120px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 15px;
+            background-color: #f9f9f9;
+        }
+        
+        .card-image img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+        
+        .card-info {
+            padding: 15px;
+        }
+        
+        .card-info h3 {
+            margin: 0 0 5px;
+            font-size: 1rem;
+        }
+        
+        .card-level {
+            font-size: 0.8rem;
+            color: #666;
+            margin-bottom: 10px;
+        }
+        
+        .card-stats {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+        
+        .card-stat {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        .stat-icon {
+            font-size: 1rem;
+            margin-bottom: 2px;
+        }
+        
+        .stat-value {
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+        
+        .card-price {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 10px;
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .price-currency {
+            margin-left: 5px;
+            font-size: 0.8rem;
+            color: #666;
+        }
+        
+        .card-actions {
+            display: flex;
+            border-top: 1px solid #eee;
+        }
+        
+        .card-btn {
+            flex: 1;
+            border: none;
+            background: none;
+            padding: 10px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        
+        .buy-btn {
+            color: #4d7bef;
+            font-weight: 500;
+        }
+        
+        .details-btn {
+            color: #555;
+            border-left: 1px solid #eee;
+        }
+        
+        .card-btn:hover {
+            background-color: #f5f5f5;
+        }
+    </style>
+</head>
+<body>
+    <!-- Market content displayed in the modal -->
+    <div class="market-container" id="market-content">
+        <div class="market-header">
+            <h2 data-i18n="marketplace">Market</h2>
+            
+            <div class="market-actions">
+                <button id="listNFTBtn" class="action-btn list-nft-btn" data-i18n="market.listNFT">
+                    <span class="btn-icon">&#10010;</span>
+                    List NFT
+                </button>
+                <button id="manageListingsBtn" class="action-btn manage-listings-btn" data-i18n="market.manageListings">
+                    <span class="btn-icon">&#8801;</span>
+                    Manage My Listings
+                </button>
+                <button id="viewGameTransactionHistoryBtn" class="action-btn transaction-history-btn" data-i18n="market.viewTransactionHistory">
+                    <span class="btn-icon">&#128202;</span>
+                    Premium Card Transaction History
+                </button>
+            </div>
+
+            <div class="market-filters">
+                <div class="search-box">
+                    <input type="text" placeholder="Search Market..." data-i18n-placeholder="search_marketplace">
+                    <button class="search-btn">🔍</button>
+                </div>
+                
+                <select class="filter-select">
+                    <option value="price-asc" data-i18n="price_low_to_high">Price: Low to High</option>
+                    <option value="price-desc" data-i18n="price_high_to_low">Price: High to Low</option>
+                    <option value="id-desc" data-i18n="id_high_to_low">ID: High to Low</option>
+                    <option value="id-asc" data-i18n="id_low_to_high">ID: Low to High</option>
+                </select>
+            </div>
+            
+            <!-- Quality category tabs -->
+            <div class="quality-tabs">
+                <button class="quality-tab active" data-quality="1" data-i18n="GOOD">GOOD</button>
+                <button class="quality-tab" data-quality="2" data-i18n="EXCELLENT">EXCELLENT</button>
+                <button class="quality-tab" data-quality="3" data-i18n="RARE">RARE</button>
+                <button class="quality-tab" data-quality="4" data-i18n="LEGENDARY">LEGENDARY</button>
+            </div>
+        </div>
+        
+        <!-- Loading animation -->
+        <div class="loading-spinner">
+            <div class="spinner"></div>
+            <p data-i18n="loading">Loading...</p>
+        </div>
+        
+        <!-- Transaction status prompt -->
+        <div class="transaction-status"></div>
+        
+        <div class="market-content">
+            <!-- Market items container -->
+            <div class="market-items">
+                <!-- Items will be dynamically generated by JavaScript -->
+            </div>
+            
+            <div class="pagination">
+                <button class="page-btn prev-btn" data-i18n="common.previous">Previous</button>
+                <span class="page-info" data-i18n="common.pageInfo">Page 1 of 1</span>
+                <button class="page-btn next-btn" data-i18n="common.next">Next</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- NFT detail modal -->
+    <div class="nft-modal" id="nftDetailModal">
+        <div class="nft-modal-content">
+            <span class="nft-modal-close">&times;</span>
+            <div class="nft-detail-image">
+                <img id="nftDetailImage" src="" alt="NFT Image">
+            </div>
+            <div class="nft-detail-header">
+                <h3 id="nftName" class="nft-title"></h3>
+                <div class="nft-id">ID: <span id="nftTokenId"></span></div>
+            </div>
+            <table class="nft-details-table">
+                <tr>
+                    <th data-i18n="nft.quality">Quality</th>
+                    <td id="nftQuality"></td>
+                </tr>
+                <tr>
+                    <th data-i18n="nft.level">Level</th>
+                    <td id="nftLevel"></td>
+                </tr>
+                <tr>
+                    <th data-i18n="nft.food">Total Food</th>
+                    <td id="nftFood"></td>
+                </tr>
+                <tr>
+                    <th data-i18n="nft.seller">Seller</th>
+                    <td id="nftSeller"></td>
+                </tr>
+                <tr>
+                    <th data-i18n="nft.price">Price</th>
+                    <td id="nftPrice"></td>
+                </tr>
+                <tr>
+                    <th data-i18n="nft.paymentToken">Payment Token</th>
+                    <td id="nftPaymentToken"></td>
+                </tr>
+            </table>
+            <div class="nft-action-buttons">
+                <button class="cancel-btn" data-i18n="button.cancel">Cancel</button>
+                <button class="buy-btn" data-i18n="button.buy">Buy</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Include Web3.js -->
+    <script src="https://cdn.jsdelivr.net/npm/web3@1.8.2/dist/web3.min.js"></script>
+    
+    <!-- Include contract addresses and ABIs -->
+    <script src="../../scripts/contracts/contractAddresses.js"></script>
+    <script src="../../scripts/contracts/ABI/NFTMarketplaceABI.js"></script>
+    <script src="../../scripts/contracts/ABI/RareNFTTransactionIndexerABI.js"></script>
+    <script src="../../scripts/contracts/ABI/GENERIC_ERC20_ABI.js"></script>
+    <script src="../../scripts/contracts/ABI/PwNFTABI.js"></script>
+    <script src="../../scripts/contracts/ABI/NFTManagerABI.js"></script>
+    <script src="../../scripts/contracts/ABI/NFTFeedingManagerABI.js"></script>
+    
+    <!-- Include contract initialization scripts -->
+    <script src="../../scripts/init_contracts/initNFTMarketplace.js"></script>
+    <script src="../../scripts/init_contracts/initRareNFTTransactionIndexer.js"></script>
+    <script src="../../scripts/init_contracts/initPwNFT.js"></script>
+    <script src="../../scripts/init_contracts/initNFTManager.js"></script>
+    <script src="../../scripts/init_contracts/initNFTFeedingManager.js"></script>
+    
+    <!-- Include NFT service -->
+    <script src="../../scripts/other/petNFTService.js"></script>
+    
+    <!-- Include contract approval manager script -->
+    <script src="../../scripts/other/ContractApprovalManager.js"></script>
+    
+    <!-- Add market component scripts -->
+    <script src="../../scripts/other/gameMarketplace/supportedMarketTokens.js"></script>
+    <script src="../../scripts/other/gameMarketplace/marketItemCard.js"></script>
+    <script src="../../scripts/other/gameMarketplace/listNFTModal.js"></script>
+    <script src="../../scripts/other/gameMarketplace/manageListingsModal.js"></script>
+    <script src="../../scripts/other/gameMarketplace/premiumCardSaleHis.js"></script>
+    
+    <!-- Include i18n script -->
+    <script src="../../i18n/i18n.js"></script>
+    <script src="../../i18n/locales/zh_tw.js"></script>
+    <script src="../../i18n/locales/en.js"></script>
+    <script src="../../i18n/locales/es.js"></script>
+    <script src="../../i18n/locales/ko.js"></script>
+    <script src="../../i18n/locales/ja.js"></script>
+    <!-- Include market page script -->
+    <script src="../../scripts/gamePages/market.js"></script>
+</body>
+</html> 

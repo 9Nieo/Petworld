@@ -1,0 +1,1239 @@
+/**
+ * NFT Listing Management Modal Functionality - Game Mode
+ * Allows users to view and manage their listed NFTs
+ */
+
+// create an immediately invoked function expression to avoid global scope pollution
+(function() {
+    // define DOM element variables
+    let modal;
+    let modalContent;
+    let closeBtn;
+    let listingsList;
+    let loadingIndicator;
+    let statusMessage;
+    let emptyMessage;
+    
+    // save Web3 instance and contract instances
+    let web3;
+    let marketplaceContract;
+    let pwNFTContract;
+    
+    // save user's listed NFTs
+    let userListings = [];
+    
+    // flag to indicate if the modal window has been initialized
+    let isInitialized = false;
+    
+    // NFT price update cooldown time (1 hour, in seconds)
+    const NFT_PRICE_UPDATE_COOLDOWN = 60 * 60; // 1小时 = 60分钟 * 60秒
+    
+    /**
+     * initialize the NFT listing management modal
+     * @param {Object} web3Instance - Web3 instance
+     * @param {Object} marketplaceContractInstance - Marketplace contract instance
+     * @param {Object} nftContractInstance - NFT contract instance
+     */
+    function init(web3Instance, marketplaceContractInstance, nftContractInstance) {
+        try {
+            // save Web3 and contract instances
+            web3 = web3Instance;
+            marketplaceContract = marketplaceContractInstance;
+            pwNFTContract = nftContractInstance;
+            
+            // if the modal already exists, return directly
+            if (document.getElementById('manage-listings-modal-game')) {
+                modal = document.getElementById('manage-listings-modal-game');
+                listingsList = modal.querySelector('.listings-list');
+                loadingIndicator = modal.querySelector('.loading-spinner');
+                statusMessage = modal.querySelector('.status-message');
+                emptyMessage = modal.querySelector('.empty-listings-message');
+                closeBtn = modal.querySelector('.nft-modal-close');
+                
+                // rebind events
+                bindEvents();
+                
+                isInitialized = true;
+                return;
+            }
+            
+            // create the modal DOM structure
+            createModalDOM();
+            
+            // bind events
+            bindEvents();
+            
+            isInitialized = true;
+            console.log('game mode NFT listing management modal initialized successfully');
+        } catch (error) {
+            console.error('game mode NFT listing management modal initialization failed:', error);
+            isInitialized = false;
+        }
+    }
+    
+    /**
+     * create the modal DOM structure
+     */
+    function createModalDOM() {
+        // create the modal container
+        modal = document.createElement('div');
+        modal.id = 'manage-listings-modal-game';
+        modal.className = 'nft-modal game-modal';
+        modal.style.display = 'none';
+        
+        // create the modal content
+        modalContent = document.createElement('div');
+        modalContent.className = 'nft-modal-content manage-listings-content game-modal-content';
+        
+        // create the close button
+        closeBtn = document.createElement('span');
+        closeBtn.className = 'nft-modal-close';
+        closeBtn.innerHTML = '&times;';
+        
+        // create the title
+        const title = document.createElement('h2');
+        title.textContent = 'Manage My Listed NFTs';
+        title.setAttribute('data-i18n', 'market.manageListings');
+        
+        // create the loading indicator
+        loadingIndicator = document.createElement('div');
+        loadingIndicator.className = 'loading-spinner';
+        loadingIndicator.innerHTML = '<div class="spinner"></div><p data-i18n="loading">加载中...</p>';
+        
+        // create the empty message
+        emptyMessage = document.createElement('div');
+        emptyMessage.className = 'empty-listings-message';
+        emptyMessage.textContent = 'You have no listed NFTs';
+        emptyMessage.setAttribute('data-i18n', 'market.noListings');
+        emptyMessage.style.display = 'none';
+        
+        // create the listed NFTs list
+        listingsList = document.createElement('div');
+        listingsList.className = 'listings-list';
+        
+        // create the status message
+        statusMessage = document.createElement('div');
+        statusMessage.className = 'status-message';
+        statusMessage.style.display = 'none';
+        
+        // add all elements to the modal content
+        modalContent.appendChild(closeBtn);
+        modalContent.appendChild(title);
+        modalContent.appendChild(loadingIndicator);
+        modalContent.appendChild(emptyMessage);
+        modalContent.appendChild(listingsList);
+        modalContent.appendChild(statusMessage);
+        
+        // add the modal content to the modal container
+        modal.appendChild(modalContent);
+        
+        // add the modal to the body
+        document.body.appendChild(modal);
+    }
+    
+    /**
+     * bind events
+     */
+    function bindEvents() {
+        if (!closeBtn || !modal) {
+            console.error('bind events failed: DOM elements are undefined');
+            return;
+        }
+        
+        // close button click event
+        closeBtn.addEventListener('click', hideModal);
+        
+        // click outside the modal to close it
+        modal.addEventListener('click', function(event) {
+            if (event.target === modal) {
+                hideModal();
+            }
+        });
+        
+        // listen to the NFT listing event, so the list can be refreshed
+        window.addEventListener('nft.listed', () => {
+            if (modal && modal.style.display === 'block') {
+                loadUserListings();
+            }
+        });
+    }
+    
+    /**
+     * show the modal
+     */
+    async function showModal() {
+        // if the modal is not initialized, try to initialize
+        if (!isInitialized || !modal) {
+            // if web3 and contract instances exist, try to reinitialize
+            if (web3 && marketplaceContract && pwNFTContract) {
+                init(web3, marketplaceContract, pwNFTContract);
+            } else {
+                console.error('cannot show the NFT listing management modal: the modal is not initialized or the required contract instances are not set');
+                return;
+            }
+        }
+        
+        // ensure the modal window elements exist
+        if (!modal) {
+            console.error('cannot show the NFT listing management modal: the modal element does not exist');
+            return;
+        }
+        
+        // show the modal
+        modal.style.display = 'block';
+        
+        // reset the modal state
+        resetModal();
+        
+        // load the user's listed NFTs
+        await loadUserListings();
+    }
+    
+    /**
+     * hide the modal
+     */
+    function hideModal() {
+        if (modal) {
+            modal.style.display = 'none';
+            resetModal();
+        }
+    }
+    
+    /**
+     * reset the modal state
+     */
+    function resetModal() {
+        // ensure the DOM elements exist
+        if (!listingsList) {
+            return;
+        }
+        
+        // clear the listed NFTs list
+        listingsList.innerHTML = '';
+        
+        // hide the status message
+        if (statusMessage) {
+            statusMessage.style.display = 'none';
+            statusMessage.textContent = '';
+            statusMessage.className = 'status-message';
+        }
+        
+        // hide the empty message
+        if (emptyMessage) {
+            emptyMessage.style.display = 'none';
+        }
+        
+        // show the loading indicator
+        if (loadingIndicator) {
+            loadingIndicator.style.display = 'block';
+        }
+    }
+    
+    /**
+     * load the user's listed NFTs
+     */
+    async function loadUserListings() {
+        try {
+            // show the loading indicator
+            loadingIndicator.style.display = 'block';
+            
+            // clear the listed NFTs list
+            listingsList.innerHTML = '';
+            
+            // hide the empty message
+            emptyMessage.style.display = 'none';
+            
+            // get the current user address
+            const accounts = await web3.eth.getAccounts();
+            const userAddress = accounts[0];
+            
+            if (!userAddress) {
+                throw new Error('wallet not connected');
+            }
+            
+            // load the user's listed NFTs
+            userListings = await loadUserListedNFTs(userAddress);
+            
+            // render the listed NFTs list
+            renderListingsList();
+            
+            // show the corresponding interface based on the number of listed NFTs
+            if (userListings.length === 0) {
+                // show the message that there are no listed NFTs
+                emptyMessage.style.display = 'block';
+            }
+            
+            // hide the loading indicator
+            loadingIndicator.style.display = 'none';
+        } catch (error) {
+            console.error('failed to load the user\'s listed NFTs:', error);
+            // show the error message
+            showStatus('failed to load the listed NFTs: ' + error.message, 'error');
+            // hide the loading indicator
+            loadingIndicator.style.display = 'none';
+        }
+    }
+    
+    /**
+     * load the user's listed NFTs
+     * @param {string} userAddress - user wallet address
+     * @returns {Array} the array of the user's listed NFTs
+     */
+    async function loadUserListedNFTs(userAddress) {
+        try {
+            // store the user's listed NFTs
+            const listedNFTs = [];
+            
+            // first try to use PetNFTService (if available)
+            if (window.PetNFTService && typeof window.PetNFTService.loadUserNFTs === 'function') {
+                try {
+                    console.log('try to use PetNFTService to load the user\'s listed NFTs');
+                    // load all NFTs of the user
+                    const allNfts = await window.PetNFTService.loadUserNFTs(null, false, 100, true);
+                
+                    // filter out the NFTs that are listed on the market
+                    for (const nft of allNfts) {
+                        try {
+                            // check if the NFT is listed on the market
+                            const isListed = await marketplaceContract.methods.isTokenListed(nft.tokenId).call();
+                            
+                            if (isListed) {
+                                // get the listing information
+                                const listing = await marketplaceContract.methods.getListingByToken(nft.tokenId).call();
+                                
+                                // check if the seller is the current user
+                                if (listing.seller.toLowerCase() === userAddress.toLowerCase()) {
+                                    // check the price update cooldown
+                                    const cooldownInfo = await checkPriceUpdateCooldown(nft.tokenId);
+                                    
+                                    listedNFTs.push({
+                                        tokenId: nft.tokenId,
+                                        price: listing.price,
+                                        paymentToken: listing.paymentTokenAddress,
+                                        seller: listing.seller,
+                                        name: nft.metadata?.name || `NFT #${nft.tokenId}`,
+                                        image: nft.metadata?.image || '',
+                                        description: nft.metadata?.description || '',
+                                        quality: nft.metadata?.attributes?.find(attr => 
+                                            attr.trait_type === 'Quality' || attr.trait_type === '品质'
+                                        )?.value || 'COMMON',
+                                        level: listing.level || 1,
+                                        accumulatedFood: listing.accumulatedFood || 0,
+                                        inPriceUpdateCooldown: cooldownInfo.inCooldown,
+                                        priceUpdateCooldownTimeLeft: cooldownInfo.timeLeft,
+                                        lastPriceUpdateTime: listing.lastPriceUpdateTime || '0'
+                                    });
+                                }
+                            }
+                        } catch (error) {
+                            console.warn(`failed to check the listed status of NFT #${nft.tokenId}:`, error);
+                        }
+                    }
+                    
+                    if (listedNFTs.length > 0) {
+                        console.log(`found ${listedNFTs.length} listed NFTs through PetNFTService`);
+                        return listedNFTs;
+                    }
+                } catch (error) {
+                    console.warn('failed to load the listed NFTs through PetNFTService, try other methods:', error);
+                }
+            }
+            
+            // method 1: try to use getUserListedItemCount and getUserListedItemAtIndex
+            try {
+                console.log('try to use getUserListedItemCount method to load the user\'s listed NFTs');
+                // try to get the number of the user's listed NFTs
+                if (marketplaceContract.methods.getUserListedItemCount) {
+                    const listedTokenCount = await marketplaceContract.methods.getUserListedItemCount(userAddress).call();
+                    console.log(`listed NFTs count: ${listedTokenCount}`);
+                    
+                    // if there are listed NFTs, iterate to get the tokenId of each listed NFT
+                    if (listedTokenCount !== '0') {
+                        for (let i = 0; i < listedTokenCount; i++) {
+                            try {
+                                // get the tokenId of the i-th listed NFT
+                                const tokenId = await marketplaceContract.methods.getUserListedItemAtIndex(userAddress, i).call();
+                                
+                                // get the listing information
+                                const listing = await marketplaceContract.methods.getListingByToken(tokenId).call();
+                            
+                                // if the listed price is not 0, it means the NFT is listed
+                                if (listing.price !== '0') {
+                                    // get the other data of the NFT
+                                    const nftData = await fetchNFTData(tokenId);
+                                    
+                                    // check the price update cooldown
+                                    const cooldownInfo = await checkPriceUpdateCooldown(tokenId);
+                                    
+                                    // merge the listing information and the NFT data
+                                    listedNFTs.push({
+                                        tokenId: tokenId,
+                                        price: listing.price,
+                                        paymentToken: listing.paymentTokenAddress,
+                                        seller: listing.seller,
+                                        ...nftData,
+                                        level: listing.level || 1,
+                                        accumulatedFood: listing.accumulatedFood || 0,
+                                        inPriceUpdateCooldown: cooldownInfo.inCooldown,
+                                        priceUpdateCooldownTimeLeft: cooldownInfo.timeLeft,
+                                        lastPriceUpdateTime: listing.lastPriceUpdateTime || '0'
+                                    });
+                                }
+                            } catch (error) {
+                                console.warn(`failed to get the listed NFT at index ${i}:`, error);
+                            }
+                        }
+                        
+                        if (listedNFTs.length > 0) {
+                            console.log(`found ${listedNFTs.length} listed NFTs through getUserListedItemAtIndex method`);
+                            return listedNFTs;
+                        }
+                    }
+                }
+            } catch (error) {
+                console.warn('failed to load the user\'s listed NFTs through getUserListedItemCount method:', error);
+            }
+            
+            // method 2: try to use userListings mapping
+            try {
+                console.log('try to use userListings mapping to load the user\'s listed NFTs');
+                if (marketplaceContract.methods.userListings) {
+                    let index = 0;
+                    let hasMore = true;
+                    
+                    // iterate to get all listed NFTs
+                    while (hasMore && index < 100) { // set the limit to avoid infinite loop
+                        try {
+                            // get the tokenId of the i-th listed NFT
+                            const tokenId = await marketplaceContract.methods.userListings(userAddress, index).call();
+                            
+                            // check if the tokenId is valid
+                            if (tokenId == 0 && index > 0) {
+                                hasMore = false;
+                                break;
+                            }
+                            
+                            // try to get the listing information of the NFT
+                            let listing;
+                            try {
+                                // first try to use listings mapping
+                                if (marketplaceContract.methods.listings) {
+                                    listing = await marketplaceContract.methods.listings(tokenId).call();
+                                } else if (marketplaceContract.methods.getListingByToken) {
+                                    // alternative method: use getListingByToken
+                                    listing = await marketplaceContract.methods.getListingByToken(tokenId).call();
+                                }
+                            } catch (listingError) {
+                                console.warn(`failed to get the listing information of NFT #${tokenId}:`, listingError);
+                                index++;
+                                continue;
+                            }
+                            
+                            // check if the listing information is valid
+                            const isActive = listing.active === true || listing.price !== '0';
+                            const isCorrectSeller = listing.seller && listing.seller.toLowerCase() === userAddress.toLowerCase();
+                            
+                            if (isActive && isCorrectSeller) {
+                                // get the other data of the NFT
+                                const nftData = await fetchNFTData(tokenId);
+                                
+                                // check the price update cooldown
+                                const cooldownInfo = await checkPriceUpdateCooldown(tokenId);
+                                
+                                // add to the list
+                                listedNFTs.push({
+                                    tokenId: tokenId,
+                                    price: listing.price,
+                                    paymentToken: listing.paymentTokenAddress || listing.paymentToken,
+                                    seller: listing.seller,
+                                    lastPriceUpdateTime: listing.lastPriceUpdateTime || '0',
+                                    level: listing.level || 1,
+                                    accumulatedFood: listing.accumulatedFood || 0,
+                                    inPriceUpdateCooldown: cooldownInfo.inCooldown,
+                                    priceUpdateCooldownTimeLeft: cooldownInfo.timeLeft,
+                                    ...nftData
+                                });
+                            }
+                            
+                            index++;
+                        } catch (error) {
+                            console.log(`failed to get the listed NFT at index ${index}, maybe reached the end of the list:`, error.message);
+                            hasMore = false;
+                        }
+                    }
+                    
+                    if (listedNFTs.length > 0) {
+                        console.log(`found ${listedNFTs.length} listed NFTs through userListings mapping`);
+                        return listedNFTs;
+                    }
+                }
+            } catch (error) {
+                console.warn('failed to load the user\'s listed NFTs through userListings mapping:', error);
+            }
+            
+            // method 3: get all listed items in the market, and filter the user's items
+            try {
+                console.log('try to get all listed items in the market and filter the user\'s items');
+                // check if there is a method to get all listed items
+                if (marketplaceContract.methods.getAllMarketItems || 
+                    marketplaceContract.methods.getMarketItemsCount) {
+                    
+                    let marketItems = [];
+                    
+                    // use getAllMarketItems method
+                    if (marketplaceContract.methods.getAllMarketItems) {
+                        marketItems = await marketplaceContract.methods.getAllMarketItems().call();
+                    } 
+                    // use getMarketItemsCount and getMarketItemAtIndex methods
+                    else if (marketplaceContract.methods.getMarketItemsCount) {
+                        const itemCount = await marketplaceContract.methods.getMarketItemsCount().call();
+                        for (let i = 0; i < itemCount; i++) {
+                            const item = await marketplaceContract.methods.getMarketItemAtIndex(i).call();
+                            marketItems.push(item);
+                        }
+                    }
+                    
+                    // filter out the user's listed items
+                    for (const item of marketItems) {
+                        if (item.seller && item.seller.toLowerCase() === userAddress.toLowerCase() && 
+                            item.sold !== true && item.price !== '0') {
+                            
+                            const tokenId = item.tokenId;
+                            const nftData = await fetchNFTData(tokenId);
+                            
+                            // check the price update cooldown
+                            const cooldownInfo = await checkPriceUpdateCooldown(tokenId);
+                            
+                            listedNFTs.push({
+                                tokenId: tokenId,
+                                price: item.price,
+                                paymentToken: item.paymentTokenAddress || item.paymentToken,
+                                seller: item.seller,
+                                lastPriceUpdateTime: item.lastPriceUpdateTime || '0',
+                                level: item.level || 1,
+                                accumulatedFood: item.accumulatedFood || 0,
+                                inPriceUpdateCooldown: cooldownInfo.inCooldown,
+                                priceUpdateCooldownTimeLeft: cooldownInfo.timeLeft,
+                                ...nftData
+                            });
+                        }
+                    }
+                    
+                    if (listedNFTs.length > 0) {
+                        console.log(`found ${listedNFTs.length} listed NFTs through filtering the market items`);
+                        return listedNFTs;
+                    }
+                }
+            } catch (error) {
+                console.warn('failed to get all listed items in the market:', error);
+            }
+            
+            console.log('all methods tried, found the listed NFTs:', listedNFTs.length);
+            return listedNFTs;
+        } catch (error) {
+            console.error('failed to load the user\'s listed NFTs:', error);
+            throw error;
+        }
+    }
+    
+    /**
+     * get the NFT data
+     * @param {string} tokenId - the tokenId of the NFT
+     * @returns {Object} the data of the NFT
+     */
+    async function fetchNFTData(tokenId) {
+        try {
+            // get the metadata URI of the NFT
+            const tokenURI = await pwNFTContract.methods.tokenURI(tokenId).call();
+            
+            // default NFT data
+            let nftData = {
+                name: `NFT #${tokenId}`,
+                image: '',
+                description: '',
+                quality: 'COMMON',
+                attributes: []
+            };
+            
+            try {
+                // try to get the metadata
+                const response = await fetch(tokenURI);
+                const metadata = await response.json();
+                
+                // update the NFT data
+                nftData.name = metadata.name || nftData.name;
+                nftData.image = metadata.image || nftData.image;
+                nftData.description = metadata.description || nftData.description;
+                
+                // get the quality from the metadata
+                if (metadata.attributes) {
+                    const qualityAttr = metadata.attributes.find(attr => attr.trait_type === 'Quality' || attr.trait_type === '品质');
+                    if (qualityAttr) {
+                        nftData.quality = qualityAttr.value;
+                    }
+                    nftData.attributes = metadata.attributes;
+                }
+            } catch (error) {
+                console.warn(`failed to get the metadata of NFT #${tokenId}:`, error);
+            }
+            
+            return nftData;
+        } catch (error) {
+            console.error(`failed to get the data of NFT #${tokenId}:`, error);
+            return {
+                name: `NFT #${tokenId}`,
+                image: '',
+                description: '',
+                quality: 'COMMON',
+                attributes: []
+            };
+        }
+    }
+    
+    /**
+     * render the listed NFTs list
+     */
+    function renderListingsList() {
+        // clear the list
+        listingsList.innerHTML = '';
+        
+        // iterate the listed NFTs
+        userListings.forEach(listing => {
+            // create the list item
+            const listingItem = document.createElement('div');
+            listingItem.className = 'listing-item';
+            listingItem.setAttribute('data-token-id', listing.tokenId);
+            
+            // NFT image container
+            const imageContainer = document.createElement('div');
+            imageContainer.className = 'listing-image';
+            
+            // NFT image
+            const image = document.createElement('img');
+            // handle the image path
+            let imageSrc = listing.image || '';
+            
+            // check if the image path is an IPFS path
+            if (imageSrc.startsWith('ipfs://')) {
+                // convert the IPFS path to the HTTP gateway URL
+                imageSrc = imageSrc.replace('ipfs://', 'https://ipfs.io/ipfs/');
+            }
+            
+            // if there is no image or the image path is invalid, use the default image
+            image.src = imageSrc || '../../resources/images/default-pet.png';
+            image.alt = listing.name || `NFT #${listing.tokenId}`;
+            
+            // when the image loading fails, show the placeholder image
+            image.onerror = function() {
+                this.src = '../../resources/images/default-pet.png';
+                // add the contain class to avoid the placeholder image being cropped
+                this.classList.add('contain-image');
+            };
+            
+            // check the image ratio after the image loading
+            image.onload = function() {
+                // if the image is a rectangle, use the contain mode to avoid being cropped
+                if (Math.abs(this.naturalWidth / this.naturalHeight - 1) > 0.2) {
+                    this.classList.add('contain-image');
+                }
+            };
+            
+            // add the image to the container
+            imageContainer.appendChild(image);
+            
+            // NFT info container
+            const infoContainer = document.createElement('div');
+            infoContainer.className = 'listing-info';
+            
+            // NFT name
+            const nameElement = document.createElement('div');
+            nameElement.className = 'listing-name';
+            nameElement.textContent = listing.name || `NFT #${listing.tokenId}`;
+            
+            // NFT ID
+            const idElement = document.createElement('div');
+            idElement.className = 'listing-id';
+            idElement.textContent = `ID: ${listing.tokenId}`;
+            
+            // NFT quality
+            const qualityElement = document.createElement('div');
+            qualityElement.className = 'listing-quality';
+            qualityElement.textContent = `Quality: ${listing.quality}`;
+            qualityElement.setAttribute('data-i18n-quality', listing.quality.toLowerCase());
+            
+            // NFT level - add the level display
+            const levelElement = document.createElement('div');
+            levelElement.className = 'listing-level';
+            levelElement.textContent = `等级: ${listing.level || 1}`;
+            levelElement.style.color = '#0070f3';
+            levelElement.style.fontWeight = 'bold';
+            levelElement.style.fontSize = '14px';
+            levelElement.style.marginTop = '5px';
+            
+            // NFT price
+            const priceContainer = document.createElement('div');
+            priceContainer.className = 'listing-price-container';
+            
+            // price label
+            const priceLabel = document.createElement('span');
+            priceLabel.className = 'price-label';
+            priceLabel.textContent = 'Price: ';
+            priceLabel.setAttribute('data-i18n', 'market.price');
+            
+            // price value
+            const priceValue = document.createElement('span');
+            priceValue.className = 'price-value';
+            
+            // format the price
+            const priceInEther = web3.utils.fromWei(listing.price, 'ether');
+            priceValue.textContent = `${priceInEther} ${getTokenSymbol(listing.paymentToken)}`;
+            
+            // add the price label and value to the price container
+            priceContainer.appendChild(priceLabel);
+            priceContainer.appendChild(priceValue);
+            
+            // if the NFT is in the price update cooldown, show the cooldown info
+            if (listing.inPriceUpdateCooldown) {
+                const cooldownInfo = document.createElement('div');
+                cooldownInfo.className = 'price-cooldown-info';
+                cooldownInfo.textContent = `Price update cooldown: ${formatTimeLeft(listing.priceUpdateCooldownTimeLeft)}`;
+                cooldownInfo.style.color = '#e74c3c';
+                cooldownInfo.style.fontSize = '12px';
+                cooldownInfo.style.marginTop = '5px';
+                
+                // add the cooldown info to the price container
+                priceContainer.appendChild(cooldownInfo);
+            }
+            
+            // actions container
+            const actionsContainer = document.createElement('div');
+            actionsContainer.className = 'listing-actions';
+            
+            // cancel listing button
+            const cancelButton = document.createElement('button');
+            cancelButton.className = 'action-btn cancel-listing-btn';
+            cancelButton.textContent = 'Cancel listing';
+            cancelButton.setAttribute('data-i18n', 'market.cancelListing');
+            cancelButton.addEventListener('click', (e) => {
+                e.stopPropagation(); // prevent the event from bubbling up
+                handleCancelListing(listing);
+            });
+            
+            // update price button
+            const updateButton = document.createElement('button');
+            updateButton.className = 'action-btn update-price-btn';
+            updateButton.textContent = 'Update price';
+            updateButton.setAttribute('data-i18n', 'market.updatePrice');
+            
+            // if the NFT is in the price update cooldown, disable the update price button
+            if (listing.inPriceUpdateCooldown) {
+                updateButton.disabled = true;
+                updateButton.classList.add('disabled');
+                updateButton.title = `NFT #${listing.tokenId} needs to wait ${formatTimeLeft(listing.priceUpdateCooldownTimeLeft)} to update the price`;
+            } else {
+                // add the click event handler
+                updateButton.addEventListener('click', (e) => {
+                    e.stopPropagation(); // prevent the event from bubbling up
+                    handleUpdatePrice(listing);
+                });
+            }
+            
+            // add the buttons to the actions container
+            actionsContainer.appendChild(updateButton);
+            actionsContainer.appendChild(cancelButton);
+            
+            // add the elements to the info container
+            infoContainer.appendChild(nameElement);
+            infoContainer.appendChild(idElement);
+            infoContainer.appendChild(qualityElement);
+            infoContainer.appendChild(levelElement);
+            infoContainer.appendChild(priceContainer);
+            
+            // add the image container, info container and actions container to the listing item
+            listingItem.appendChild(imageContainer);
+            listingItem.appendChild(infoContainer);
+            listingItem.appendChild(actionsContainer);
+            
+            // add the listing item to the listings list
+            listingsList.appendChild(listingItem);
+            
+            // try to apply the internationalization
+            if (window.applyI18n && typeof window.applyI18n === 'function') {
+                window.applyI18n(listingItem);
+            }
+        });
+        
+        // if there is no listed NFT, show the empty message
+        if (userListings.length === 0) {
+            emptyMessage.style.display = 'block';
+        } else {
+            emptyMessage.style.display = 'none';
+        }
+        
+        // add the cooldown related CSS styles
+        addCooldownStyles();
+    }
+    
+    /**
+     * add the cooldown related CSS styles
+     */
+    function addCooldownStyles() {
+        // check if the style already exists
+        const styleId = 'nft-cooldown-styles';
+        if (document.getElementById(styleId)) {
+            return;
+        }
+        
+        // create the style element
+        const style = document.createElement('style');
+        style.id = styleId;
+        style.textContent = `
+            .action-btn.disabled {
+                opacity: 0.5;
+                cursor: not-allowed;
+                background-color: #ccc;
+            }
+            
+            .price-cooldown-info {
+                color: #e74c3c;
+                font-size: 12px;
+                margin-top: 5px;
+            }
+        `;
+        
+        // add to the document head
+        document.head.appendChild(style);
+    }
+    
+    /**
+     * get the token symbol
+     * @param {string} tokenAddress - the token address
+     * @returns {string} the token symbol
+     */
+    function getTokenSymbol(tokenAddress) {
+        // check the supportedMarketTokens module
+        if (window.supportedMarketTokens && typeof window.supportedMarketTokens.getSymbolByAddress === 'function') {
+            return window.supportedMarketTokens.getSymbolByAddress(tokenAddress);
+        }
+        
+        // default return
+        return 'TOKEN';
+    }
+    
+    /**
+     * handle the cancel listing
+     * @param {Object} listing - the listing info
+     */
+    async function handleCancelListing(listing) {
+        try {
+            // show the loading status
+            showStatus('Processing...', 'info');
+            
+            // get the user address
+            const accounts = await web3.eth.getAccounts();
+            const userAddress = accounts[0];
+            
+            if (!userAddress) {
+                throw new Error('Wallet not connected');
+            }
+            
+            // confirm the user is the seller
+            if (listing.seller.toLowerCase() !== userAddress.toLowerCase()) {
+                throw new Error('You are not the seller of this NFT');
+            }
+            
+            // call the contract to cancel the listing
+            const receipt = await marketplaceContract.methods.cancelListing(listing.tokenId).send({ from: userAddress });
+            
+            console.log('NFT canceled listing successfully:', receipt);
+            
+            // show the success message
+            showStatus('NFT has been canceled!', 'success');
+            
+            // trigger the NFT delisted event
+            const delistedEvent = new CustomEvent('nft.delisted', {
+                detail: {
+                    tokenId: listing.tokenId
+                }
+            });
+            window.dispatchEvent(delistedEvent);
+            
+            // remove from the listings list
+            const index = userListings.findIndex(item => item.tokenId === listing.tokenId);
+            if (index !== -1) {
+                userListings.splice(index, 1);
+            }
+            
+            // render the listings list
+            renderListingsList();
+            
+            // if there is no listed NFT, show the empty message
+            if (userListings.length === 0) {
+                emptyMessage.style.display = 'block';
+            }
+        } catch (error) {
+            console.error('failed to cancel the listing of NFT:', error);
+            showStatus('failed to cancel the listing of NFT: ' + error.message, 'error');
+        }
+    }
+    
+    /**
+     * handle the update price
+     * @param {Object} listing - the listing info
+     */
+    async function handleUpdatePrice(listing) {
+        try {
+            // check the price update cooldown again
+            const cooldownInfo = await checkPriceUpdateCooldown(listing.tokenId);
+            if (cooldownInfo.inCooldown) {
+                // if still in the cooldown, show the error message and prevent the update
+                showStatus(`NFT is still in the price update cooldown, need to wait ${formatTimeLeft(cooldownInfo.timeLeft)} to update the price`, 'error');
+                return;
+            }
+            
+            // check if the update price container already exists, if exists, remove it
+            const existingContainer = document.querySelector('.update-price-container');
+            if (existingContainer) {
+                existingContainer.remove();
+            }
+            
+            // create the update price container
+            const updatePriceContainer = document.createElement('div');
+            updatePriceContainer.className = 'update-price-container';
+            updatePriceContainer.style.position = 'absolute';
+            updatePriceContainer.style.top = '50%';
+            updatePriceContainer.style.left = '50%';
+            updatePriceContainer.style.transform = 'translate(-50%, -50%)';
+            updatePriceContainer.style.zIndex = '1000';
+            updatePriceContainer.style.width = '90%';
+            updatePriceContainer.style.maxWidth = '350px';
+            updatePriceContainer.style.backgroundColor = '#fff';
+            updatePriceContainer.style.borderRadius = '8px';
+            updatePriceContainer.style.boxShadow = '0 4px 20px rgba(0,0,0,0.15)';
+            
+            // create the background overlay, for closing the modal
+            const overlay = document.createElement('div');
+            overlay.className = 'update-price-overlay';
+            overlay.style.position = 'absolute';
+            overlay.style.top = '0';
+            overlay.style.left = '0';
+            overlay.style.width = '100%';
+            overlay.style.height = '100%';
+            overlay.style.backgroundColor = 'rgba(0,0,0,0.5)';
+            overlay.style.zIndex = '999';
+            
+            // click the overlay to close the modal
+            overlay.addEventListener('click', () => {
+                overlay.remove();
+                updatePriceContainer.remove();
+            });
+            
+            // title
+            const title = document.createElement('h3');
+            title.textContent = 'Update NFT price';
+            title.setAttribute('data-i18n', 'market.updateNFTPrice');
+            title.style.textAlign = 'center';
+            title.style.margin = '15px 0';
+            title.style.fontSize = '18px';
+            title.style.color = '#333';
+            
+            // create the form
+            const form = document.createElement('div');
+            form.className = 'update-price-form';
+            form.style.padding = '0 20px 20px';
+            
+            // current price display
+            const currentPrice = document.createElement('div');
+            currentPrice.className = 'current-price';
+            currentPrice.innerHTML = `Current price: <strong>${web3.utils.fromWei(listing.price, 'ether')} ${getTokenSymbol(listing.paymentToken)}</strong>`;
+            currentPrice.style.marginBottom = '15px';
+            currentPrice.style.fontSize = '14px';
+            
+            // new price input
+            const priceInput = document.createElement('input');
+            priceInput.type = 'number';
+            priceInput.className = 'new-price-input';
+            priceInput.min = '0';
+            priceInput.step = '0.001';
+            priceInput.placeholder = 'Enter the new price';
+            priceInput.style.width = '100%';
+            priceInput.style.padding = '10px';
+            priceInput.style.border = '1px solid #ddd';
+            priceInput.style.borderRadius = '4px';
+            priceInput.style.fontSize = '14px';
+            priceInput.style.boxSizing = 'border-box';
+            priceInput.style.marginBottom = '15px';
+            
+            // set the default value to the current price
+            priceInput.value = web3.utils.fromWei(listing.price, 'ether');
+            
+            // cooldown note (if there is the last update time)
+            if (listing.lastPriceUpdateTime && listing.lastPriceUpdateTime !== '0') {
+                const lastUpdateTime = new Date(parseInt(listing.lastPriceUpdateTime) * 1000);
+                const lastUpdateInfo = document.createElement('div');
+                lastUpdateInfo.className = 'last-update-info';
+                lastUpdateInfo.innerHTML = `Last update time: <strong>${lastUpdateTime.toLocaleString()}</strong>`;
+                lastUpdateInfo.style.marginBottom = '10px';
+                lastUpdateInfo.style.fontSize = '12px';
+                lastUpdateInfo.style.color = '#666';
+                
+                // add to the form
+                form.appendChild(lastUpdateInfo);
+                
+                // add the cooldown note
+                const cooldownNote = document.createElement('div');
+                cooldownNote.className = 'cooldown-note';
+                cooldownNote.textContent = 'Note: Each price update has a 1 hour cooldown';
+                cooldownNote.style.marginBottom = '15px';
+                cooldownNote.style.fontSize = '12px';
+                cooldownNote.style.color = '#e74c3c';
+                
+                // add to the form
+                form.appendChild(cooldownNote);
+            }
+            
+            // buttons container
+            const buttonsContainer = document.createElement('div');
+            buttonsContainer.className = 'price-buttons';
+            buttonsContainer.style.display = 'flex';
+            buttonsContainer.style.justifyContent = 'space-between';
+            buttonsContainer.style.gap = '10px';
+            
+            // cancel button
+            const cancelButton = document.createElement('button');
+            cancelButton.className = 'action-btn cancel-btn';
+            cancelButton.textContent = 'Cancel';
+            cancelButton.setAttribute('data-i18n', 'button.cancel');
+            cancelButton.style.flex = '1';
+            cancelButton.style.padding = '10px';
+            cancelButton.style.border = 'none';
+            cancelButton.style.borderRadius = '4px';
+            cancelButton.style.backgroundColor = '#f1f1f1';
+            cancelButton.style.color = '#666';
+            cancelButton.style.cursor = 'pointer';
+            
+            // confirm button
+            const confirmButton = document.createElement('button');
+            confirmButton.className = 'action-btn confirm-btn';
+            confirmButton.textContent = 'Confirm update';
+            confirmButton.setAttribute('data-i18n', 'button.confirm');
+            confirmButton.style.flex = '1';
+            confirmButton.style.padding = '10px';
+            confirmButton.style.border = 'none';
+            confirmButton.style.borderRadius = '4px';
+            confirmButton.style.backgroundColor = '#4CAF50';
+            confirmButton.style.color = 'white';
+            confirmButton.style.cursor = 'pointer';
+            
+            // 添加事件处理
+            cancelButton.addEventListener('click', () => {
+                // remove the update price container and the overlay
+                overlay.remove();
+                updatePriceContainer.remove();
+            });
+            
+            confirmButton.addEventListener('click', async () => {
+                // get the new price
+                const newPrice = priceInput.value;
+                
+                if (!newPrice || parseFloat(newPrice) <= 0) {
+                    alert('Please enter a valid price');
+                    return;
+                }
+                
+                try {
+                    // 再次检查价格更新冷却期
+                    const finalCheck = await checkPriceUpdateCooldown(listing.tokenId);
+                    if (finalCheck.inCooldown) {
+                        throw new Error(`NFT is still in the price update cooldown, need to wait ${formatTimeLeft(finalCheck.timeLeft)} to update the price`);
+                    }
+                    
+                    // show the loading status
+                    showStatus('Updating price...', 'info');
+                    
+                    // remove the modal and the overlay
+                    overlay.remove();
+                    updatePriceContainer.remove();
+                    
+                    // get the user address
+                    const accounts = await web3.eth.getAccounts();
+                    const userAddress = accounts[0];
+                    
+                    if (!userAddress) {
+                        throw new Error('Wallet not connected');
+                    }
+                    
+                    // calculate the price (convert to Wei)
+                    const priceInWei = web3.utils.toWei(newPrice, 'ether');
+                    
+                    // call the contract to update the price
+                    let receipt;
+                    try {
+                        // first try to use the updateListingPrice method
+                        if (marketplaceContract.methods.updateListingPrice) {
+                            receipt = await marketplaceContract.methods.updateListingPrice(listing.tokenId, priceInWei).send({ from: userAddress });
+                        } 
+                        // alternative method: try to use the updateListing method
+                        else if (marketplaceContract.methods.updateListing) {
+                            receipt = await marketplaceContract.methods.updateListing(listing.tokenId, priceInWei).send({ from: userAddress });
+                        }
+                        // alternative method: try to use the updatePrice method
+                        else if (marketplaceContract.methods.updatePrice) {
+                            receipt = await marketplaceContract.methods.updatePrice(listing.tokenId, priceInWei).send({ from: userAddress });
+                        }
+                        // if none of the above methods are available, throw an exception
+                        else {
+                            throw new Error('Contract does not support price update function');
+                        }
+                    } catch (contractError) {
+                        console.error('failed to call the price update method:', contractError);
+                        
+                        // check if the error is caused by the cooldown
+                        if (contractError.message.includes('cooldown') || 
+                            contractError.message.includes('Cooldown') || 
+                            contractError.message.includes('period not passed')) {
+                            throw new Error('Price update operation is in cooldown, please try again later');
+                        }
+                        
+                        throw contractError;
+                    }
+                    
+                    console.log('NFT price updated successfully:', receipt);
+                    
+                    // show the success message
+                    showStatus('NFT price has been updated!', 'success');
+                    
+                    // trigger the NFT price updated event
+                    const priceUpdatedEvent = new CustomEvent('nft.priceUpdated', {
+                        detail: {
+                            tokenId: listing.tokenId,
+                            newPrice: priceInWei,
+                            paymentToken: listing.paymentToken
+                        }
+                    });
+                    window.dispatchEvent(priceUpdatedEvent);
+                    
+                    // update the listing info
+                    listing.price = priceInWei;
+                    listing.lastPriceUpdateTime = Math.floor(Date.now() / 1000).toString();
+                    listing.inPriceUpdateCooldown = true;
+                    listing.priceUpdateCooldownTimeLeft = NFT_PRICE_UPDATE_COOLDOWN;
+                    
+                    // reload the listings list
+                    await loadUserListings();
+                } catch (error) {
+                    console.error('failed to update the NFT price:', error);
+                    showStatus('failed to update the NFT price: ' + error.message, 'error');
+                }
+            });
+            
+            // add the buttons to the buttons container
+            buttonsContainer.appendChild(cancelButton);
+            buttonsContainer.appendChild(confirmButton);
+            
+            // add the elements to the form
+            form.appendChild(currentPrice);
+            form.appendChild(priceInput);
+            form.appendChild(buttonsContainer);
+            
+            // add the title and the form to the container
+            updatePriceContainer.appendChild(title);
+            updatePriceContainer.appendChild(form);
+            
+            // add the overlay and the container to the modal content
+            modalContent.appendChild(overlay);
+            modalContent.appendChild(updatePriceContainer);
+            
+            // set the focus to the price input
+            setTimeout(() => {
+                priceInput.focus();
+                priceInput.select(); // select all the text for easy input
+            }, 100);
+        } catch (error) {
+            console.error('failed to create the update price container:', error);
+            showStatus('failed to create the update price container: ' + error.message, 'error');
+        }
+    }
+    
+    /**
+     * show the status message
+     * @param {string} message - the message content
+     * @param {string} type - the message type (info, success, error)
+     */
+    function showStatus(message, type = 'info') {
+        statusMessage.textContent = message;
+        statusMessage.className = `status-message ${type}`;
+        statusMessage.style.display = 'block';
+    }
+    
+    /**
+     * check if the NFT is in the price update cooldown
+     * @param {number} tokenId - the NFT token ID
+     * @returns {Promise<{inCooldown: boolean, timeLeft: number}>} - the cooldown status and the remaining time (seconds)
+     */
+    async function checkPriceUpdateCooldown(tokenId) {
+        try {
+            // get the NFT listing info
+            const listingInfo = await marketplaceContract.methods.listings(tokenId).call();
+            
+            // if the NFT has never updated the price, then it is not in the cooldown
+            if (listingInfo.lastPriceUpdateTime === '0') {
+                return { inCooldown: false, timeLeft: 0 };
+            }
+            
+            // get the last price update time
+            const lastPriceUpdateTime = parseInt(listingInfo.lastPriceUpdateTime);
+            
+            // get the current time (seconds)
+            const currentTime = Math.floor(Date.now() / 1000);
+            
+            // calculate the cooldown end time
+            const cooldownEndTime = lastPriceUpdateTime + NFT_PRICE_UPDATE_COOLDOWN;
+            
+            // if the current time is less than the cooldown end time, then the NFT is still in the cooldown
+            if (currentTime < cooldownEndTime) {
+                // calculate the remaining cooldown time (seconds)
+                const timeLeft = cooldownEndTime - currentTime;
+                return { inCooldown: true, timeLeft: timeLeft };
+            }
+            
+            // not in the cooldown
+            return { inCooldown: false, timeLeft: 0 };
+        } catch (error) {
+            console.error(`检查NFT #${tokenId}价格更新冷却期失败:`, error);
+            // default not in the cooldown
+            return { inCooldown: false, timeLeft: 0 };
+        }
+    }
+    
+    /**
+     * format the remaining time to a friendly display
+     * @param {number} seconds - the remaining seconds
+     * @returns {string} - the formatted time string
+     */
+    function formatTimeLeft(seconds) {
+        // if the remaining time is less than 1 minute, show the seconds
+        if (seconds < 60) {
+            return `${seconds} s`;
+        }
+        
+        // if the remaining time is less than 1 hour, show the minutes
+        if (seconds < 3600) {
+            const minutes = Math.floor(seconds / 60);
+            const remainingSeconds = seconds % 60;
+            return `${minutes} m ${remainingSeconds > 0 ? remainingSeconds + ' s' : ''}`;
+        }
+        
+        // if the remaining time is greater than or equal to 1 hour, show the hours
+        const hours = Math.floor(seconds / 3600);
+        const minutes = Math.floor((seconds % 3600) / 60);
+        return `${hours} h ${minutes > 0 ? minutes + ' m' : ''}`;
+    }
+    
+    // export the public methods
+    window.manageListingsModal = {
+        init,
+        showModal,
+        hideModal
+    };
+})(); 

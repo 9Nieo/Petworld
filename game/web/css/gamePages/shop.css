@@ -1,0 +1,585 @@
+/* Shop page specific styles */
+.shop-container {
+    padding: 20px;
+}
+
+.shop-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.shop-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 20px;
+    margin-top: 20px;
+}
+
+.shop-item {
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 15px;
+    text-align: center;
+    transition: transform 0.2s;
+    background-color: #f9f9f9;
+}
+
+.shop-item:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+}
+
+.shop-item img, .shop-item .emoji-fallback {
+    width: 80px;
+    height: 80px;
+    margin-bottom: 10px;
+    object-fit: contain;
+}
+
+.emoji-fallback {
+    font-size: 50px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 10px;
+}
+
+.item-price {
+    font-weight: bold;
+    margin: 10px 0;
+    color: #4d7bef;
+}
+
+.coin-icon {
+    color: gold;
+}
+
+.buy-btn {
+    background-color: #4d7bef;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 8px 16px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.buy-btn:hover {
+    background-color: #3a68d8;
+}
+
+/* Egg rarity styles */
+.egg-rarity {
+    font-weight: bold;
+    padding: 4px 8px;
+    border-radius: 4px;
+    color: white;
+    display: inline-block;
+    margin-bottom: 10px;
+}
+
+.common {
+    background-color: #9E9E9E;
+}
+
+.rare {
+    background-color: #8a2be2; /* Purple */
+    color: white;
+}
+
+.legendary {
+    background-color: #FF9800;
+}
+
+/* Styles for adding free NFT items */
+.free-nft-item {
+    position: relative;
+    border: 2px solid #4CAF50 !important;
+    box-shadow: 0 0 15px rgba(76, 175, 80, 0.5);
+    animation: pulse 2s infinite;
+}
+
+.free-nft-item::before {
+    content: '';
+    position: absolute;
+    top: -10px;
+    right: -10px;
+    background: url('../../resources/images/icons/new.png') no-repeat;
+    background-size: contain;
+    width: 50px;
+    height: 50px;
+    z-index: 2;
+}
+
+.egg-rarity.free {
+    background-color: #4CAF50;
+    color: white;
+    font-weight: bold;
+}
+
+@keyframes pulse {
+    0% {
+        box-shadow: 0 0 10px rgba(76, 175, 80, 0.5);
+    }
+    50% {
+        box-shadow: 0 0 20px rgba(76, 175, 80, 0.8);
+    }
+    100% {
+        box-shadow: 0 0 10px rgba(76, 175, 80, 0.5);
+    }
+}
+
+#claim-free-nft-btn {
+    background-color: #4CAF50;
+    transition: all 0.3s ease;
+}
+
+#claim-free-nft-btn:hover {
+    background-color: #45a049;
+    transform: scale(1.05);
+}
+
+/* Responsive adaptation */
+@media (max-width: 768px) {
+    .shop-grid {
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    }
+}
+
+@media (max-width: 480px) {
+    .shop-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Styles for claimed status */
+.already-claimed {
+    position: relative;
+    opacity: 0.8;
+    border: 1px solid #ddd !important;
+    box-shadow: none !important;
+    animation: none !important;
+}
+
+.claimed-badge {
+    position: absolute;
+    top: 15px;
+    left: 50%;
+    transform: translateX(-50%) rotate(-15deg);
+    background-color: rgba(220, 53, 69, 0.85);
+    color: white;
+    padding: 5px 15px;
+    border-radius: 4px;
+    font-weight: bold;
+    font-size: 0.9rem;
+    z-index: 10;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+}
+
+.disabled {
+    opacity: 0.7;
+    cursor: not-allowed !important;
+    background-color: #cccccc !important;
+}
+
+/* Disabled button styles */
+.buy-btn.disabled {
+    background-color: #cccccc;
+    cursor: not-allowed;
+    opacity: 0.7;
+}
+
+.buy-btn.disabled:hover {
+    background-color: #cccccc;
+    transform: none;
+}
+
+/* Inviter input box styles */
+.inviter-input-container {
+    margin-bottom: 10px;
+    width: 100%;
+}
+
+.inviter-input {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    margin-bottom: 5px;
+}
+
+.inviter-input:focus {
+    border-color: #4d7bef;
+    outline: none;
+}
+
+.inviter-tip {
+    font-size: 0.75rem;
+    color: #888;
+    margin-top: 5px;
+    text-align: center;
+}
+
+/* Food amount input container */
+.food-amount-container {
+    margin: 10px 0;
+    border-top: 1px solid #eee;
+    padding-top: 10px;
+}
+
+.food-amount-container label {
+    display: block;
+    font-size: 0.9rem;
+    margin-bottom: 5px;
+    color: #555;
+}
+
+.food-amount-input {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 0.95rem;
+    background-color: #fff;
+    transition: border-color 0.2s;
+}
+
+.food-amount-input:focus {
+    border-color: #4d7bef;
+    outline: none;
+}
+
+.food-amount-input::-webkit-inner-spin-button,
+.food-amount-input::-webkit-outer-spin-button {
+    opacity: 1;
+}
+
+.food-amount-tip {
+    font-size: 0.75rem;
+    color: #888;
+    margin-top: 5px;
+}
+
+/* Bulk lottery quantity selector */
+.batch-amount-container {
+    margin: 10px 0;
+    border-top: 1px solid #eee;
+    padding-top: 10px;
+}
+
+.batch-amount-container label {
+    display: block;
+    font-size: 0.9rem;
+    margin-bottom: 5px;
+    color: #555;
+}
+
+.batch-amount-input {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 0.95rem;
+    background-color: #fff;
+    transition: border-color 0.2s;
+}
+
+.batch-amount-input:focus {
+    border-color: #4d7bef;
+    outline: none;
+}
+
+.batch-amount-input::-webkit-inner-spin-button,
+.batch-amount-input::-webkit-outer-spin-button {
+    opacity: 1;
+}
+
+.batch-amount-tip {
+    font-size: 0.75rem;
+    color: #888;
+    margin-top: 5px;
+}
+
+.batch-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 8px;
+    font-size: 0.85rem;
+}
+
+.batch-total-price {
+    font-weight: bold;
+    color: #4d7bef;
+}
+
+/* Status messages */
+.status-message {
+    margin-top: 20px;
+    padding: 10px;
+    border-radius: 4px;
+    text-align: center;
+    font-weight: bold;
+    display: none;
+}
+
+.status-message.info {
+    background-color: #e3f2fd;
+    color: #0d47a1;
+}
+
+.status-message.success {
+    background-color: #e8f5e9;
+    color: #1b5e20;
+}
+
+.status-message.warning {
+    background-color: #fff3e0;
+    color: #e65100;
+}
+
+.status-message.error {
+    background-color: #ffebee;
+    color: #b71c1c;
+}
+
+/* Styles for NFTs pending claim */
+.pending-eggs-info {
+    display: flex;
+    flex-direction: column;
+    margin: 10px 0;
+    padding: 8px;
+    background-color: rgba(0, 0, 0, 0.05);
+    border-radius: 5px;
+    font-size: 14px;
+}
+
+.pending-eggs-count {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 5px;
+}
+
+.pending-rare {
+    color: #9c27b0;
+    font-weight: 500;
+}
+
+.pending-legendary {
+    color: #ff9800;
+    font-weight: 500;
+}
+
+.pending-eggs-total {
+    text-align: center;
+    font-weight: 600;
+    color: #333;
+    border-top: 1px dashed #ccc;
+    padding-top: 5px;
+}
+
+/* Claim indicator */
+.claimed-badge {
+    position: absolute;
+    top: 40px;
+    right: -30px;
+    background-color: rgba(255, 0, 0, 0.7);
+    color: white;
+    padding: 5px 15px;
+    transform: rotate(45deg);
+    font-size: 12px;
+    font-weight: bold;
+    z-index: 2;
+}
+
+/* Disabled styles */
+.already-claimed {
+    opacity: 0.8;
+    position: relative;
+    overflow: hidden;
+}
+
+/* Loading animation */
+.loading {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    border-top-color: white;
+    animation: spin 1s ease-in-out infinite;
+    margin-right: 5px;
+    vertical-align: middle;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Refresh button styles */
+.refresh-btn {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    transition: all 0.3s ease;
+}
+
+.refresh-btn:hover {
+    background-color: #3e8e41;
+    transform: rotate(180deg);
+}
+
+.refresh-btn i {
+    font-size: 20px;
+}
+
+@keyframes rotating {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.refresh-btn.rotating i {
+    animation: rotating 1s linear infinite;
+}
+
+/* NFT remaining quantity display styles */
+.nft-remaining-container {
+    display: flex;
+    flex: 1;
+    justify-content: flex-start;
+    align-items: center;
+    gap: 30px;
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    box-shadow: none;
+    border: none;
+    backdrop-filter: none;
+}
+
+.remaining-item {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    padding: 0;
+}
+
+.remaining-label {
+    font-size: 14px;
+    font-weight: 500;
+    color: #ddd;
+    margin: 0;
+}
+
+.rare-remaining .remaining-count {
+    color: #9c27b0; /* Purple */
+    font-size: 20px;
+    font-weight: bold;
+    text-shadow: 0 0 5px rgba(156, 39, 176, 0.3);
+}
+
+.legendary-remaining .remaining-count {
+    color: #FF9800;
+    font-size: 20px;
+    font-weight: bold;
+    text-shadow: 0 0 5px rgba(255, 152, 0, 0.3);
+}
+
+@media (max-width: 768px) {
+    .nft-remaining-container {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 5px;
+    }
+    
+    .shop-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+    
+    .refresh-btn {
+        align-self: flex-end;
+    }
+    
+    .remaining-item {
+        padding: 0;
+    }
+    
+    .remaining-count {
+        font-size: 18px;
+    }
+}
+
+/* Free pet food information styles */
+.free-pwfood-info {
+    background-color: #f5f5f5;
+    border-radius: 6px;
+    padding: 8px 12px;
+    margin-top: 5px;
+    margin-bottom: 10px;
+    font-size: 0.9rem;
+}
+
+.pwfood-reward {
+    color: #66bb6a;
+    font-weight: 500;
+    text-align: center;
+    margin-bottom: 5px;
+}
+
+.next-claim-time {
+    text-align: center;
+    color: #555;
+    font-size: 0.85rem;
+    border-top: 1px dashed #ccc;
+    padding-top: 5px;
+}
+
+/* Add styles for next claim availability state */
+#next-claim-time {
+    font-weight: 500;
+}
+
+/* Style for when food is available now */
+#next-claim-time.available-now {
+    color: #4caf50;
+    font-weight: bold;
+}
+
+/* Free pet food button color */
+#free-pwfood-btn {
+    background-color: #66bb6a;
+}
+
+#free-pwfood-btn:hover {
+    background-color: #4caf50;
+}
+
+.nft-required {
+    opacity: 0.8;
+    border: 1px dashed #ffc107 !important;
+    box-shadow: 0 0 10px rgba(255, 193, 7, 0.5) !important;
+    animation: none !important;
+} 
