@@ -72,6 +72,10 @@ class DropupMenu {
         this.menuElem.className = `dropup-menu`;
         this.menuElem.style.display = 'none';
         this.menuElem.style.zIndex = this.options.zIndex;
+        
+        // Directly set background color to semi-transparent white
+        this.menuElem.style.backgroundColor = 'rgba(255, 255, 255, 0.5)'; 
+        this.menuElem.style.backdropFilter = 'blur(10px)';
 
         // Create menu item list
         const menuList = document.createElement('ul');
@@ -176,7 +180,8 @@ class DropupMenu {
             .dropup-menu {
                 position: fixed;
                 border-radius: 12px;
-                background-color: #fff;
+                background-color: rgba(255, 255, 255, 0.8); 
+                backdrop-filter: blur(10px);
                 box-shadow: 0 4px 20px rgba(0,0,0,0.2);
                 width: 240px;
                 max-height: 80vh;
@@ -216,7 +221,7 @@ class DropupMenu {
                 text-align: left;
                 cursor: pointer;
                 font-size: 16px;
-                color: #333;
+                color: #333; /* Dark text color */
                 transition: background-color 0.2s;
             }
             
@@ -236,6 +241,7 @@ class DropupMenu {
                 display: flex;
                 align-items: center;
                 justify-content: center;
+                color: #333; /* Dark icon color */
             }
             
             .dropup-menu-item.disabled .dropup-menu-button {
@@ -290,7 +296,7 @@ class DropupMenu {
             /* Dark theme support */
             @media (prefers-color-scheme: dark) {
                 .dropup-menu {
-                    background-color: #2d2d2d;
+                    background-color: rgba(45, 45, 45, 0.9); 
                     box-shadow: 0 4px 20px rgba(0,0,0,0.5);
                 }
                 

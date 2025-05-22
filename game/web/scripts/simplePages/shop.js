@@ -939,7 +939,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Load NFTLotteryManager initialization file
         const nftLotteryManagerScript = document.createElement('script');
         nftLotteryManagerScript.src = '../../scripts/init_contracts/initNFTLotteryManager.js';
-        nftLotteryManagerScript.onload = function() {
+        nftManagerScript.onload = function() {
             debug.log('NFTLotteryManager initialization file loaded');
             if (web3 && currentAddress) {
                 initShopContracts();
@@ -1283,7 +1283,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Check wallet connection status
         if (!isWalletConnected) {
-            showStatusMessage('Please connect a wallet', 'error');
+            showStatusMessage('pleaseConnectWallet', 'error');
             // Show wallet connection modal
             showWalletModal();
             return;
@@ -1291,7 +1291,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Check Web3 and contract initialization status
         if (!web3 || !nftLotteryManagerContract) {
-            showStatusMessage('Contract is loading, please try again later', 'error');
+            showStatusMessage('contractLoading', 'error');
             
             // Try to initialize contracts
             if (web3 && currentAddress) {
@@ -1339,7 +1339,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Set button to loading state
         button.disabled = true;
-        button.innerHTML = '<span class="loading"></span> Processing...';
+        button.innerHTML = '<span class="loading"></span> ' + i18n.t('processing');
         
         try {
             // Determine the payment token to use - prioritize USDT
@@ -1366,7 +1366,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 
                 if (!availableToken) {
-                    showStatusMessage('No available payment token found', 'error');
+                    showStatusMessage('noAvailablePaymentToken', 'error');
                     resetBuyButton(button);
                     return;
                 }
@@ -1391,7 +1391,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     purchaseFood(itemId, availableToken, button);
                 } else {
                     debug.error('Unknown item type:', category);
-                    showStatusMessage('Unknown item type', 'error');
+                    showStatusMessage('unknownItemType', 'error');
                     resetBuyButton(button);
                 }
             } else {
@@ -1415,13 +1415,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     purchaseFood(itemId, defaultPaymentToken, button);
                 } else {
                     debug.error('Unknown item type:', category);
-                    showStatusMessage('Unknown item type', 'error');
+                    showStatusMessage('unknownItemType', 'error');
                     resetBuyButton(button);
                 }
             }
         } catch (error) {
             debug.error('Error processing purchase:', error);
-            showStatusMessage('Purchase failed: ' + getErrorMessage(error), 'error');
+            showStatusMessage('purchaseFailed', 'error', { message: getErrorMessage(error) });
             resetBuyButton(button);
         } finally {
             // Ensure button state is reset, regardless of error
@@ -1446,9 +1446,9 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Set different text based on button ID
         if (button.id === 'free-nft-btn' || button.id === 'claim-free-nft-btn') {
-            button.textContent = i18n && typeof i18n.t === 'function' ? i18n.t('shop.claim') : 'Claim';
+            button.textContent = i18n.t('shop.claim');
         } else {
-            button.textContent = i18n && typeof i18n.t === 'function' ? i18n.t('button.buy') : 'Buy';
+            button.textContent = i18n.t('button.buy');
         }
         
         // Remove possible added processing style
@@ -1457,14 +1457,88 @@ document.addEventListener('DOMContentLoaded', () => {
     
     /**
      * Show status message
-     * @param {string} message - Message content
+     * @param {string} message - Message key or direct message
      * @param {string} type - Message type (info, success, error, warning)
+     * @param {object} params - Parameters for translation
      */
-    function showStatusMessage(message, type = 'info') {
-        ModalDialog.alert(message, {
-            title: type === 'error' ? 'Error' : 'Tip',
-            confirmText: 'OK'
-        });
+    function showStatusMessage(message, type = 'info', params = {}) {
+        // First, remove any existing status message bar
+        const existingMessage = document.querySelector('.temporary-status-message');
+        if (existingMessage) {
+            existingMessage.remove();
+        }
+
+        // Try to translate the message if it seems to be a key (contains no spaces and dots)
+        let messageText = message;
+        if (window.i18n && typeof window.i18n.t === 'function') {
+            // Check if this might be a translation key
+            if (message.match(/^[a-zA-Z0-9_\.]+$/) && !message.includes(' ')) {
+                // Try to get the translation from shop.notification namespace
+                const translationKey = `shop.notification.${message}`;
+                const translated = window.i18n.t(translationKey, params);
+                
+                // Only use translation if it's different from the key (meaning translation exists)
+                if (translated !== translationKey) {
+                    messageText = translated;
+                }
+            }
+        }
+
+        // Create message element
+        const messageEl = document.createElement('div');
+        messageEl.className = `status-message ${type} temporary-status-message`;
+        messageEl.textContent = messageText;
+
+        // Add basic styles for temporary message bar
+        messageEl.style.position = 'fixed';
+        messageEl.style.bottom = '20px';
+        messageEl.style.left = '50%';
+        messageEl.style.transform = 'translateX(-50%)';
+        messageEl.style.padding = '10px 20px';
+        messageEl.style.borderRadius = '4px';
+        messageEl.style.zIndex = '1001'; // Ensure it's above the payment frame overlay
+        messageEl.style.textAlign = 'center';
+        messageEl.style.maxWidth = '90%';
+        messageEl.style.boxShadow = '0 2px 8px rgba(0,0,0,0.2)';
+        messageEl.style.opacity = '0';
+        messageEl.style.transition = 'opacity 0.3s ease-in-out';
+
+        // Apply type-specific background colors
+        switch(type) {
+            case 'success':
+                messageEl.style.backgroundColor = '#4CAF50';
+                messageEl.style.color = 'white';
+                break;
+            case 'error':
+                messageEl.style.backgroundColor = '#f44336';
+                messageEl.style.color = 'white';
+                break;
+            case 'warning':
+                messageEl.style.backgroundColor = '#ff9800';
+                messageEl.style.color = 'white';
+                break;
+            case 'info':
+            default:
+                messageEl.style.backgroundColor = '#2196F3';
+                messageEl.style.color = 'white';
+                break;
+        }
+
+        // Add to page
+        document.body.appendChild(messageEl);
+
+        // Fade in
+        setTimeout(() => {
+            messageEl.style.opacity = '1';
+        }, 10);
+
+        // Remove after 3 seconds
+        setTimeout(() => {
+            messageEl.style.opacity = '0';
+            messageEl.addEventListener('transitionend', () => {
+                messageEl.remove();
+            });
+        }, 3000);
     }
     
     /**
@@ -1680,7 +1754,7 @@ document.addEventListener('DOMContentLoaded', () => {
         debug.log('Purchase pet eggs:', { tokenId, paymentToken });
         
         if (!web3 || !currentAddress) {
-            showStatusMessage('Web3 not initialized or wallet not connected', 'error');
+            debug.error('Purchase failed: Web3 not initialized or wallet not connected');
             resetBuyButton(buyButton);
             return;
         }
@@ -1732,7 +1806,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (batchAmountInput) {
                 batchCount = parseInt(batchAmountInput.value) || 1;
                 if (batchCount < 1) batchCount = 1;
-                if (batchCount > 10) batchCount = 10;
+                if (batchCount > 5) batchCount = 5;
             }
             
             // Calculate total price
@@ -1845,7 +1919,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             
                             if (approvalStatus.needsApproval) {
                                 debug.log('Need to approve token:', approvalStatus);
-                                showStatusMessage('Requesting token approval...', 'info');
+                                showStatusMessage('requestingApproval', 'info');
                                 
                                 // Execute authorization
                                 const approveResult = await window.ContractApprovalManager.approveERC20Token(
@@ -1915,10 +1989,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     // based on whether it's a single or batch purchase
                     let result;
                     let statusMessage = batchCount > 1 ? 
-                        `Purchasing ${batchCount}${i18n.t('shop.batchEggs')}...` : 
-                        `Purchasing ${eggName}...`;
+                        `purchasingEggs` : 
+                        `purchasingEggs`;
                     
-                    showStatusMessage(statusMessage, 'info');
+                    showStatusMessage(statusMessage, 'info', { eggName: eggName });
                     debug.log('Token authorized, starting to purchase eggs, token address:', payToken, 'batch quantity:', batchCount);
                     
                     if (batchCount > 1) {
@@ -1974,10 +2048,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     debug.log('Purchase egg transaction successful:', result);
                     
                     let successMessage = batchCount > 1 ? 
-                        `Congratulations! Successfully purchased ${batchCount} ${eggName}` : 
-                        `Congratulations! Successfully purchased ${eggName}`;
+                        `purchaseEggsSuccess` : 
+                        `purchaseEggsSuccess`;
                     
-                    showStatusMessage(successMessage, 'success');
+                    showStatusMessage(successMessage, 'success', { count: batchCount, eggName: eggName });
                     
                     // Get lottery result from transaction
                     if (result && result.transactionHash) {
@@ -2014,11 +2088,11 @@ document.addEventListener('DOMContentLoaded', () => {
                                         }
                                     } else {
                                         debug.warn('Failed to get batch lottery results or results are empty');
-                                        showStatusMessage('Successfully purchased eggs, please wait for 1 minute and then claim your new pet in the "claim unclaimed pets" module', 'warning');
+                                        showStatusMessage('purchaseNoLotteryResult', 'success');
                                     }
                                 } else {
                                     debug.warn('Batch lottery result retrieval method not available');
-                                    showStatusMessage('Successfully purchased eggs, please wait for 1 minute and then claim your new pet in the "claim unclaimed pets" module', 'warning');
+                                    showStatusMessage('purchaseNoLotteryDisplay', 'success');
                                 }
                             } else {
                                 // Single lottery result processing
@@ -2039,7 +2113,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                         }
                                     } else {
                                         debug.warn('Failed to get lottery result');
-                                        showStatusMessage('Successfully purchased eggs, please check your collection for new pets.', 'success');
+                                        showStatusMessage('purchaseNoLotteryDisplay', 'success');
                                     }
                                 } else if (nftLotteryManagerContract.methods.getLotteryResultFromTransaction) {
                                     // Try using contract method to get result
@@ -2053,23 +2127,28 @@ document.addEventListener('DOMContentLoaded', () => {
                                     }
                                 } else {
                                     debug.warn('Lottery result retrieval method not available');
-                                    showStatusMessage('Successfully purchased eggs, please check your collection for new pets.', 'success');
+                                    showStatusMessage('purchaseNoLotteryDisplay', 'success');
                                 }
                             }
                         } catch (error) {
                             debug.error('Error getting lottery result:', error);
-                            showStatusMessage('Successfully purchased eggs, but unable to display lottery results', 'success');
+                            showStatusMessage('purchaseNoLotteryDisplay', 'success');
                         }
                     }
                 } catch (error) {
                     debug.error('Error purchasing eggs:', error);
-                    showStatusMessage('Failed to purchase eggs', 'error');
+                    showStatusMessage('purchaseFailed', 'error', { message: getErrorMessage(error) });
                     throw error; // Re-throw error so it can be handled by the upper layer
                 }
             });
         } catch (error) {
             debug.error('Error preparing to purchase:', error);
             resetBuyButton(buyButton);
+        } finally {
+            // Ensure button state is reset, regardless of error
+            setTimeout(() => {
+                resetBuyButton(button);
+            }, 2000); // Short delay to avoid conflict with other reset logic
         }
     }
     
@@ -2083,7 +2162,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Check if there is a lottery result
         if (!result) {
             debug.error('Invalid lottery result');
-            showStatusMessage('Invalid lottery result', 'error');
+            showStatusMessage('invalidLotteryResult', 'error');
             return;
         }
         
@@ -2274,7 +2353,7 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log('Purchase food:', { foodId, paymentToken });
         
         if (!web3 || !currentAddress) {
-            showStatusMessage('Web3 is not initialized or wallet is not connected', 'error');
+            debug.error('Purchase failed: Web3 is not initialized or wallet is not connected');
             resetBuyButton(buyButton);
             return;
         }
@@ -2283,7 +2362,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // Get the amount input by the user
             const amountInput = document.getElementById('food-amount');
             if (!amountInput) {
-                showStatusMessage('can not find the amount input box', 'error');
+                showStatusMessage('amountInputNotFound', 'error');
                 resetBuyButton(buyButton);
                 return;
             }
@@ -2300,8 +2379,8 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             
             // Check if it is within the allowed range
-            if (amount < 1 || amount > 10000) {
-                showSimpleAlert('Range error', 'Please enter an amount between 1 and 10000');
+            if (amount < 1 || amount > 5) {
+                showSimpleAlert('Range error', 'Please enter an amount between 1 and 5');
                 resetBuyButton(buyButton);
                 return;
             }
@@ -2451,10 +2530,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                     
                     debug.log('Purchase food transaction successful:', result);
-                    showStatusMessage(`Congratulations! Successfully purchased ${3000 * amount} pet food`, 'success');
+                    showStatusMessage(`purchaseFoodSuccess`, 'success', { quantity: 3000 * amount });
                 } catch (error) {
                     debug.error('Failed to purchase food:', error);
-                    showStatusMessage(`Purchase failed`);
+                    showStatusMessage(`purchaseFailed`, 'error', { message: getErrorMessage(error) });
                 } finally {
                     // Reset the button status
                     resetBuyButton(buyButton);
@@ -2462,7 +2541,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         } catch (error) {
             debug.error('Failed to purchase food:', error);
-            showStatusMessage(`Purchase failed`);
+            showStatusMessage(`purchaseFailed`, 'error', { message: getErrorMessage(error) });
             resetBuyButton(buyButton);
         }
     }
@@ -2567,7 +2646,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 
             case 'paymentStarted':
                 // Payment started
-                showStatusMessage('Payment processing...', 'info');
+                showStatusMessage('paymentProcessing', 'info');
                 break;
                 
             case 'paymentConfirmed':
@@ -2595,12 +2674,12 @@ document.addEventListener('DOMContentLoaded', () => {
                                 }
                             }).catch(err => {
                                 debug.error('Failed to execute the purchase callback:', err);
-                                showStatusMessage('Purchase failed');
+                                showStatusMessage('purchaseFailed', 'error', { message: getErrorMessage(err) });
                             });
                         }
                     } catch (error) {
                         debug.error('Error executing the purchase callback:', error);
-                        showStatusMessage('Purchase process error');
+                        showStatusMessage('purchaseFailed', 'error', { message: getErrorMessage(error) });
                     }
                     
                     // After execution, clear the callback
@@ -2611,7 +2690,7 @@ document.addEventListener('DOMContentLoaded', () => {
             case 'paymentCancelled':
                 // Payment cancelled
                 debug.log('User cancelled payment');
-                showStatusMessage('Payment cancelled', 'info');
+                showStatusMessage('paymentCancelled', 'info');
                 
                 // Clear the callback
                 window.confirmPaymentCallback = null;
@@ -2630,10 +2709,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Process the payment result
                 if (message.data && message.data.success) {
                     debug.log('Payment successful:', message.data);
-                    showStatusMessage('Payment successful!', 'success');
+                    showStatusMessage('paymentSuccess', 'success');
                 } else {
                     debug.error('Payment failed:', message.data && message.data.error);
-                    showStatusMessage(`Payment failed: ${message.data && message.data.error || 'Unknown error'}`, 'error');
+                    showStatusMessage('paymentFailed', 'error', { message: message.data && message.data.error || 'Unknown error' });
                     
                     // Reset all purchase buttons, ensuring they can be used for the next purchase
                     const resultBuyButtons = document.querySelectorAll('.buy-btn');
@@ -2801,7 +2880,7 @@ document.addEventListener('DOMContentLoaded', () => {
      * @param {HTMLElement} button - Claim button
      */
     async function claimFreeNFT(button) {
-        debug.log('Claim free NFT');
+        debug.log('Claim the free NFT');
         
         if (!button) {
             button = document.getElementById('free-nft-btn');
@@ -2814,7 +2893,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Set the button to loading state
         const originalText = button.textContent;
         button.disabled = true;
-        button.innerHTML = '<span class="loading"></span> Claiming...';
+        button.innerHTML = '<span class="loading"></span> ' + i18n.t('claimingNFT');
         
         try {
             // Check if the user has already claimed the free NFT
@@ -2822,10 +2901,10 @@ document.addEventListener('DOMContentLoaded', () => {
             
             if (hasClaimedFreeNFT) {
                 debug.warn('The user has already claimed the free NFT');
-                showStatusMessage('You have already claimed the free NFT', 'warning');
+                showStatusMessage('alreadyClaimedNFT', 'warning');
                 
                 // Update the button status
-                button.textContent = 'Claimed';
+                button.textContent = i18n.t('shop.alreadyClaimed');
                 button.classList.add('disabled');
                 
                 // Update the status display
@@ -2836,19 +2915,19 @@ document.addEventListener('DOMContentLoaded', () => {
             // Get the inviter address (if any)
             let inviterAddress = '0x0000000000000000000000000000000000000000';  // Default no inviter
             
-            // First try to get the inviter address from the input box
+            // First try to get the inviter address from the input field
             const inviterInput = document.getElementById('inviter-address');
             if (inviterInput && inviterInput.value.trim()) {
                 const inputAddress = inviterInput.value.trim();
                 if (web3.utils.isAddress(inputAddress)) {
                     inviterAddress = inputAddress;
-                    debug.log('Get the inviter address from the input box:', inviterAddress);
+                    debug.log('Get the inviter address from the input field:', inviterAddress);
                 } else {
                     debug.warn('The inviter address format is invalid:', inputAddress);
-                    showStatusMessage('The inviter address format is invalid, using the default address', 'warning');
+                    showStatusMessage('invalidInviterAddress', 'warning');
                 }
             } else {
-                // If the input box is empty, try to get it from the URL parameters
+                // If the input field is empty, try to get it from the URL parameters
                 const urlParams = new URLSearchParams(window.location.search);
                 if (urlParams.has('inviter')) {
                     const urlInviter = urlParams.get('inviter');
@@ -2859,11 +2938,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
             
-            debug.log('Calling the contract to claim the free NFT, inviter address:', inviterAddress);
+            debug.log('Call the contract to claim the free NFT, inviter address:', inviterAddress);
             
-            // Ensure all necessary contracts are authorized before claiming the free NFT
+            // Before claiming the free NFT, ensure all necessary contracts are authorized
             try {
-                showStatusMessage('Checking necessary approvals...', 'info');
+                showStatusMessage('checkingApprovals', 'info');
                 
                 // Use the authorization method of ContractApprovalManager
                 if (window.ContractApprovalManager && window.ContractApprovalManager.ensureFreeNFTApprovals) {
@@ -2876,10 +2955,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         throw new Error('Failed to set necessary approvals');
                     }
                     
-                    debug.log('NFT required approvals completed');
+                    debug.log('NFT necessary approvals completed');
                 } else {
                     // Use the old authorization function as a fallback
-                    debug.log('Trying to use the old ensureFreeNFTApprovals function...');
+                    debug.log('Try to use the old ensureFreeNFTApprovals function...');
                     if (typeof window.ensureFreeNFTApprovals === 'function') {
                         const approvalsSuccess = await window.ensureFreeNFTApprovals(web3, currentAddress);
                         if (!approvalsSuccess) {
@@ -2892,13 +2971,13 @@ document.addEventListener('DOMContentLoaded', () => {
             } catch (error) {
                 debug.error('Error during authorization:', error);
                 if (error.message.includes('User denied transaction signature')) {
-                    showStatusMessage('You canceled the authorization transaction', 'warning');
+                    showStatusMessage('userCancelledAuth', 'warning');
                     // Restore the button status
                     button.disabled = false;
                     button.textContent = originalText;
                     return;
                 } else {
-                    showStatusMessage('Authorization process failed: ' + getErrorMessage(error), 'error');
+                    showStatusMessage('authorizationFailed', 'error', { message: getErrorMessage(error) });
                     // Restore the button status
                     button.disabled = false;
                     button.textContent = originalText;
@@ -2911,15 +2990,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 from: currentAddress
             });
             
-            debug.log('NFT claim successful:', result);
-            showStatusMessage('NFT claim successful! Please check your new pet in the game', 'success');
+            debug.log('Free NFT claim successful:', result);
+            showStatusMessage('claimNFTSuccess', 'success');
             
             // Update the button status
             checkFreeNFTClaimStatus();
             
         } catch (error) {
-            debug.error('Failed to claim the free NFT:', error);
-            showStatusMessage('Failed to claim the free NFT: ' + getErrorMessage(error), 'error');
+            debug.error('Free NFT claim failed:', error);
+            showStatusMessage('claimFailed', 'error', { message: getErrorMessage(error) });
             
             // Restore the button status
             button.disabled = false;
@@ -2953,7 +3032,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Disable the button
                     freeNftButton.disabled = true;
                     freeNftButton.classList.add('disabled');
-                    freeNftButton.textContent = i18n.t('shop.alreadyClaimed') || 'Already claimed';
+                    freeNftButton.textContent = i18n.t('shop.alreadyClaimed');
                     
                     // Add the already claimed style
                     freeNftItem.classList.add('already-claimed');
@@ -2962,7 +3041,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (!freeNftItem.querySelector('.claimed-badge')) {
                         const claimedBadge = document.createElement('div');
                         claimedBadge.className = 'claimed-badge';
-                        claimedBadge.textContent = i18n.t('shop.claimed') || 'Claimed';
+                        claimedBadge.textContent = i18n.t('shop.claimed');
                         freeNftItem.appendChild(claimedBadge);
                     }
                 } else {
@@ -2971,7 +3050,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Enable the button
                     freeNftButton.disabled = false;
                     freeNftButton.classList.remove('disabled');
-                    freeNftButton.textContent = i18n.t('shop.claim') || 'Claim';
+                    freeNftButton.textContent = i18n.t('shop.claim');
                     
                     // Remove the already claimed style
                     freeNftItem.classList.remove('already-claimed');
@@ -3052,19 +3131,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else if (lastClaimTime > 0) {
                     // Today has not claimed but claimed before, can claim immediately
                     if (nextClaimTimeElem) {
-                        nextClaimTimeElem.textContent = 'Now can claim';
+                        nextClaimTimeElem.textContent = i18n.t('shop.nowCanClaim');
                         nextClaimTimeElem.classList.add('available-now');
                     }
                 } else {
                     // Never claimed before, can claim immediately
                     if (nextClaimTimeElem) {
-                        nextClaimTimeElem.textContent = 'Now can claim';
+                        nextClaimTimeElem.textContent = i18n.t('shop.nowCanClaim');
                         nextClaimTimeElem.classList.add('available-now');
                     }
                 }
             } catch (error) {
                 debug.error('Failed to get the last claim time:', error);
-                if (nextClaimTimeElem) nextClaimTimeElem.textContent = 'Failed to get';
+                if (nextClaimTimeElem) nextClaimTimeElem.textContent = i18n.t('shop.failedToGet');
             }
             
             // Check if the user has already claimed the free NFT (the prerequisite for claiming PwFood)
@@ -3092,7 +3171,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     
                     freePwFoodButton.disabled = true;
                     freePwFoodButton.classList.add('disabled');
-                    freePwFoodButton.textContent = 'Need to claim the free pet';
+                    freePwFoodButton.textContent = i18n.t('shop.notification.requiredNFTFirst');
                     
                     // Add the prompt style, but do not add the already claimed style
                     freePwFoodItem.classList.add('nft-required');
@@ -3101,7 +3180,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (!freePwFoodItem.querySelector('.claimed-badge')) {
                         const nftRequiredBadge = document.createElement('div');
                         nftRequiredBadge.className = 'claimed-badge';
-                        nftRequiredBadge.textContent = 'Need to claim the free pet';
+                        nftRequiredBadge.textContent = i18n.t('shop.notification.requiredNFTFirst');
                         freePwFoodItem.appendChild(nftRequiredBadge);
                     }
                 }
@@ -3111,7 +3190,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     
                     freePwFoodButton.disabled = true;
                     freePwFoodButton.classList.add('disabled');
-                    freePwFoodButton.textContent = 'Today has claimed';
+                    freePwFoodButton.textContent = i18n.t('shop.todayClaimed');
                     
                     // Add the already claimed style
                     freePwFoodItem.classList.add('already-claimed');
@@ -3120,7 +3199,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (!freePwFoodItem.querySelector('.claimed-badge')) {
                         const claimedBadge = document.createElement('div');
                         claimedBadge.className = 'claimed-badge';
-                        claimedBadge.textContent = 'Today has claimed';
+                        claimedBadge.textContent = i18n.t('shop.todayClaimed');
                         freePwFoodItem.appendChild(claimedBadge);
                     }
                 }
@@ -3130,7 +3209,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     
                     freePwFoodButton.disabled = false;
                     freePwFoodButton.classList.remove('disabled');
-                    freePwFoodButton.textContent = i18n.t('shop.claim') || '领取';
+                    freePwFoodButton.textContent = i18n.t('shop.claim');
                     
                     // Remove the already claimed style
                     freePwFoodItem.classList.remove('already-claimed');
@@ -3168,7 +3247,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Set the button to loading state
         const originalText = button.textContent;
         button.disabled = true;
-        button.innerHTML = '<span class="loading"></span> Claiming...';
+        button.innerHTML = '<span class="loading"></span> ' + i18n.t('claimingNFT');
         
         try {
             // Check if the user has already claimed the free NFT
@@ -3176,10 +3255,10 @@ document.addEventListener('DOMContentLoaded', () => {
             
             if (hasClaimedFreeNFT) {
                 debug.warn('The user has already claimed the free NFT');
-                showStatusMessage('You have already claimed the free NFT', 'warning');
+                showStatusMessage('alreadyClaimedNFT', 'warning');
                 
                 // Update the button status
-                button.textContent = 'Claimed';
+                button.textContent = i18n.t('shop.alreadyClaimed');
                 button.classList.add('disabled');
                 
                 // Update the status display
@@ -3199,7 +3278,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     debug.log('Get the inviter address from the input field:', inviterAddress);
                 } else {
                     debug.warn('The inviter address format is invalid:', inputAddress);
-                    showStatusMessage('The inviter address format is invalid, will use the default address', 'warning');
+                    showStatusMessage('invalidInviterAddress', 'warning');
                 }
             } else {
                 // If the input field is empty, try to get it from the URL parameters
@@ -3217,7 +3296,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // Before claiming the free NFT, ensure all necessary contracts are authorized
             try {
-                showStatusMessage('Checking necessary approvals...', 'info');
+                showStatusMessage('checkingApprovals', 'info');
                 
                 // Use the authorization method of ContractApprovalManager
                 if (window.ContractApprovalManager && window.ContractApprovalManager.ensureFreeNFTApprovals) {
@@ -3246,13 +3325,13 @@ document.addEventListener('DOMContentLoaded', () => {
             } catch (error) {
                 debug.error('Error during authorization:', error);
                 if (error.message.includes('User denied transaction signature')) {
-                    showStatusMessage('You canceled the authorization transaction', 'warning');
+                    showStatusMessage('userCancelledAuth', 'warning');
                     // Restore the button status
                     button.disabled = false;
                     button.textContent = originalText;
                     return;
                 } else {
-                    showStatusMessage('Authorization process failed: ' + getErrorMessage(error), 'error');
+                    showStatusMessage('authorizationFailed', 'error', { message: getErrorMessage(error) });
                     // Restore the button status
                     button.disabled = false;
                     button.textContent = originalText;
@@ -3266,14 +3345,14 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             
             debug.log('Free NFT claim successful:', result);
-            showStatusMessage('Free NFT claim successful! Please check your new pet in the game', 'success');
+            showStatusMessage('claimNFTSuccess', 'success');
             
             // Update the button status
             checkFreeNFTClaimStatus();
             
         } catch (error) {
             debug.error('Free NFT claim failed:', error);
-            showStatusMessage('Free NFT claim failed: ' + getErrorMessage(error), 'error');
+            showStatusMessage('claimFailed', 'error', { message: getErrorMessage(error) });
             
             // Restore the button status
             button.disabled = false;
@@ -3301,7 +3380,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Set the button to loading state
         const originalText = button.textContent;
         button.disabled = true;
-        button.innerHTML = '<span class="loading"></span> Claiming...';
+        button.innerHTML = '<span class="loading"></span> ' + i18n.t('claimingFood');
         
         try {
             // Check if the user has already claimed the free NFT (the prerequisite for claiming PwFood)
@@ -3309,10 +3388,10 @@ document.addEventListener('DOMContentLoaded', () => {
             
             if (!hasClaimedFreeNFT) {
                 debug.warn('The user has not claimed the free NFT, cannot claim the free PwFood');
-                showStatusMessage('Please claim the free pet NFT first', 'warning');
+                showStatusMessage('requiredNFTFirst', 'warning');
                 
                 // Update the button status
-                button.textContent = 'Need to claim the free pet';
+                button.textContent = i18n.t('shop.needClaimFreePet');
                 button.classList.add('disabled');
                 
                 // Update the status display
@@ -3327,10 +3406,10 @@ document.addEventListener('DOMContentLoaded', () => {
             
             if (parseInt(lastClaimTime) >= utcDayStart) {
                 debug.warn('The user has already claimed the free PwFood today');
-                showStatusMessage('Today has claimed the free PwFood, please come back tomorrow', 'warning');
+                showStatusMessage('alreadyClaimedFood', 'warning');
                 
                 // Update the button status
-                button.textContent = 'Today has claimed';
+                button.textContent = i18n.t('shop.todayClaimed');
                 button.classList.add('disabled');
                 
                 // Update the status display
@@ -3339,7 +3418,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             
             debug.log('Call the contract to claim the free PwFood');
-            showStatusMessage('Claiming the free pet food...', 'info');
+            showStatusMessage('claimingFood', 'info');
             
             // Execute the claim transaction
             let result;
@@ -3373,14 +3452,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 debug.error('Failed to get the daily reward amount:', error);
             }
             
-            showStatusMessage(`Free pet food claim successful! Get ${rewardAmount} PWFOOD`, 'success');
+            showStatusMessage('claimFoodSuccess', 'success', { count: rewardAmount });
             
             // Update the button status and the last claim time
             checkFreePwFoodClaimStatus();
             
         } catch (error) {
             debug.error('Claim the free PwFood failed:', error);
-            showStatusMessage('Claim the free pet food failed: ' + getErrorMessage(error), 'error');
+            showStatusMessage('claimFailed', 'error', { message: getErrorMessage(error) });
             
             // Restore the button status
             button.disabled = false;
@@ -3471,7 +3550,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function showSimpleAlert(title, message) {
         ModalDialog.alert(message, {
             title: title,
-            confirmText: 'Confirm'
+            confirmText: i18n.t('button.confirm')
         });
     }
 
@@ -3520,14 +3599,14 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const unitPrice = parseFloat(priceMatch[1]);
         
-        // Get the quantity (ensure it is between 1-10)
+        // Get the quantity (ensure it is between 1-5)
         let quantity = parseInt(input.value) || 1;
         if (quantity < 1) {
             quantity = 1;
             input.value = 1;
-        } else if (quantity > 10) {
-            quantity = 10;
-            input.value = 10;
+        } else if (quantity > 5) {
+            quantity = 5;
+            input.value = 5;
         }
         
         // Calculate the total price and update
@@ -3707,13 +3786,13 @@ document.addEventListener('DOMContentLoaded', () => {
      * @param {HTMLInputElement} input - The quantity input box element
      */
     function validateBatchAmount(input) {
-        let value = parseInt(input.value) || 1;
-        if (value < 1) {
-            value = 1;
-        } else if (value > 10) {
-            value = 10;
+        let value = parseInt(input.value);
+        if (isNaN(value) || value < 1) {
+            input.value = 1;
+        } else if (value > 5) {  
+            input.value = 5;
         }
-        input.value = value;
+        updateEggTotalPrice();
     }
     
     /**
@@ -3783,7 +3862,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Check if there are lottery results
         if (!processedResults || !Array.isArray(processedResults) || processedResults.length === 0) {
             debug.error('Invalid batch lottery results');
-            showStatusMessage('Invalid batch lottery results', 'error');
+            showStatusMessage('invalidLotteryResult', 'error');
             return;
         }
         
@@ -3935,7 +4014,7 @@ document.addEventListener('DOMContentLoaded', () => {
             debug.error('Failed to create the batch lottery result overlay:', error);
             
             // Degrade processing: use a simple prompt
-            showStatusMessage(`Congratulations! You have successfully obtained ${processedResults.length} pets`, 'success');
+            showStatusMessage(`purchaseEggsSuccess`, 'success', { count: processedResults.length, eggName: 'pets' });
         }
     }
 
@@ -3995,7 +4074,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Disable the button
                     claimEggsButton.disabled = true;
                     claimEggsButton.classList.add('disabled');
-                    claimEggsButton.textContent = 'No claimable pets';
+                    claimEggsButton.textContent = i18n.t('shop.notification.noClaimableEggs');
                     
                     // Add the already claimed style
                     claimEggsItem.classList.add('already-claimed');
@@ -4004,7 +4083,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (!claimEggsItem.querySelector('.claimed-badge')) {
                         const noPendingBadge = document.createElement('div');
                         noPendingBadge.className = 'claimed-badge';
-                        noPendingBadge.textContent = 'No claimable pets';
+                        noPendingBadge.textContent = i18n.t('shop.notification.noClaimableEggs');
                         claimEggsItem.appendChild(noPendingBadge);
                     }
                 } else {
@@ -4013,7 +4092,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Enable the button
                     claimEggsButton.disabled = false;
                     claimEggsButton.classList.remove('disabled');
-                    claimEggsButton.textContent = i18n.t('shop.claim') || 'Claim';
+                    claimEggsButton.textContent = i18n.t('shop.claim');
                     
                     // Remove the disabled style
                     claimEggsItem.classList.remove('already-claimed');
@@ -4053,10 +4132,10 @@ document.addEventListener('DOMContentLoaded', () => {
             
             if (!hasClaimableEggs) {
                 debug.warn('The user does not have claimable NFTs');
-                showStatusMessage('You do not have claimable pets', 'warning');
+                showStatusMessage('noClaimableEggs', 'warning');
                 
                 // Update the button status
-                button.textContent = 'No claimable pets';
+                button.textContent = i18n.t('shop.noClaimableEggs');
                 button.classList.add('disabled');
                 
                 // Update the status display
@@ -4072,21 +4151,21 @@ document.addEventListener('DOMContentLoaded', () => {
             
             if (pendingTotal === 0) {
                 debug.warn('There are no pending eggs');
-                showStatusMessage('There are no pending pets', 'warning');
+                showStatusMessage('noPendingEggs', 'warning');
                 return;
             }
             
             // Display the confirmation dialog
-            const message = `You have <strong>${pendingTotal}</strong> unclaimed pets:<br>
-                <span style="color:#03A9F4;font-weight:500;">Rare: ${pendingRareCount} 个</span><br>
-                <span style="color:#FF9800;font-weight:500;">Legendary: ${pendingLegendaryCount} 个</span><br><br>
-                Are you sure you want to claim them now?`;
+            const message = `<strong>${pendingTotal}</strong> ${i18n.t('shop.notification.noClaimableEggs')}:<br>
+                <span style="color:#03A9F4;font-weight:500;">${pendingRareCount} ${i18n.t('shop.rareEggs')}</span><br>
+                <span style="color:#FF9800;font-weight:500;">${pendingLegendaryCount} ${i18n.t('shop.legendaryEggs')}</span><br><br>
+                ${i18n.t('shop.confirmClaim')}`;
                 
             // Display the confirmation dialog
             const confirmOptions = {
-                title: 'Claim the unclaimed pets',
-                confirmLabel: 'Confirm',
-                cancelLabel: 'Cancel',
+                title: i18n.t('shop.claimUnclaimedEggs'),
+                confirmLabel: i18n.t('button.confirm'),
+                cancelLabel: i18n.t('button.cancel'),
                 animationEnabled: true
             };
             
@@ -4100,11 +4179,11 @@ document.addEventListener('DOMContentLoaded', () => {
             // Set the button to loading state
             const originalText = button.textContent;
             button.disabled = true;
-            button.innerHTML = '<span class="loading"></span> Claiming...';
+            button.innerHTML = '<span class="loading"></span> ' + i18n.t('claimingEggs');
             
             // Execute the claim transaction
             debug.log('Call the contract to claim the unclaimed NFTs');
-            showStatusMessage('Claiming the unclaimed pets...', 'info');
+            showStatusMessage('claimingEggs', 'info');
             
             const result = await nftLotteryManagerContract.methods.claimEggs().send({
                 from: currentAddress,
@@ -4112,7 +4191,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             
             debug.log('The unclaimed NFTs claim successfully:', result);
-            showStatusMessage(`Successfully claimed ${pendingTotal} pets! Please check them in the game`, 'success');
+            showStatusMessage('claimEggsSuccess', 'success', { count: pendingTotal });
             
             // Get the lottery results from the transaction
             try {
@@ -4242,15 +4321,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     } else {
                         // no valid lottery results found, show a simple success message
                         debug.warn('no valid lottery results found');
-                        showStatusMessage('successfully claimed pets, please check them in the game', 'success');
+                        showStatusMessage('claimSuccess', 'success');
                     }
                 } else {
                     debug.warn('getLotteryResultsFromTransaction function is not defined');
-                    showStatusMessage('successfully claimed pets, please check them in the game', 'success');
+                    showStatusMessage('claimSuccess', 'success');
                 }
             } catch (parseError) {
                 debug.error('parse lottery results failed:', parseError);
-                showStatusMessage('successfully claimed pets, but error when displaying the results', 'warning');
+                showStatusMessage('claimFailed', 'error', { message: getErrorMessage(parseError) });
             }
             
             // update the button status
@@ -4258,11 +4337,11 @@ document.addEventListener('DOMContentLoaded', () => {
             
         } catch (error) {
             debug.error('claim unclaimed NFTs failed:', error);
-            showStatusMessage('claim unclaimed NFTs failed: ' + getErrorMessage(error), 'error');
+            showStatusMessage('claimFailed', 'error', { message: getErrorMessage(error) });
             
             // restore the button status
             button.disabled = false;
-            button.textContent = i18n.t('shop.claim') || 'claim';
+            button.textContent = i18n.t('shop.claim');
         } finally {
             resetBuyButton(button);
         }
@@ -4278,18 +4357,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div style="padding: 10px 0;">
                     <div style="margin-bottom: 15px;">
                         <i class="fas fa-info-circle" style="color: #03A9F4; font-size: 24px; margin-right: 10px;"></i>
-                        <span style="font-size: 18px; font-weight: bold;">pending claim pets alert</span>
+                        <span style="font-size: 18px; font-weight: bold;">${i18n.t('shop.notification.pendingClaimAlert')}</span>
                     </div>
-                    <p>You purchased ${eggType} and it needs to be confirmed by the blockchain (about 1 minute). Please check it later in the <span style="color: #FF9800; font-weight: bold;">「claim unclaimed pets」</span> module.</p>
+                    <p>${i18n.t('shop.notification.pendingClaimAlertMessage', { eggType: eggType })}</p>
                     <div style="margin-top: 15px; padding: 10px; background: #f5f5f5; border-radius: 5px; border-left: 4px solid #03A9F4;">
-                        <p style="margin: 0;">Tip: After purchasing a special egg, the system needs a little time to process it. This is to ensure that your pet data is correctly generated on the blockchain.</p>
+                        <p style="margin: 0;">${i18n.t('shop.notification.pendingClaimAlertTip')}</p>
                     </div>
                 </div>
             `;
             
             const confirmOptions = {
-                title: 'purchase successful',
-                confirmText: 'I know',
+                title: i18n.t('shop.purchaseSuccess'),
+                confirmText: i18n.t('button.ok'),
                 cancelText: null, // 不显示取消按钮
                 animation: true
             };
@@ -4299,8 +4378,8 @@ document.addEventListener('DOMContentLoaded', () => {
             debug.error('show the pending claim pets alert dialog failed:', error);
             
             // fallback to the simple alert dialog
-            const fallbackTitle = "pending claim pets alert";
-            const fallbackMessage = `Your ${eggType} needs to be confirmed by the blockchain (about 1 minute). Please check it later in the <span style="color: #FF9800; font-weight: bold;">「claim unclaimed pets」</span> module.`;
+            const fallbackTitle = i18n.t('shop.notification.pendingClaimAlert');
+            const fallbackMessage = i18n.t('shop.notification.pendingClaimAlertMessage', { eggType: eggType });
             
             // create the alert dialog container
             const fallbackOverlay = document.createElement('div');
@@ -4322,7 +4401,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // add the confirm button
             const fallbackButton = document.createElement('button');
-            fallbackButton.textContent = 'I know';
+            fallbackButton.textContent = i18n.t('button.ok');
             fallbackButton.className = 'simple-alert-button';
             fallbackButton.onclick = function() {
                 document.body.removeChild(fallbackOverlay);

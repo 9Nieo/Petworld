@@ -234,15 +234,4 @@ contract NFTManager is Ownable {
         
         return (nftCount, availableCount);
     }
-    
-    // Transfer contract ownership
-    function transferContractOwnership(address newOwner) external onlyOwner {
-        require(newOwner != address(0), "New owner cannot be zero address");
-        _transferOwnership(newOwner);
-    }
-    
-    // Renounce contract ownership
-    function renounceContractOwnership() external onlyOwner {
-        _transferOwnership(address(0));
-    }
 } 

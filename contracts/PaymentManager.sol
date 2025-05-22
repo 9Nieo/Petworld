@@ -154,7 +154,7 @@ contract PaymentManager is Ownable, ReentrancyGuard {
     }
     
     // Payment function - common lottery (with original payer parameter)
-    function payForCommonLottery(address token, uint256 quantity, address originalPayer) public onlyAcceptedToken(token) nonReentrant whenNotPaused onlyAuthorizedOrSelf(originalPayer) {
+    function payForCommonLottery(address token, uint256 quantity, address originalPayer) public onlyAcceptedToken(token) whenNotPaused onlyAuthorizedOrSelf(originalPayer) {
         require(quantity > 0, "Quantity must be greater than 0");
         require(quantity <= MAX_QUANTITY, "Quantity exceeds maximum limit");
         require(originalPayer != address(0), "Payer address cannot be zero");
@@ -168,7 +168,7 @@ contract PaymentManager is Ownable, ReentrancyGuard {
     }
     
     // Payment function - rare lottery (with original payer parameter)
-    function payForRareLottery(address token, uint256 quantity, address originalPayer) public onlyAcceptedToken(token) nonReentrant whenNotPaused onlyAuthorizedOrSelf(originalPayer) {
+    function payForRareLottery(address token, uint256 quantity, address originalPayer) public onlyAcceptedToken(token) whenNotPaused onlyAuthorizedOrSelf(originalPayer) {
         require(quantity > 0, "Quantity must be greater than 0");
         require(quantity <= MAX_QUANTITY, "Quantity exceeds maximum limit");
         require(originalPayer != address(0), "Payer address cannot be zero");
@@ -182,7 +182,7 @@ contract PaymentManager is Ownable, ReentrancyGuard {
     }
     
     // Payment function - legendary lottery (with original payer parameter)
-    function payForLegendaryLottery(address token, uint256 quantity, address originalPayer) public onlyAcceptedToken(token) nonReentrant whenNotPaused onlyAuthorizedOrSelf(originalPayer) {
+    function payForLegendaryLottery(address token, uint256 quantity, address originalPayer) public onlyAcceptedToken(token) whenNotPaused onlyAuthorizedOrSelf(originalPayer) {
         require(quantity > 0, "Quantity must be greater than 0");
         require(quantity <= MAX_QUANTITY, "Quantity exceeds maximum limit");
         require(originalPayer != address(0), "Payer address cannot be zero");
@@ -197,7 +197,7 @@ contract PaymentManager is Ownable, ReentrancyGuard {
     
     // Payment function for PWFOOD purchases
     // dollarAmount should be a whole number (e.g., 1, 2, 3) representing dollars
-    function payForPWFood(address token, uint256 dollarAmount, address payer) public onlyAcceptedToken(token) nonReentrant whenNotPaused onlyAuthorizedOrSelf(payer) {
+    function payForPWFood(address token, uint256 dollarAmount, address payer) public onlyAcceptedToken(token) whenNotPaused onlyAuthorizedOrSelf(payer) {
         require(dollarAmount >= 1 && dollarAmount <= 10000, "Invalid dollar amount");
         require(payer != address(0), "Payer address cannot be zero");
         
@@ -283,7 +283,7 @@ contract PaymentManager is Ownable, ReentrancyGuard {
     }
     
     // Add a function to withdraw all funds from the contract
-    function emergencyWithdrawAll(address to) public onlyOwner nonReentrant {
+    function emergencyWithdrawAll(address to) public onlyOwner {
         require(to != address(0), "Invalid receiver address");
         
         // 1. Withdraw all ETH
@@ -333,17 +333,5 @@ contract PaymentManager is Ownable, ReentrancyGuard {
     
     receive() external payable {
         // Optionally forward ETH automatically or leave it in the contract for later withdrawal
-    }
-    
-    // Transfer contract ownership
-    function transferContractOwnership(address newOwner) external onlyOwner {
-        require(newOwner != address(0), "New owner cannot be zero address");
-        _transferOwnership(newOwner);
-    }
-    
-    // Renounce contract ownership
-    function renounceContractOwnership() external onlyOwner {
-        _transferOwnership(address(0));
-        emit ContractRenounced(msg.sender);
     }
 } 

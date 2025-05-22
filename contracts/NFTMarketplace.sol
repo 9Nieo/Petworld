@@ -96,8 +96,6 @@ contract NFTMarketplace is Ownable, ReentrancyGuard, IERC721Receiver {
     event ListingSold(address indexed seller, address indexed buyer, uint256 indexed tokenId, address paymentToken, uint256 price, uint256 fee, Quality quality);
     event MarketplaceInitialized(address pwnftAddress, address nftManager, address feeReceiver);
     event IndexingFailed(uint256 indexed tokenId, bytes reason);
-    event MarketplacePaused(address account);
-    event MarketplaceUnpaused(address account);
     event ContractRenounced(address indexed previousOwner);
     event NFTTransferredToMarketplace(address indexed seller, uint256 indexed tokenId);
     event NFTReturnedToSeller(address indexed seller, uint256 indexed tokenId);
@@ -217,11 +215,6 @@ contract NFTMarketplace is Ownable, ReentrancyGuard, IERC721Receiver {
         initialized = true;
         
         emit MarketplaceInitialized(pwnftAddress, address(nftManager), feeReceiver);
-    }
-    
-    // Set marketplace as initialized - only for testing
-    function testSetInitialized() external onlyOwner {
-        initialized = true;
     }
 
     // Add accepted token - only owner
@@ -546,15 +539,4 @@ contract NFTMarketplace is Ownable, ReentrancyGuard, IERC721Receiver {
         delete _qualityListingIndices[quality][tokenId];
     }
 
-    // Transfer contract ownership
-    function transferContractOwnership(address newOwner) external onlyOwner {
-        require(newOwner != address(0), "New owner cannot be zero address");
-        _transferOwnership(newOwner);
-    }
-    
-    // Renounce contract ownership
-    function renounceContractOwnership() external onlyOwner {
-        _transferOwnership(address(0));
-        emit ContractRenounced(msg.sender);
-    }
 } 

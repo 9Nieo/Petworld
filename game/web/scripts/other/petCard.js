@@ -101,8 +101,8 @@ const PetCard = (function() {
         const lastClaimTime = parseInt(feedingInfo.lastClaimTime) || 0;
         
         // Use the larger value between lastFeedTime and lastClaimTime as the calculation base point
-        const lastActionTime = Math.max(lastFeedTime, lastClaimTime);
-        
+        // const lastActionTime = Math.max(lastFeedTime, lastClaimTime);
+        const lastActionTime = lastFeedTime;
         // The recorded feeding hours in the contract
         const recordedFeedingHours = parseInt(feedingInfo.feedingHours) || 0;
         

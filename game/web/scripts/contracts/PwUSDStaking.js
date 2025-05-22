@@ -169,10 +169,42 @@ class PwUSDStakingContract {
         stakedAmount: info.stakedAmount,
         stableCoin: info.stableCoin,
         lastClaimedCycle: parseInt(info.lastClaimedCycle),
-        pendingPwPoints: info.pendingPwPoints
+        recordId: parseInt(info.recordId),
+        pendingRewards: info.pendingRewards
       };
     } catch (error) {
       console.error('Failed to get user staking information:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get number of staking records for a user
+   * @param {string} userAddress - User address
+   * @returns {Promise<number>} - Number of staking records
+   */
+  async getUserStakingRecordCount(userAddress) {
+    try {
+      const count = await this.contract.methods.userStakingRecordCount(userAddress).call();
+      return parseInt(count);
+    } catch (error) {
+      console.error('Failed to get user staking record count:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Check if the user has a staking record at a specific index
+   * @param {string} userAddress - User address
+   * @param {number} recordId - Record ID
+   * @returns {Promise<boolean>} - Whether the user has the staking record
+   */
+  async userHasStakingRecord(userAddress, recordId) {
+    try {
+      const hasRecord = await this.contract.methods.userHasStakingRecord(userAddress, recordId).call();
+      return hasRecord;
+    } catch (error) {
+      console.error('Failed to check if user has staking record:', error);
       throw error;
     }
   }
@@ -197,7 +229,7 @@ class PwUSDStakingContract {
    * @param {string} stableCoinAddress - Stable coin address
    * @param {string|number} amount - Amount to stake
    * @param {Object} options - Transaction options, including from address
-   * @returns {Promise<Object>} - Transaction receipt
+   * @returns {Promise<Object>} - Transaction receipt with recordId
    */
   async stake(stableCoinAddress, amount, options = {}) {
     try {
@@ -211,14 +243,14 @@ class PwUSDStakingContract {
 
   /**
    * Withdraw staked stable coins
-   * @param {string} stableCoinAddress - Stable coin address
+   * @param {number} recordId - Record ID of the staking
    * @param {string|number} amount - Amount to withdraw, 0 means withdraw all
    * @param {Object} options - Transaction options, including from address
    * @returns {Promise<Object>} - Transaction receipt
    */
-  async withdraw(stableCoinAddress, amount, options = {}) {
+  async withdraw(recordId, amount, options = {}) {
     try {
-      const tx = await this.contract.methods.withdraw(stableCoinAddress, amount).send(options);
+      const tx = await this.contract.methods.withdraw(recordId, amount).send(options);
       return tx;
     } catch (error) {
       console.error('Failed to withdraw staked stable coins:', error);
@@ -227,17 +259,32 @@ class PwUSDStakingContract {
   }
 
   /**
-   * Claim staking rewards
-   * @param {string} stableCoinAddress - Stable coin address
+   * Claim staking rewards for a specific record
+   * @param {number} recordId - Record ID of the staking
    * @param {Object} options - Transaction options, including from address
    * @returns {Promise<Object>} - Transaction receipt
    */
-  async claimRewards(stableCoinAddress, options = {}) {
+  async claimRewards(recordId, options = {}) {
     try {
-      const tx = await this.contract.methods.claimRewards(stableCoinAddress).send(options);
+      const tx = await this.contract.methods.claimRewards(recordId).send(options);
       return tx;
     } catch (error) {
       console.error('Failed to claim staking rewards:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Claim all staking rewards for the user
+   * @param {Object} options - Transaction options, including from address
+   * @returns {Promise<Object>} - Transaction receipt
+   */
+  async claimAllRewards(options = {}) {
+    try {
+      const tx = await this.contract.methods.claimAllRewards().send(options);
+      return tx;
+    } catch (error) {
+      console.error('Failed to claim all staking rewards:', error);
       throw error;
     }
   }

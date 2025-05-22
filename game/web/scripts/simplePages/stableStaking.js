@@ -280,6 +280,34 @@ document.addEventListener('DOMContentLoaded', function() {
         if (withdrawBtn) {
             withdrawBtn.addEventListener('click', withdraw);
         }
+        
+        // Add claim all rewards button
+        const claimAllBtn = document.getElementById('claimAllBtn');
+        if (claimAllBtn) {
+            claimAllBtn.addEventListener('click', claimAllRewards);
+        } else {
+            // If the button doesn't exist, create it and add it to the rewards section
+            const rewardsListElement = document.querySelector('.rewards-list');
+            if (rewardsListElement) {
+                const rewardsHeader = rewardsListElement.querySelector('.rewards-header');
+                if (rewardsHeader) {
+                    // Create the claim all button if it doesn't exist
+                    const newClaimAllBtn = document.createElement('button');
+                    newClaimAllBtn.id = 'claimAllBtn';
+                    newClaimAllBtn.className = 'action-btn claim-all-btn';
+                    newClaimAllBtn.textContent = 'Claim All';
+                    newClaimAllBtn.setAttribute('data-i18n', 'stableStaking.rewards.claimAll');
+                    
+                    // Add the button to the rewards header
+                    rewardsHeader.appendChild(newClaimAllBtn);
+                    
+                    // Add event listener
+                    newClaimAllBtn.addEventListener('click', claimAllRewards);
+                    
+                    debug.log('Claim all rewards button created and added to the UI');
+                }
+            }
+        }
     }
     
     /**
@@ -1329,82 +1357,71 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
             
-            // the user is an active staker, try to get the supported stable coin list
-            let supportedCoinAddresses = [];
+            // get the user staking record count
+            let recordCount = 0;
             try {
-                // if there is a supported stable coin list, use it
-                if (supportedStableCoins && supportedStableCoins.length > 0) {
-                    supportedCoinAddresses = supportedStableCoins.map(coin => coin.address);
-                }
+                recordCount = await pwusdStakingContract.methods.userStakingRecordCount(currentUserAddress).call();
+                recordCount = parseInt(recordCount);
+                debug.log('user staking record count:', recordCount);
             } catch (error) {
-                debug.error('failed to get the supported stable coin list:', error);
+                debug.error('failed to get user staking record count:', error);
+                if (noHistoryMessage) noHistoryMessage.style.display = 'block';
+                if (noRewardsMessage) noRewardsMessage.style.display = 'block';
+                return;
+            }
+            
+            if (recordCount === 0) {
+                // show the no staking record information
+                if (noHistoryMessage) noHistoryMessage.style.display = 'block';
+                if (stakingHistoryList) stakingHistoryList.innerHTML = '';
+                if (noRewardsMessage) noRewardsMessage.style.display = 'block';
+                if (rewardsList) rewardsList.innerHTML = '';
+                return;
             }
             
             // get the user all staking information
             userStakingInfo = [];
             
-            // do not use the loop to access the array directly, instead, check each supported stable coin if the user has staked
-            for (let i = 0; i < supportedCoinAddresses.length; i++) {
-                const coinAddress = supportedCoinAddresses[i];
-                let hasActiveStaking = false;
-                let stakingIndex = 0;
-                
-                // first step: check if the user has staked the stable coin
+            // iterate through all staking records
+            for (let i = 0; i < recordCount; i++) {
                 try {
-                    hasActiveStaking = await pwusdStakingContract.methods.hasActiveStaking(currentUserAddress, coinAddress).call();
-                } catch (checkError) {
-                    debug.error(`failed to check if the user has staked ${coinAddress}:`, checkError);
-                    continue; // skip this stable coin, and continue to the next one
-                }
-                
-                if (!hasActiveStaking) {
-                    debug.log(`the user has no staking for ${coinAddress}`);
-                    continue; // skip this stable coin, and continue to the next one
-                }
-                
-                debug.log(`the user has staked ${coinAddress}, try to get the staking information`);
-                
-                // second step: try to get the staking index
-                try {
-                    stakingIndex = await pwusdStakingContract.methods.userStakingIndexByToken(currentUserAddress, coinAddress).call();
-                } catch (indexError) {
-                    debug.error(`failed to get the staking index for ${coinAddress}:`, indexError);
-                    continue; // skip this stable coin, and continue to the next one
-                }
-                
-                // third step: use the index to get the full information
-                try {
-                    const info = await pwusdStakingContract.methods.userStakingInfo(currentUserAddress, stakingIndex).call();
+                    // get the staking record ID
+                    const recordId = await pwusdStakingContract.methods.userStakingRecordIndex(currentUserAddress, i).call();
+                    debug.log(`staking record ${i} ID:`, recordId);
+                    
+                    // get the full staking information
+                    const info = await pwusdStakingContract.methods.userStakingInfo(currentUserAddress, i).call();
                     
                     // verify if the information is valid
                     if (!info || !info.stakedAmount || info.stakedAmount === '0') {
-                        debug.warn(`the staking information for ${coinAddress} is invalid or zero:`, info);
-                        continue; // the information is invalid, skip this stable coin
+                        debug.warn(`the staking information for record ${i} is invalid or zero:`, info);
+                        continue; // the information is invalid, skip this record
                     }
                     
                     // add to the staking information list
                     userStakingInfo.push({
-                        index: parseInt(stakingIndex),
+                        index: i,
+                        recordId: parseInt(info.recordId),
                         stableCoin: info.stableCoin,
                         stakedAmount: info.stakedAmount,
                         lastClaimedCycle: parseInt(info.lastClaimedCycle || '0'),
-                        pendingPwPoints: info.pendingPwPoints || '0'
+                        pendingRewards: info.pendingRewards || '0'
                     });
                     
                     // add to the staking history table
-                    addStakingHistoryItem(info, stakingIndex);
+                    addStakingHistoryItem(info, i, parseInt(info.recordId));
                     
                     // add to the withdraw dropdown (if it exists)
                     if (withdrawStableCoinSelect) {
-                        addWithdrawOption(info);
+                        addWithdrawOption(info, parseInt(info.recordId));
                     }
                     
                     // add to the rewards list (if it exists)
-                    addRewardItem(info, stakingIndex);
+                    addRewardItem(info, i, parseInt(info.recordId));
                     
                 } catch (infoError) {
-                    debug.error(`failed to get the full staking information for ${coinAddress}:`, infoError);
-                    // continue to the next stable coin
+                    debug.error(`failed to get the full staking information for record ${i}:`, infoError);
+                    // continue to the next record
                     continue;
                 }
             }
@@ -1417,7 +1434,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (noHistoryMessage) noHistoryMessage.style.display = 'none';
                 if (noRewardsMessage) {
                     // check if there are really no rewards
-                    const hasRewards = userStakingInfo.some(info => info.pendingPwPoints !== '0');
+                    const hasRewards = userStakingInfo.some(info => info.pendingRewards !== '0');
                     noRewardsMessage.style.display = hasRewards ? 'none' : 'block';
                 }
             }
@@ -1470,16 +1487,14 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // if there are no complete cycles passed, return the pending rewards in the contract
             if (cyclesPassed <= 0) {
-                return stakingInfo.pendingPwPoints || '0';
+                return stakingInfo.pendingRewards || '0';
             }
             
-            // use the normal uint to calculate
-            // the reward rate: 5 PWP per 10 USD
-            // assume each stable coin unit is 1 USD, each unit of stable coin gets 0.5 PWP
-            const rewardRatePerToken = 0.5; // the normal unit, each stable coin gets 0.5 PWP
+
+            const rewardRatePerToken = 0.2; 
             
             // calculate the total rewards: staked amount * reward rate * cycles passed
-            const contractPendingRewards = parseInt(stakingInfo.pendingPwPoints || '0');
+            const contractPendingRewards = parseInt(stakingInfo.pendingRewards || '0');
             const additionalRewards = stakedAmountUint * rewardRatePerToken * cyclesPassed;
             const totalPendingRewards = contractPendingRewards + Math.floor(additionalRewards);
             
@@ -1488,7 +1503,7 @@ document.addEventListener('DOMContentLoaded', function() {
             return totalPendingRewards.toString();
         } catch (error) {
             debug.error('failed to calculate the pending rewards:', error);
-            return stakingInfo.pendingPwPoints || '0';
+            return stakingInfo.pendingRewards || '0';
         }
     }
     
@@ -1497,7 +1512,7 @@ document.addEventListener('DOMContentLoaded', function() {
      * @param {Object} info - the staking information
      * @param {number} index - the staking index
      */
-    function addStakingHistoryItem(info, index) {
+    function addStakingHistoryItem(info, index, recordId) {
         try {
             const stakingHistoryList = document.getElementById('stakingHistoryList');
             if (!stakingHistoryList) {
@@ -1506,9 +1521,9 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             
             // check if the item already exists
-            const existingItem = stakingHistoryList.querySelector(`.history-item[data-coin="${info.stableCoin}"][data-index="${index}"]`);
+            const existingItem = stakingHistoryList.querySelector(`.history-item[data-index="${index}"][data-record="${recordId}"]`);
             if (existingItem) {
-                debug.log(`the staking history item already exists: coin=${info.stableCoin}, index=${index}`);
+                debug.log(`the staking history item already exists: index=${index}, recordId=${recordId}`);
                 
                 // calculate the actual pending rewards (considering the case that the chain data is not updated)
                 const calculatedPendingRewards = calculatePendingRewards(
@@ -1520,7 +1535,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 const lastClaimed = info.lastClaimedCycle > 0 ? `cycle ${info.lastClaimedCycle}` : 'not claimed';
                 
                 existingItem.querySelector('.history-cell:nth-child(3)').textContent = lastClaimed;
-                existingItem.querySelector('.history-cell:nth-child(4)').textContent = `${calculatedPendingRewards} (PWP,PWB)`;
+                existingItem.querySelector('.history-cell:nth-child(4)').textContent = `${calculatedPendingRewards} PWP, ${calculatedPendingRewards} PWB`;
                 
                 return;
             }
@@ -1552,13 +1567,14 @@ document.addEventListener('DOMContentLoaded', function() {
             // add the data attribute for later lookup and update
             historyItem.setAttribute('data-coin', info.stableCoin);
             historyItem.setAttribute('data-index', index);
+            historyItem.setAttribute('data-record', recordId);
             historyItem.innerHTML = `
-                <div class="history-cell">${stableCoinSymbol}</div>
+                <div class="history-cell">${stableCoinSymbol} (ID: ${recordId})</div>
                 <div class="history-cell">${formattedAmount}</div>
                 <div class="history-cell">${formattedLastClaim}</div>
-                <div class="history-cell">${formattedPendingRewards} PWP</div>
+                <div class="history-cell">${formattedPendingRewards} PWP, ${formattedPendingRewards} PWB</div>
                 <div class="history-cell">
-                    <button class="action-btn claim-btn" data-index="${index}" data-coin="${info.stableCoin}">claim</button>
+                    <button class="action-btn claim-btn" data-index="${index}" data-record="${recordId}">claim</button>
                 </div>
             `;
             
@@ -1569,8 +1585,8 @@ document.addEventListener('DOMContentLoaded', function() {
             const claimBtn = historyItem.querySelector('.claim-btn');
             if (claimBtn) {
                 claimBtn.addEventListener('click', function() {
-                    const stableCoin = this.getAttribute('data-coin');
-                    claimRewards(stableCoin);
+                    const recordId = this.getAttribute('data-record');
+                    claimRewards(recordId);
                 });
             }
         } catch (error) {
@@ -1582,7 +1598,7 @@ document.addEventListener('DOMContentLoaded', function() {
      * add the withdraw option to the dropdown
      * @param {Object} info - the staking information
      */
-    function addWithdrawOption(info) {
+    function addWithdrawOption(info, recordId) {
         try {
             const withdrawStableCoinSelect = document.getElementById('withdrawStableCoinSelect');
             if (!withdrawStableCoinSelect) {
@@ -1592,11 +1608,11 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // check if the option already exists
             const existingOption = Array.from(withdrawStableCoinSelect.options).find(
-                option => option.value === info.stableCoin
+                option => option.value === recordId.toString()
             );
             
             if (existingOption) {
-                debug.log(`the withdraw option already exists: ${info.stableCoin}`);
+                debug.log(`the withdraw option already exists for recordId=${recordId}`);
                 return;
             }
             
@@ -1625,18 +1641,19 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // create the option
             const option = document.createElement('option');
-            option.value = info.stableCoin;
+            option.value = recordId.toString();
             if (displayName) {
-                option.textContent = `${displaySymbol} (${displayName} - staked: ${formattedAmount})`;
+                option.textContent = `${displaySymbol} (ID: ${recordId} - ${displayName} - staked: ${formattedAmount})`;
             } else {
-                option.textContent = `${displaySymbol} (staked: ${formattedAmount})`;
+                option.textContent = `${displaySymbol} (ID: ${recordId} - staked: ${formattedAmount})`;
             }
             option.dataset.amount = info.stakedAmount;
+            option.dataset.coin = info.stableCoin;
             
             // add to the dropdown
             withdrawStableCoinSelect.appendChild(option);
             
-            debug.log(`add the withdraw option: ${displaySymbol}, address: ${info.stableCoin}`);
+            debug.log(`add the withdraw option: ${displaySymbol}, recordId: ${recordId}`);
         } catch (error) {
             debug.error('failed to add the withdraw option:', error);
         }
@@ -1647,7 +1664,7 @@ document.addEventListener('DOMContentLoaded', function() {
      * @param {Object} info - the staking information
      * @param {number} index - the staking index
      */
-    function addRewardItem(info, index) {
+    function addRewardItem(info, index, recordId) {
         try {
             // calculate the actual pending rewards (considering the case that the chain data is not updated)
             const calculatedPendingRewards = calculatePendingRewards(
@@ -1668,13 +1685,13 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             
             // check if the item already exists
-            const existingItem = rewardsList.querySelector(`.reward-item[data-coin="${info.stableCoin}"][data-index="${index}"]`);
+            const existingItem = rewardsList.querySelector(`.reward-item[data-index="${index}"][data-record="${recordId}"]`);
             if (existingItem) {
-                debug.log(`the reward item already exists: coin=${info.stableCoin}, index=${index}`);
+                debug.log(`the reward item already exists: index=${index}, recordId=${recordId}`);
                 
                 // update the existing item (if there is any change)
                 const formattedPendingRewards = formatTokenAmount(calculatedPendingRewards, 0);
-                existingItem.querySelector('.reward-amount').textContent = `${formattedPendingRewards} PWP`;
+                existingItem.querySelector('.reward-amount').textContent = `${formattedPendingRewards} PWP, ${formattedPendingRewards} PWB`;
                 
                 return;
             }
@@ -1691,12 +1708,13 @@ document.addEventListener('DOMContentLoaded', function() {
             // add the data attribute for later lookup and update
             rewardItem.setAttribute('data-coin', info.stableCoin);
             rewardItem.setAttribute('data-index', index);
+            rewardItem.setAttribute('data-record', recordId);
             rewardItem.innerHTML = `
                 <div class="reward-info">
-                    <div class="reward-token">${stableCoinSymbol} staked</div>
-                    <div class="reward-amount">${formattedPendingRewards} PWP</div>
+                    <div class="reward-token">${stableCoinSymbol} staked (ID: ${recordId})</div>
+                    <div class="reward-amount">${formattedPendingRewards} PWP, ${formattedPendingRewards} PWB</div>
                 </div>
-                <button class="action-btn claim-btn" data-index="${index}" data-coin="${info.stableCoin}">claim</button>
+                <button class="action-btn claim-btn" data-index="${index}" data-record="${recordId}">claim</button>
             `;
             
             // add to the list
@@ -1706,8 +1724,8 @@ document.addEventListener('DOMContentLoaded', function() {
             const claimBtn = rewardItem.querySelector('.claim-btn');
             if (claimBtn) {
                 claimBtn.addEventListener('click', function() {
-                    const stableCoin = this.getAttribute('data-coin');
-                    claimRewards(stableCoin);
+                    const recordId = this.getAttribute('data-record');
+                    claimRewards(recordId);
                 });
             }
         } catch (error) {
@@ -1772,7 +1790,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const selectedStableCoin = stableCoinSelect.value;
         
         if (!selectedStableCoin) {
-            document.getElementById('selectedStableCoinBalance').textContent = '0';
+            showNotification('stableStaking.notification.noStakingRecord', 'error');
             return;
         }
         
@@ -1809,6 +1827,7 @@ document.addEventListener('DOMContentLoaded', function() {
         
         if (!selectedOption || !selectedOption.value) {
             document.getElementById('stakedBalance').textContent = '0';
+            document.getElementById('withdrawAmount').value = '';
             return;
         }
         
@@ -1817,6 +1836,9 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // display the staked amount
         document.getElementById('stakedBalance').textContent = formatTokenAmount(stakedAmount, 18);
+        
+        // Reset the withdraw amount input
+        document.getElementById('withdrawAmount').value = '';
     }
     
     /**
@@ -1830,14 +1852,18 @@ document.addEventListener('DOMContentLoaded', function() {
             const balance = document.getElementById('selectedStableCoinBalance').textContent;
             
             if (balance && balance !== '0') {
-                stakeAmount.value = balance;
+                // Ensure the max amount is a multiple of 10
+                const maxAmount = Math.floor(parseFloat(balance) / 10) * 10;
+                stakeAmount.value = maxAmount;
             }
         } else if (type === 'withdraw') {
             const withdrawAmount = document.getElementById('withdrawAmount');
             const stakedBalance = document.getElementById('stakedBalance').textContent;
             
             if (stakedBalance && stakedBalance !== '0') {
-                withdrawAmount.value = stakedBalance;
+                // Ensure the max amount is a multiple of 10
+                const maxAmount = Math.floor(parseFloat(stakedBalance) / 10) * 10;
+                withdrawAmount.value = maxAmount;
             }
         }
     }
@@ -2135,7 +2161,7 @@ document.addEventListener('DOMContentLoaded', function() {
             debug.log('the data has been refreshed');
         } catch (error) {
             debug.error('failed to refresh the data:', error);
-            showNotification('failed to refresh the data, please try again later', 'error');
+            showNotification('stableStaking.notification.dataRefreshFailed', 'error');
         }
     }
 
@@ -2263,7 +2289,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     /**
-     * stake the stable coin
+     * Stake stable coins
      */
     async function stake() {
         try {
@@ -2273,12 +2299,18 @@ document.addEventListener('DOMContentLoaded', function() {
             const amount = stakeAmount.value;
             
             if (!selectedStableCoin) {
-                showNotification('please select the stable coin', 'error');
+                showNotification('stableStaking.notification.selectCoin', 'error');
                 return;
             }
             
             if (!amount || parseFloat(amount) <= 0) {
-                showNotification('please enter a valid stake amount', 'error');
+                showNotification('stableStaking.notification.invalidAmount', 'error');
+                return;
+            }
+            
+            // Check if amount is multiple of 10
+            if (parseFloat(amount) % 10 !== 0) {
+                showNotification('stableStaking.notification.amountMultiple10', 'error');
                 return;
             }
             
@@ -2318,7 +2350,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     });
                     
                     if (!tx.status) {
-                        showNotification('the authorization failed, cannot continue to stake', 'error');
+                        showNotification('stableStaking.notification.stakeFailed', 'error');
                         debug.error('the authorization failed:', tx);
                         return;
                     }
@@ -2326,7 +2358,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     debug.log('the authorization is successful, prepare to stake');
                     // do not show additional success notification, reduce the notification count
                 } catch (error) {
-                    showNotification('the authorization failed, cannot continue to stake', 'error');
+                    showNotification('stableStaking.notification.stakeFailed', 'error');
                     debug.error('the authorization failed:', error);
                     return;
                 }
@@ -2340,7 +2372,13 @@ document.addEventListener('DOMContentLoaded', function() {
             });
             
             if (tx.status) {
-                showNotification('stake successful', 'success');
+                let recordId;
+                if (tx.events && tx.events.Staked) {
+                    recordId = tx.events.Staked.returnValues.recordId;
+                    debug.log('stake successful, new record ID:', recordId);
+                }
+                
+                showNotification('stableStaking.notification.stakeSuccess', 'success');
                 debug.log('stake successful:', tx);
                 
                 // clear the input field
@@ -2349,12 +2387,46 @@ document.addEventListener('DOMContentLoaded', function() {
                 // refresh the data
                 refreshData();
             } else {
-                showNotification('stake failed', 'error');
+                showNotification('stableStaking.notification.stakeFailed', 'error');
                 debug.error('stake failed:', tx);
             }
         } catch (error) {
-            showNotification('stake failed', 'error');
+            showNotification('stableStaking.notification.stakeFailed', 'error');
             debug.error('stake failed:', error);
+        }
+    }
+    
+    /**
+     * Claim all staking rewards at once
+     */
+    async function claimAllRewards() {
+        try {
+            // check if user has any rewards to claim
+            if (userStakingInfo.length === 0) {
+                showNotification('stableStaking.notification.noRewards', 'info');
+                return;
+            }
+            
+            // claim all rewards
+            showNotification('claiming all rewards in progress...', 'info');
+            
+            const tx = await pwusdStakingContract.methods.claimAllRewards().send({
+                from: currentUserAddress
+            });
+            
+            if (tx.status) {
+                showNotification('stableStaking.notification.claimAllSuccess', 'success');
+                debug.log('claim all rewards successful:', tx);
+                
+                // refresh the data
+                refreshData();
+            } else {
+                showNotification('stableStaking.notification.claimAllFailed', 'error');
+                debug.error('claim all rewards failed:', tx);
+            }
+        } catch (error) {
+            showNotification('an error occurred when claiming all rewards', 'error');
+            debug.error('error claiming all rewards:', error);
         }
     }
     
@@ -2365,28 +2437,35 @@ document.addEventListener('DOMContentLoaded', function() {
         try {
             const withdrawStableCoinSelect = document.getElementById('withdrawStableCoinSelect');
             const withdrawAmount = document.getElementById('withdrawAmount');
-            const selectedStableCoin = withdrawStableCoinSelect.value;
+            const selectedRecordId = withdrawStableCoinSelect.value;
             const amount = withdrawAmount.value;
             
-            if (!selectedStableCoin) {
-                showNotification('please select the stable coin to withdraw', 'error');
+            if (!selectedRecordId) {
+                showNotification('stableStaking.notification.noStakingRecord', 'error');
                 return;
             }
             
             if (!amount || parseFloat(amount) <= 0) {
-                showNotification('please enter a valid withdraw amount', 'error');
+                showNotification('stableStaking.notification.invalidAmount', 'error');
+                return;
+            }
+            
+            // Check if amount is multiple of 10
+            if (parseFloat(amount) % 10 !== 0) {
+                showNotification('stableStaking.notification.amountMultiple10', 'error');
                 return;
             }
             
             // get the staked amount
             const selectedOption = withdrawStableCoinSelect.options[withdrawStableCoinSelect.selectedIndex];
             const stakedAmount = selectedOption.dataset.amount;
+            const stableCoinAddress = selectedOption.dataset.coin;
             
             // find the stable coin information
-            const coin = supportedStableCoins.find(c => c.address === selectedStableCoin);
+            const coin = supportedStableCoins.find(c => c.address === stableCoinAddress);
             if (!coin) {
                 // try to find the stable coin information from the original staking record
-                const stakingRecord = userStakingInfo.find(info => info.stableCoin === selectedStableCoin);
+                const stakingRecord = userStakingInfo.find(info => info.recordId.toString() === selectedRecordId);
                 if (!stakingRecord) {
                     debug.error('the stable coin information is not found');
                     return;
@@ -2454,15 +2533,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
             
-            // withdraw the stable coin
+            // withdraw the stable coin using recordId instead of stableCoin address
             showNotification('withdraw in progress...', 'info');
             
-            const tx = await pwusdStakingContract.methods.withdraw(selectedStableCoin, amountInWei).send({
+            const tx = await pwusdStakingContract.methods.withdraw(selectedRecordId, amountInWei).send({
                 from: currentUserAddress
             });
             
             if (tx.status) {
-                showNotification('withdraw successful', 'success');
+                showNotification('stableStaking.notification.withdrawSuccess', 'success');
                 debug.log('withdraw successful:', tx);
                 
                 // clear the input field
@@ -2471,7 +2550,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 // refresh the data
                 refreshData();
             } else {
-                showNotification('withdraw failed', 'error');
+                showNotification('stableStaking.notification.withdrawFailed', 'error');
                 debug.error('withdraw failed:', tx);
             }
         } catch (error) {
@@ -2484,28 +2563,28 @@ document.addEventListener('DOMContentLoaded', function() {
      * claim the staking rewards
      * @param {string} stableCoin - the stable coin address
      */
-    async function claimRewards(stableCoin) {
+    async function claimRewards(recordId) {
         try {
-            if (!stableCoin) {
-                showNotification('the stable coin address is invalid', 'error');
+            if (!recordId) {
+                showNotification('stableStaking.notification.noStakingRecord', 'error');
                 return;
             }
             
             // claim the staking rewards
             showNotification('claim the staking rewards in progress...', 'info');
             
-            const tx = await pwusdStakingContract.methods.claimPwPoints(stableCoin).send({
+            const tx = await pwusdStakingContract.methods.claimRewards(recordId).send({
                 from: currentUserAddress
             });
             
             if (tx.status) {
-                showNotification('claim the staking rewards successfully', 'success');
+                showNotification('stableStaking.notification.claimSuccess', 'success');
                 debug.log('claim the staking rewards successfully:', tx);
                 
                 // refresh the data
                 refreshData();
             } else {
-                showNotification('claim the staking rewards failed', 'error');
+                showNotification('stableStaking.notification.claimFailed', 'error');
                 debug.error('claim the staking rewards failed:', tx);
             }
         } catch (error) {

@@ -929,7 +929,6 @@ class ChickenManager {
             
             // Apply canvas size
             if (window.PetSizeManager) {
-                // Canvas 使用稍大的尺寸，以确保动画完全显示
                 canvas.width = Math.floor(elementWidth * canvasScaleFactor);
                 canvas.height = Math.floor(elementHeight * canvasScaleFactor);
                 

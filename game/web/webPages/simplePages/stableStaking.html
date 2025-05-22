@@ -75,9 +75,9 @@
                         </div>
                         
                         <div class="form-group">
-                            <label for="stakeAmount" data-i18n="stableStaking.form.stakeAmount">Stake Amount</label>
+                            <label for="stakeAmount" data-i18n="stableStaking.form.stakeAmount">Stake Amount (must be multiple of 10)</label>
                             <div class="input-with-button">
-                                <input type="number" id="stakeAmount" class="form-control" placeholder="0.00" min="0">
+                                <input type="number" id="stakeAmount" class="form-control" placeholder="0.00" min="10" step="10">
                                 <button id="maxStakeBtn" class="secondary-btn" data-i18n="button.max">Max</button>
                             </div>
                             <div class="balance-info">
@@ -93,17 +93,17 @@
                     <!-- Withdraw panel -->
                     <div class="tab-pane" id="withdrawPane">
                         <div class="form-group">
-                            <label for="withdrawStableCoinSelect" data-i18n="stableStaking.form.selectStakedCoin">Select Staked Stablecoin</label>
+                            <label for="withdrawStableCoinSelect" data-i18n="stableStaking.form.selectStakedRecord">Select Staking Record</label>
                             <select id="withdrawStableCoinSelect" class="form-control">
-                                <option value="" disabled selected data-i18n="stableStaking.form.selectPlaceholder">Please select a stablecoin</option>
-                                <!-- User's staked stablecoins will be dynamically added in JS -->
+                                <option value="" disabled selected data-i18n="stableStaking.form.selectPlaceholder">Please select a staking record</option>
+                                <!-- User's staked records will be dynamically added in JS -->
                             </select>
                         </div>
                         
                         <div class="form-group">
-                            <label for="withdrawAmount" data-i18n="stableStaking.form.withdrawAmount">Withdraw Amount</label>
+                            <label for="withdrawAmount" data-i18n="stableStaking.form.withdrawAmount">Withdraw Amount (must be multiple of 10)</label>
                             <div class="input-with-button">
-                                <input type="number" id="withdrawAmount" class="form-control" placeholder="0.00" min="0">
+                                <input type="number" id="withdrawAmount" class="form-control" placeholder="0.00" min="10" step="10">
                                 <button id="maxWithdrawBtn" class="secondary-btn" data-i18n="button.max">Max</button>
                             </div>
                             <div class="balance-info">

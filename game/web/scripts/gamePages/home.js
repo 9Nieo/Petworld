@@ -54,6 +54,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // Loading NFT flag to prevent concurrent loading
     let isLoadingNFT = false;
     
+    // Sound manager reference
+    let soundManager = null;
+    
     // Initialization
     init();
     
@@ -72,6 +75,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!pwFoodBalanceElem) console.error('PwFood balance display element not found');
         if (!moreButton) console.error('More button not found');
         
+        // Initialize sound manager
+        initSoundManager();
         
         // Clean up all static example animals
         cleanupStaticAnimals();
@@ -172,9 +177,59 @@ document.addEventListener('DOMContentLoaded', () => {
         // Add page visibility change listener, refresh NFT data when user returns to page
         document.addEventListener('visibilitychange', handleVisibilityChange);
         
+        // Listen for audio-related settings changes from iframes
+        window.addEventListener('message', handleSettingsMessage);
+        
         // Initialize pet features after the page has fully loaded, including shadow handling
         // Only needs to be processed once, no need to repeatedly call loadFarmAnimals
         setTimeout(initializeAllPetFeatures, 2000);
+    }
+    
+    /**
+     * Initialize sound manager and play background music
+     */
+    function initSoundManager() {
+        // Get global sound manager instance
+        if (window.SoundManager) {
+            soundManager = window.SoundManager;
+            debug.log('Got SoundManager instance from global object');
+            
+            // Enable debug mode if needed
+            // soundManager.debug = true;
+            
+            // Initialize the sound manager
+            soundManager.init().then(success => {
+                if (success) {
+                    debug.log('SoundManager initialized successfully');
+                    
+                    // Play background music
+                    soundManager.playBackgroundMusic();
+                } else {
+                    debug.error('Failed to initialize SoundManager');
+                }
+            });
+        } else {
+            debug.error('SoundManager not found, unable to play background music');
+        }
+    }
+    
+    /**
+     * Handle settings messages from iframes
+     */
+    function handleSettingsMessage(event) {
+        if (!event.data || typeof event.data !== 'object') return;
+        
+        const message = event.data;
+        
+        if (message.type === 'settingsAction' && message.action === 'save' && message.settings) {
+            debug.log('Received settings update:', message.settings);
+            
+            // Apply audio settings if they exist
+            if (message.settings.audio && soundManager) {
+                soundManager.applySettings(message.settings.audio);
+                debug.log('Applied audio settings from settings page');
+            }
+        }
     }
     
     /**
@@ -309,6 +364,12 @@ document.addEventListener('DOMContentLoaded', () => {
         if (document.visibilityState === 'visible') {
             debug.log('Page became visible, checking if NFT data needs to be refreshed');
             
+            // Resume background music if it was playing before
+            if (soundManager && !soundManager.settings.muteBackground) {
+                soundManager.playBackgroundMusic();
+                debug.log('Resumed background music on page visibility change');
+            }
+            
             // Get current time
             const currentTime = Date.now();
             
@@ -326,6 +387,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     }, 300);
                 }
             }
+        } else if (document.visibilityState === 'hidden') {
+            // Optionally pause the music when the page is hidden (tab changed, etc.)
+            // Uncomment if you want to pause music when the page is not visible
+            // if (soundManager && soundManager.isMusicPlaying) {
+            //     soundManager.stopBackgroundMusic();
+            //     debug.log('Paused background music when page became hidden');
+            // }
         }
     }
     
@@ -413,7 +481,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function showFeatureNotImplemented(featureName) {
         // Always return "Coming soon" for these features
         const featureKey = featureName.toLowerCase();
-        const comingSoonMessage = "Coming soon";
+        const comingSoonMessage = "Coming soon......";
 
         // Use ModalDialog if available
         if (window.ModalDialog) {
@@ -2422,5 +2490,19 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-   
+    // Add loading animation to cursor
+    document.body.classList.add('loading');
+
+    // Remove loading animation when page is fully loaded
+    window.addEventListener('load', () => {
+        document.body.classList.remove('loading');
+    });
+
+    // Add click animation to cursor
+    document.addEventListener('click', () => {
+        document.body.classList.add('clicked');
+        setTimeout(() => {
+            document.body.classList.remove('clicked');
+        }, 500);
+    });
 }); 

@@ -1,6 +1,9 @@
 // Home page script
 
 document.addEventListener('DOMContentLoaded', () => {
+    // Get loading overlay
+    const loadingOverlay = document.getElementById('loadingOverlay');
+    
     // Get global i18n object
     const i18n = window.i18n;
     
@@ -17,14 +20,36 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentAddress = null;
     // Web3 instance
     let web3Instance = null;
+    // Sakura background instance
+    let sakuraBackground = null;
     
-    // Initialize
-    init();
+    // Hide loading overlay after a small delay to ensure all resources are loaded
+    setTimeout(() => {
+        if (loadingOverlay) {
+            // Create a fade-out animation for the loading overlay
+            gsap.to(loadingOverlay, {
+                opacity: 0,
+                duration: 0.8,
+                ease: 'power2.inOut',
+                onComplete: () => {
+                    loadingOverlay.style.display = 'none';
+                    // Initialize after loading screen is gone
+                    init();
+                }
+            });
+        } else {
+            // Initialize immediately if overlay not found
+            init();
+        }
+    }, 1500); // Adjust the delay time as needed
     
     /**
      * Initialization function
      */
     function init() {
+        // Initialize sakura background
+        initSakuraBackground();
+        
         // Bind wallet connection button click event
         walletBtn.addEventListener('click', handleWalletBtnClick);
         
@@ -49,6 +74,172 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Apply current language settings
         updateUITexts();
+        
+        // Initialize GSAP animations
+        initAnimations();
+        
+        // Initialize language selector
+        initLanguageSelector();
+    }
+    
+    /**
+     * Initialize sakura background
+     */
+    function initSakuraBackground() {
+        if (window.SakuraBackground) {
+            sakuraBackground = new SakuraBackground({
+                petalCount: 40,
+                minDuration: 5,
+                maxDuration: 15
+            });
+            sakuraBackground.init();
+        } else {
+            console.error('SakuraBackground not available, please ensure sakuraBackground.js is loaded correctly');
+        }
+    }
+    
+    /**
+     * Initialize GSAP animations
+     */
+    function initAnimations() {
+        // Register ScrollTrigger plugin
+        gsap.registerPlugin(ScrollTrigger);
+        
+        // Create a timeline for entrance animations
+        const tl = gsap.timeline();
+        
+        // Header animation
+        tl.from('.logo-container', {
+            y: -50,
+            opacity: 0,
+            duration: 0.8,
+            ease: 'power3.out'
+        })
+        .from('.wallet-info', {
+            y: -50,
+            opacity: 0,
+            duration: 0.8,
+            ease: 'power3.out'
+        }, '-=0.5')
+        
+        // Welcome section animation
+        .from('.welcome-section h2', {
+            scale: 0.8,
+            opacity: 0,
+            duration: 0.8,
+            ease: 'back.out(1.7)'
+        }, '-=0.4')
+        .from('.welcome-section p', {
+            y: 30,
+            opacity: 0,
+            duration: 0.8,
+            ease: 'power2.out'
+        }, '-=0.6')
+        
+        // Mode cards animation (staggered)
+        .from('.mode-card', {
+            y: 100,
+            opacity: 0,
+            duration: 1,
+            stagger: 0.2,
+            ease: 'power2.out'
+        }, '-=0.4')
+        .from('.mode-icon', {
+            scale: 0,
+            opacity: 0,
+            duration: 0.8,
+            stagger: 0.2,
+            ease: 'back.out(2)'
+        }, '-=0.8')
+        .from('.mode-btn', {
+            scale: 0.5,
+            opacity: 0,
+            duration: 0.5,
+            stagger: 0.2,
+            ease: 'power1.out'
+        }, '-=0.4')
+        
+        // Footer animation
+        .from('.app-footer', {
+            y: 20,
+            opacity: 0,
+            duration: 0.5,
+            ease: 'power2.out'
+        }, '-=0.2');
+        
+        // Add hover animations for mode cards
+        gsap.utils.toArray('.mode-card').forEach(card => {
+            card.addEventListener('mouseenter', () => {
+                gsap.to(card.querySelector('.mode-icon'), {
+                    scale: 1.2,
+                    duration: 0.4,
+                    ease: 'back.out(1.7)'
+                });
+                gsap.to(card.querySelector('.mode-btn'), {
+                    y: -5,
+                    duration: 0.3,
+                    ease: 'power2.out'
+                });
+            });
+            
+            card.addEventListener('mouseleave', () => {
+                gsap.to(card.querySelector('.mode-icon'), {
+                    scale: 1,
+                    duration: 0.4,
+                    ease: 'power2.out'
+                });
+                gsap.to(card.querySelector('.mode-btn'), {
+                    y: 0,
+                    duration: 0.3,
+                    ease: 'power2.out'
+                });
+            });
+        });
+        
+        // Add pulse animation to wallet button if not connected
+        if (!isWalletConnected) {
+            gsap.to('#connectWalletBtn', {
+                scale: 1.05,
+                duration: 1,
+                repeat: -1,
+                yoyo: true,
+                ease: 'sine.inOut'
+            });
+        }
+        
+        // Add subtle parallax scroll effect to the cards
+        gsap.utils.toArray('.mode-card').forEach(card => {
+            gsap.to(card, {
+                y: -20,
+                scrollTrigger: {
+                    trigger: card,
+                    start: 'top bottom',
+                    end: 'bottom top',
+                    scrub: true
+                }
+            });
+        });
+        
+        // Add floating animation to logo
+        gsap.to('.logo-icon', {
+            y: 5,
+            rotation: 5,
+            duration: 2,
+            repeat: -1,
+            yoyo: true,
+            ease: 'sine.inOut'
+        });
+        
+        // Create a gentle background color shift on scroll
+        gsap.to('body', {
+            backgroundColor: 'rgba(226, 232, 240, 1)',
+            scrollTrigger: {
+                trigger: '.app-content',
+                start: 'top 50%',
+                end: 'bottom 50%',
+                scrub: true
+            }
+        });
     }
     
     /**
@@ -69,13 +260,33 @@ document.addEventListener('DOMContentLoaded', () => {
      */
     function showWalletModal() {
         walletFrame.style.display = 'block';
+        
+        // Animate the modal appearance
+        gsap.fromTo(walletFrame, 
+            { opacity: 0, scale: 0.9 },
+            { 
+                opacity: 1, 
+                scale: 1, 
+                duration: 0.4, 
+                ease: 'back.out(1.7)'
+            }
+        );
     }
     
     /**
      * Hide wallet connection modal
      */
     function hideWalletModal() {
-        walletFrame.style.display = 'none';
+        // Animate the modal disappearance
+        gsap.to(walletFrame, {
+            opacity: 0,
+            scale: 0.9,
+            duration: 0.3,
+            ease: 'power2.in',
+            onComplete: () => {
+                walletFrame.style.display = 'none';
+            }
+        });
     }
     
     /**
@@ -299,6 +510,31 @@ document.addEventListener('DOMContentLoaded', () => {
         // Update UI
         updateWalletUI(true, address);
         
+        // Add connection success animation
+        gsap.killTweensOf('#connectWalletBtn'); // Kill any existing animations
+        
+        // Create a success animation timeline
+        const connectionTl = gsap.timeline();
+        connectionTl
+            .to('#connectWalletBtn', {
+                backgroundColor: '#10b981',
+                duration: 0.3,
+                ease: 'power2.inOut'
+            })
+            .to('#walletAddress', {
+                backgroundColor: '#ecfdf5', // Light green bg
+                color: '#10b981',
+                duration: 0.5,
+                ease: 'power2.out'
+            }, '-=0.2')
+            .to('#walletAddress', {
+                backgroundColor: '#f3f4f6',
+                color: '#6b7280',
+                duration: 0.5,
+                delay: 1,
+                ease: 'power2.inOut'
+            });
+        
         // Ensure to save to both localStorage and sessionStorage
         localStorage.setItem('walletConnected', 'true');
         localStorage.setItem('walletAddress', address);
@@ -452,7 +688,25 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log('No wallet connected, directly jumping to game mode');
         }
         
-        window.location.href = 'webPages/gamePages/home.html';
+        // Create an exit animation
+        const exitTl = gsap.timeline({
+            onComplete: () => {
+                window.location.href = 'webPages/gamePages/home.html';
+            }
+        });
+        
+        exitTl
+            .to('.app-content', {
+                opacity: 0,
+                y: -30,
+                duration: 0.5,
+                ease: 'power2.inOut'
+            })
+            .to('.app-header, .app-footer', {
+                opacity: 0,
+                duration: 0.3,
+                ease: 'power2.inOut'
+            }, '-=0.3');
     }
     
     /**
@@ -477,7 +731,25 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log('No wallet connected, directly jumping to simple mode');
         }
         
-        window.location.href = 'webPages/simplePages/home.html';
+        // Create an exit animation
+        const exitTl = gsap.timeline({
+            onComplete: () => {
+                window.location.href = 'webPages/simplePages/home.html';
+            }
+        });
+        
+        exitTl
+            .to('.app-content', {
+                opacity: 0,
+                y: -30,
+                duration: 0.5,
+                ease: 'power2.inOut'
+            })
+            .to('.app-header, .app-footer', {
+                opacity: 0,
+                duration: 0.3,
+                ease: 'power2.inOut'
+            }, '-=0.3');
     }
     
     /**
@@ -584,5 +856,40 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         console.log('UI texts updated to language:', i18n.getCurrentLocale());
+    }
+    
+    /**
+     * Initialize language selector
+     */
+    function initLanguageSelector() {
+        const languageSelector = document.querySelector('.language-selector');
+        const languageDropdown = document.querySelector('.language-dropdown');
+        
+        if (!languageSelector || !languageDropdown) return;
+        
+        // Toggle dropdown on click
+        languageSelector.addEventListener('click', (e) => {
+            e.stopPropagation();
+            languageDropdown.classList.toggle('show');
+        });
+        
+        // Close dropdown when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!languageSelector.contains(e.target)) {
+                languageDropdown.classList.remove('show');
+            }
+        });
+        
+        // Handle language selection
+        const languageOptions = document.querySelectorAll('.language-option');
+        languageOptions.forEach(option => {
+            option.addEventListener('click', () => {
+                const lang = option.getAttribute('data-lang');
+                i18n.setLocale(lang).then(() => {
+                    languageDropdown.classList.remove('show');
+                    updateUITexts();
+                });
+            });
+        });
     }
 }); 

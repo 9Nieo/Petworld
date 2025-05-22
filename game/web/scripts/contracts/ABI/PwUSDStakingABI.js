@@ -69,6 +69,11 @@ window.PwUSDStakingABI = [
         "type": "string",
         "name": "reason",
         "indexed": false
+      },
+      {
+        "type": "uint256",
+        "name": "recordId",
+        "indexed": false
       }
     ]
   },
@@ -109,33 +114,6 @@ window.PwUSDStakingABI = [
   {
     "type": "event",
     "anonymous": false,
-    "name": "EligibleAmountUpdated",
-    "inputs": [
-      {
-        "type": "address",
-        "name": "user",
-        "indexed": true
-      },
-      {
-        "type": "address",
-        "name": "stableCoin",
-        "indexed": true
-      },
-      {
-        "type": "uint256",
-        "name": "oldEligibleAmount",
-        "indexed": false
-      },
-      {
-        "type": "uint256",
-        "name": "newEligibleAmount",
-        "indexed": false
-      }
-    ]
-  },
-  {
-    "type": "event",
-    "anonymous": false,
     "name": "OwnershipTransferred",
     "inputs": [
       {
@@ -153,28 +131,6 @@ window.PwUSDStakingABI = [
   {
     "type": "event",
     "anonymous": false,
-    "name": "RewardsCalculated",
-    "inputs": [
-      {
-        "type": "address",
-        "name": "user",
-        "indexed": true
-      },
-      {
-        "type": "address",
-        "name": "stableCoin",
-        "indexed": true
-      },
-      {
-        "type": "uint256",
-        "name": "rewards",
-        "indexed": false
-      }
-    ]
-  },
-  {
-    "type": "event",
-    "anonymous": false,
     "name": "RewardsClaimed",
     "inputs": [
       {
@@ -185,6 +141,11 @@ window.PwUSDStakingABI = [
       {
         "type": "uint256",
         "name": "amount",
+        "indexed": false
+      },
+      {
+        "type": "uint256",
+        "name": "recordId",
         "indexed": false
       }
     ]
@@ -237,6 +198,28 @@ window.PwUSDStakingABI = [
         "type": "uint256",
         "name": "pwusdMinted",
         "indexed": false
+      },
+      {
+        "type": "uint256",
+        "name": "recordId",
+        "indexed": false
+      }
+    ]
+  },
+  {
+    "type": "event",
+    "anonymous": false,
+    "name": "StakingRecordRemoved",
+    "inputs": [
+      {
+        "type": "address",
+        "name": "user",
+        "indexed": true
+      },
+      {
+        "type": "uint256",
+        "name": "recordId",
+        "indexed": false
       }
     ]
   },
@@ -264,6 +247,11 @@ window.PwUSDStakingABI = [
         "type": "uint256",
         "name": "pwusdBurned",
         "indexed": false
+      },
+      {
+        "type": "uint256",
+        "name": "recordId",
+        "indexed": false
       }
     ]
   },
@@ -284,6 +272,20 @@ window.PwUSDStakingABI = [
   {
     "type": "function",
     "name": "MAX_CYCLE_UPDATES",
+    "constant": true,
+    "stateMutability": "view",
+    "payable": false,
+    "inputs": [],
+    "outputs": [
+      {
+        "type": "uint256",
+        "name": ""
+      }
+    ]
+  },
+  {
+    "type": "function",
+    "name": "MIN_STAKE_MULTIPLE",
     "constant": true,
     "stateMutability": "view",
     "payable": false,
@@ -346,7 +348,7 @@ window.PwUSDStakingABI = [
   },
   {
     "type": "function",
-    "name": "claimAllPwPoints",
+    "name": "claimAllRewards",
     "constant": false,
     "payable": false,
     "inputs": [],
@@ -354,13 +356,13 @@ window.PwUSDStakingABI = [
   },
   {
     "type": "function",
-    "name": "claimPwPoints",
+    "name": "claimRewards",
     "constant": false,
     "payable": false,
     "inputs": [
       {
-        "type": "address",
-        "name": "stableCoin"
+        "type": "uint256",
+        "name": "recordId"
       }
     ],
     "outputs": []
@@ -399,29 +401,6 @@ window.PwUSDStakingABI = [
       {
         "type": "bool",
         "name": "distributionCalculated"
-      }
-    ]
-  },
-  {
-    "type": "function",
-    "name": "hasActiveStaking",
-    "constant": true,
-    "stateMutability": "view",
-    "payable": false,
-    "inputs": [
-      {
-        "type": "address",
-        "name": ""
-      },
-      {
-        "type": "address",
-        "name": ""
-      }
-    ],
-    "outputs": [
-      {
-        "type": "bool",
-        "name": ""
       }
     ]
   },
@@ -563,7 +542,12 @@ window.PwUSDStakingABI = [
         "name": "amount"
       }
     ],
-    "outputs": []
+    "outputs": [
+      {
+        "type": "uint256",
+        "name": ""
+      }
+    ]
   },
   {
     "type": "function",
@@ -646,7 +630,7 @@ window.PwUSDStakingABI = [
   },
   {
     "type": "function",
-    "name": "userStakingIndexByToken",
+    "name": "userHasStakingRecord",
     "constant": true,
     "stateMutability": "view",
     "payable": false,
@@ -656,13 +640,13 @@ window.PwUSDStakingABI = [
         "name": ""
       },
       {
-        "type": "address",
+        "type": "uint256",
         "name": ""
       }
     ],
     "outputs": [
       {
-        "type": "uint256",
+        "type": "bool",
         "name": ""
       }
     ]
@@ -698,15 +682,57 @@ window.PwUSDStakingABI = [
       },
       {
         "type": "uint256",
-        "name": "pendingPwPoints"
+        "name": "recordId"
       },
       {
         "type": "uint256",
-        "name": "lastDepositTimestamp"
+        "name": "pendingRewards"
       },
       {
         "type": "uint256",
-        "name": "rewardEligibleAmount"
+        "name": "stakingStartTime"
+      }
+    ]
+  },
+  {
+    "type": "function",
+    "name": "userStakingRecordCount",
+    "constant": true,
+    "stateMutability": "view",
+    "payable": false,
+    "inputs": [
+      {
+        "type": "address",
+        "name": ""
+      }
+    ],
+    "outputs": [
+      {
+        "type": "uint256",
+        "name": ""
+      }
+    ]
+  },
+  {
+    "type": "function",
+    "name": "userStakingRecordIndex",
+    "constant": true,
+    "stateMutability": "view",
+    "payable": false,
+    "inputs": [
+      {
+        "type": "address",
+        "name": ""
+      },
+      {
+        "type": "uint256",
+        "name": ""
+      }
+    ],
+    "outputs": [
+      {
+        "type": "uint256",
+        "name": ""
       }
     ]
   },
@@ -717,8 +743,8 @@ window.PwUSDStakingABI = [
     "payable": false,
     "inputs": [
       {
-        "type": "address",
-        "name": "stableCoin"
+        "type": "uint256",
+        "name": "recordId"
       },
       {
         "type": "uint256",

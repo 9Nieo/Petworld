@@ -15,28 +15,30 @@ contract PetWorldStaking is ReentrancyGuard, Ownable {
 
     // Constants
     uint256 public constant CYCLE_DURATION = 1 hours;  // Each cycle lasts for 1 hour
-    uint256 public constant DISTRIBUTION_RATIO = 1 * 10**13;  // Distribution ratio, 0.00001 (1 * 10^-5 * 10^18)
+    uint256 public constant DISTRIBUTION_RATIO = 10**13;  // Distribution ratio, 0.00001 (10^-5 * 10^18)
     uint256 public constant PRECISION_FACTOR = 1e18;   // Used to improve calculation precision
-    uint256 public constant MAX_CYCLE_PROCESS = 10000; // Maximum cycles to process in a single update
+    uint256 public constant MAX_CYCLE_PROCESS = 1000; // Maximum cycles to process in a single update
     uint256 public constant MAX_CYCLE_RANGE = 1000;    // Maximum cycle range for reward calculation
+    uint256 public constant DUST_THRESHOLD = 10**12;   // 0.000001 tokens - considered dust for withdrawal (pre-computed value)
     
     // Contract addresses
     address public petWorldToken;              // PetWorld token address
     
     // Financials
     uint256 public rewardPoolBalance;          // Reward pool balance - does not include user staked tokens
+    uint256 public totalStakedAmount;          // Total staked amount across all users
     
     // Cycle-related variables
     uint256 public currentCycle;               // Current cycle
     uint256 public lastUpdateTimestamp;        // Last update timestamp
     
     // Staking information
-    struct StakingInfo {
+    struct StakingRecord {
+        uint256 recordId;                      // Unique identifier for the staking record
         uint256 stakedAmount;                  // Amount staked
         uint256 lastClaimedCycle;              // Last claimed reward cycle
         uint256 pendingRewards;                // Pending rewards
-        uint256 lastDepositTimestamp;          // Timestamp of last deposit
-        uint256 rewardEligibleAmount;          // Amount eligible for rewards (staked for at least 24 hours)
+        uint256 stakingStartTime;              // Timestamp when staking began
     }
     
     // Cycle statistics
@@ -46,25 +48,32 @@ contract PetWorldStaking is ReentrancyGuard, Ownable {
         bool distributionCalculated;           // Whether distribution for this cycle has been calculated
     }
     
-    // User's staking information
-    mapping(address => StakingInfo) public userStakingInfo;
+    // Staking records for each user
+    mapping(address => StakingRecord[]) public userStakingRecords;
+    
+    // Record management
+    mapping(address => mapping(uint256 => uint256)) public stakingRecordIndex; // user => recordId => array index
+    mapping(address => mapping(uint256 => bool)) public userHasStakingRecord;  // user => recordId => exists
+    uint256 private nextRecordId = 1; // Global record ID counter
+    
+    // Active staker tracking
+    mapping(address => bool) public isActiveStaker;
+    mapping(address => uint256) public userStakingRecordCount; // Track the number of staking records per user
     
     // Cycle statistics information
     mapping(uint256 => CycleStats) public cycleStats;
     
-    // Active staker list
-    address[] public stakingUsers;
-    mapping(address => uint256) public stakingUserIndex; // Index of user in stakingUsers + 1 (0 means not in array)
-    
     // Events
-    event Staked(address indexed user, uint256 amount);
-    event Withdrawn(address indexed user, uint256 amount);
-    event RewardsClaimed(address indexed user, uint256 amount);
-    event StakingUpdated(address indexed user, uint256 amount, uint256 cycle);
+    event Staked(address indexed user, uint256 amount, uint256 recordId);
+    event Withdrawn(address indexed user, uint256 amount, uint256 recordId);
+    event RewardsClaimed(address indexed user, uint256 amount, uint256 recordId);
+    event AllRewardsClaimed(address indexed user, uint256 amount);
+    event StakingUpdated(address indexed user, uint256 amount, uint256 cycle, uint256 recordId);
     event CycleUpdated(uint256 oldCycle, uint256 newCycle, uint256 processedCycles);
     event RewardPoolLow(uint256 requested, uint256 available);
     event ContractRenounced(address indexed previousOwner);
-    event EligibleAmountUpdated(address indexed user, uint256 oldEligibleAmount, uint256 newEligibleAmount);
+    event StakingRecordRemoved(address indexed user, uint256 recordId);
+    
     /**
      * @dev Constructor
      * @param _petWorldToken PetWorld token address
@@ -76,10 +85,12 @@ contract PetWorldStaking is ReentrancyGuard, Ownable {
         
         petWorldToken = _petWorldToken;
         rewardPoolBalance = 0;
+        totalStakedAmount = 0;
         
         // Initialize cycle and timestamp
         currentCycle = 1;
         lastUpdateTimestamp = block.timestamp;
+        nextRecordId = 1;
     }
 
     /**
@@ -128,7 +139,7 @@ contract PetWorldStaking is ReentrancyGuard, Ownable {
             // Calculate the distribution amount for each cycle (0.00001 of the balance)
             uint256 distributionAmount = 0;
             if (petWorldBalance > 0) {
-                distributionAmount = (petWorldBalance * DISTRIBUTION_RATIO) / PRECISION_FACTOR;
+                distributionAmount = (petWorldBalance / PRECISION_FACTOR) * DISTRIBUTION_RATIO;
             }
             
             // Update the distribution amount for each new cycle
@@ -160,51 +171,43 @@ contract PetWorldStaking is ReentrancyGuard, Ownable {
     }
     
     /**
-     * @dev Update user rewards by calculating rewards between cycles
-     * @param user User address to update
-     * @return rewards Amount of rewards calculated
+     * @dev Add user to active stakers if they're not already in it
+     * @param user Address of the user to add
      */
-    function _updateUserRewardsInternal(address user) internal returns (uint256 rewards) {
-        StakingInfo storage stakingInfo = userStakingInfo[user];
-        
-        // If user has no stake or is already up-to-date, return 0
-        if (stakingInfo.stakedAmount == 0 || stakingInfo.lastClaimedCycle >= currentCycle) {
-            return 0;
+    function _addToActiveStakers(address user) internal {
+        if (!isActiveStaker[user]) {
+            isActiveStaker[user] = true;
         }
-        
-        // Update eligible amount before calculating rewards
-        _updateEligibleAmount(stakingInfo);
-        
-        // Calculate rewards
-        uint256 fromCycle = stakingInfo.lastClaimedCycle + 1;
-        uint256 toCycle = currentCycle;
-        
-        rewards = _calculateRewardsBetweenCycles(user, fromCycle, toCycle);
-        
-        // Update last claimed cycle
-        stakingInfo.lastClaimedCycle = currentCycle;
-        stakingInfo.pendingRewards += rewards;
-        
-        return rewards;
     }
     
     /**
-     * @dev Calculate rewards for a user within a specific cycle range
-     * @param user User address
+     * @dev Remove user from active stakers if they have no more staking records
+     * @param user Address of the user to remove
+     */
+    function _removeFromActiveStakers(address user) internal {
+        if (userStakingRecordCount[user] == 0) {
+            isActiveStaker[user] = false;
+        }
+    }
+    
+    // Removed _updateEligibleAmount function as we no longer use lastDepositTimestamp and rewardEligibleAmount
+    
+    /**
+     * @dev Calculate rewards for a staking record within a specific cycle range
+     * @param stakingRecord The staking record to calculate rewards for
      * @param fromCycle Starting cycle
      * @param toCycle Ending cycle
      * @return Total rewards within the cycle range
      */
     function _calculateRewardsBetweenCycles(
-        address user, 
+        StakingRecord storage stakingRecord, 
         uint256 fromCycle, 
         uint256 toCycle
-    ) public view returns (uint256) {
-        StakingInfo storage stakingInfo = userStakingInfo[user];
+    ) internal view returns (uint256) {
         uint256 totalRewards = 0;
         
         // Check valid input parameters
-        if (stakingInfo.rewardEligibleAmount == 0 || fromCycle > toCycle) {
+        if (stakingRecord.stakedAmount == 0 || fromCycle > toCycle) {
             return 0;
         }
         
@@ -227,55 +230,79 @@ contract PetWorldStaking is ReentrancyGuard, Ownable {
                 continue;
             }
             
-            // Calculate the user's rewards for this cycle based on the eligible amount
-            uint256 cycleReward = (stakingInfo.rewardEligibleAmount * stats.petWorldDistributed) / stats.totalStakedTokens;
+            // Calculate the user's rewards for this cycle based on their staked amount
+            uint256 cycleReward = (stakingRecord.stakedAmount / stats.totalStakedTokens) * stats.petWorldDistributed;
             
             totalRewards += cycleReward;
         }
         
         return totalRewards;
     }
-
+    
     /**
-     * @dev Add user to staking users array if not already present
-     * @param user Address of the user to add
+     * @dev Update rewards for a staking record
+     * @param stakingRecord The staking record to update
+     * @return rewards Amount of new rewards calculated
      */
-    function _addToStakingUsers(address user) internal {
-        if (stakingUserIndex[user] == 0) {
-            stakingUsers.push(user);
-            stakingUserIndex[user] = stakingUsers.length;
+    function _updateStakingRecordRewards(StakingRecord storage stakingRecord) internal returns (uint256 rewards) {
+        // If staking record has no stake or is already up-to-date, return 0
+        if (stakingRecord.stakedAmount == 0 || stakingRecord.lastClaimedCycle >= currentCycle) {
+            return 0;
         }
+        
+        // Calculate rewards
+        uint256 fromCycle = stakingRecord.lastClaimedCycle + 1;
+        uint256 toCycle = currentCycle;
+        
+        rewards = _calculateRewardsBetweenCycles(stakingRecord, fromCycle, toCycle);
+        
+        // Update last claimed cycle
+        stakingRecord.lastClaimedCycle = currentCycle;
+        stakingRecord.pendingRewards += rewards;
+        
+        return rewards;
     }
     
     /**
-     * @dev Remove user from staking users array
-     * @param user Address of the user to remove
+     * @dev Physically remove a staking record from the user's array
+     * @param user The user address
+     * @param recordId The ID of the staking record to remove
      */
-    function _removeFromStakingUsers(address user) internal {
-        uint256 index = stakingUserIndex[user];
+    function _removeStakingRecord(address user, uint256 recordId) internal {
+        require(userHasStakingRecord[user][recordId], "Record does not exist");
         
-        // If user is in the array (index > 0 because we store index+1)
-        if (index > 0) {
-            uint256 lastIndex = stakingUsers.length - 1;
-            address lastUser = stakingUsers[lastIndex];
-            
-            // If not the last element, swap with the last one
-            if (index - 1 != lastIndex) {
-                stakingUsers[index - 1] = lastUser;
-                stakingUserIndex[lastUser] = index;
-            }
-            
-            // Remove the last element
-            stakingUsers.pop();
-            stakingUserIndex[user] = 0;
+        uint256 index = stakingRecordIndex[user][recordId];
+        uint256 lastIndex = userStakingRecords[user].length - 1;
+        
+        // If this is not the last element, move the last element to this position
+        if (index != lastIndex) {
+            StakingRecord storage lastRecord = userStakingRecords[user][lastIndex];
+            userStakingRecords[user][index] = lastRecord;
+            stakingRecordIndex[user][lastRecord.recordId] = index;
         }
+        
+        // Remove the last element
+        userStakingRecords[user].pop();
+        
+        // Update mappings
+        delete stakingRecordIndex[user][recordId];
+        delete userHasStakingRecord[user][recordId];
+        
+        // Decrease counter
+        userStakingRecordCount[user]--;
+        
+        // Update active stakers
+        _removeFromActiveStakers(user);
+        
+        emit StakingRecordRemoved(user, recordId);
     }
 
     /**
      * @dev Stake tokens
      * @param amount Amount of PetWorld to stake
+     * @return recordId The unique ID assigned to this staking record
      */
-    function stake(uint256 amount) public nonReentrant {
+    function stake(uint256 amount) public nonReentrant returns (uint256) {
         // Checks
         require(amount > 0, "Amount must be greater than zero");
         
@@ -283,136 +310,195 @@ contract PetWorldStaking is ReentrancyGuard, Ownable {
         _updateCycle();
         
         address user = msg.sender;
-        StakingInfo storage stakingInfo = userStakingInfo[user];
         
-        // Effects - calculate pending rewards
-        _updateUserRewardsInternal(user);
+        // Create a new staking record with a unique ID
+        uint256 recordId = nextRecordId++;
+        uint256 stakingIndex = userStakingRecords[user].length;
         
-        // Update eligible amount for existing deposit if 24 hours have passed
-        if (block.timestamp >= stakingInfo.lastDepositTimestamp + 24 hours) {
-            stakingInfo.rewardEligibleAmount = stakingInfo.stakedAmount;
-        }
+                 // Create the new staking record
+         userStakingRecords[user].push(StakingRecord({
+             recordId: recordId,
+             stakedAmount: amount,
+             lastClaimedCycle: currentCycle + 1,
+             pendingRewards: 0,
+             stakingStartTime: block.timestamp
+         }));
         
-        // Effects - update state before interactions
-        // Update user's staking information
-        stakingInfo.stakedAmount += amount;
-        if (stakingInfo.lastClaimedCycle == 0) {
-            stakingInfo.lastClaimedCycle = currentCycle;
-        }
+        // Update mapping to track the record
+        stakingRecordIndex[user][recordId] = stakingIndex;
+        userHasStakingRecord[user][recordId] = true;
+        userStakingRecordCount[user]++;
         
-        // Update deposit timestamp for the new deposit
-        stakingInfo.lastDepositTimestamp = block.timestamp;
-        
-        // Add user to staking users if not already present
-        _addToStakingUsers(user);
+        // Mark as active staker
+        _addToActiveStakers(user);
         
         // Update the total staked amount for the current cycle
         cycleStats[currentCycle].totalStakedTokens += amount;
+        totalStakedAmount += amount;
         
         // Interactions - external calls
         IERC20(petWorldToken).safeTransferFrom(user, address(this), amount);
         
-        emit Staked(user, amount);
-        emit StakingUpdated(user, stakingInfo.stakedAmount, currentCycle);
+        emit Staked(user, amount, recordId);
+        emit StakingUpdated(user, amount, currentCycle, recordId);
+        
+        return recordId;
     }
     
     /**
-     * @dev Withdraw staked tokens
+     * @dev Withdraw staked tokens from a specific record
+     * @param recordId The unique ID of the staking record
      * @param amount Amount of tokens to withdraw, 0 means withdraw all
      */
-    function withdraw(uint256 amount) public nonReentrant {
-        address user = msg.sender;
-        StakingInfo storage stakingInfo = userStakingInfo[user];
-        
+    function withdraw(uint256 recordId, uint256 amount) public nonReentrant {
+        require(amount > 0, "Amount must be greater than zero");
         // Checks
-        require(stakingInfo.stakedAmount > 0, "No staked tokens");
+        address user = msg.sender;
+        require(userHasStakingRecord[user][recordId], "No staking record found with this ID");
         
-        // If amount is 0, withdraw all
-        uint256 withdrawAmount = amount;
-        if (withdrawAmount == 0) {
-            withdrawAmount = stakingInfo.stakedAmount;
-        } else {
-            require(withdrawAmount > 0, "Amount must be greater than zero");
-            require(withdrawAmount <= stakingInfo.stakedAmount, "Amount exceeds staked balance");
-        }
+        uint256 stakingIndex = stakingRecordIndex[user][recordId];
+        StakingRecord storage stakingRecord = userStakingRecords[user][stakingIndex];
         
+        require(amount <= stakingRecord.stakedAmount, "Amount exceeds staked balance");
+    
         // Update cycle
         _updateCycle();
         
-        // Update eligible amount before calculating rewards
-        _updateEligibleAmount(stakingInfo);
-        
         // Effects - calculate and record pending rewards
-        _updateUserRewardsInternal(user);
+        _updateStakingRecordRewards(stakingRecord);
         
-        // Effects - update state before interactions
-        // Remember the original staked amount before deducting withdrawal
-        uint256 originalStakedAmount = stakingInfo.stakedAmount + withdrawAmount;
+        // Process the withdrawal
+        stakingRecord.stakedAmount -= amount;
         
-        // Update user's staking information
-        stakingInfo.stakedAmount -= withdrawAmount;
+        // Consider it a full withdrawal if the remaining amount is very small (dust)
+        bool isFullWithdrawal = stakingRecord.stakedAmount == 0 || stakingRecord.stakedAmount < DUST_THRESHOLD;
         
-        // Calculate the non-eligible amount (tokens staked less than 24 hours)
-        uint256 nonEligibleAmount = originalStakedAmount - stakingInfo.rewardEligibleAmount;
+        // No special handling for partial withdrawals needed anymore
+        // as we no longer track reward eligibility separately
         
-        // Prioritize withdrawing non-eligible tokens first
-        if (withdrawAmount <= nonEligibleAmount) {
-            // If withdrawal amount is less than or equal to non-eligible amount, 
-            // no need to modify rewardEligibleAmount
-            // Just deduct from non-eligible tokens
-        } else {
-            // If withdrawal amount is greater than non-eligible amount
-            // Deduct the remainder from eligible amount
-            uint256 remainingToWithdraw = withdrawAmount - nonEligibleAmount;
-            if (stakingInfo.rewardEligibleAmount >= remainingToWithdraw) {
-                stakingInfo.rewardEligibleAmount -= remainingToWithdraw;
-            } else {
-                stakingInfo.rewardEligibleAmount = 0;
-            }
-        }
+        // Update the total staked amount
+        totalStakedAmount -= amount;
         
         // Update the total staked amount for the current cycle
         uint256 cycleStakedTokens = cycleStats[currentCycle].totalStakedTokens;
-        cycleStats[currentCycle].totalStakedTokens = (withdrawAmount >= cycleStakedTokens) 
+        cycleStats[currentCycle].totalStakedTokens = (amount >= cycleStakedTokens) 
             ? 0 
-            : cycleStakedTokens - withdrawAmount;
+            : cycleStakedTokens - amount;
         
-        // If the user has no remaining stake, remove them from the active staker list
-        if (stakingInfo.stakedAmount == 0) {
-            _removeFromStakingUsers(user);
+        // Harvest any pending rewards if this is a full withdrawal
+        uint256 pendingRewards = 0;
+        if (isFullWithdrawal && stakingRecord.pendingRewards > 0) {
+            pendingRewards = stakingRecord.pendingRewards;
+            stakingRecord.pendingRewards = 0;
+            
+            // Ensure the reward pool has enough balance
+            if (pendingRewards > rewardPoolBalance) {
+                emit RewardPoolLow(pendingRewards, rewardPoolBalance);
+                pendingRewards = rewardPoolBalance;
+            }
+            
+            if (pendingRewards > 0) {
+                // Deduct the distributed rewards from the reward pool
+                rewardPoolBalance -= pendingRewards;
+            }
         }
         
         // Interactions - external calls
-        IERC20(petWorldToken).safeTransfer(user, withdrawAmount);
+        IERC20(petWorldToken).safeTransfer(user, amount);
         
-        emit Withdrawn(user, withdrawAmount);
-        emit StakingUpdated(user, stakingInfo.stakedAmount, currentCycle);
+        // Send any pending rewards if available
+        if (pendingRewards > 0) {
+            IERC20(petWorldToken).safeTransfer(user, pendingRewards);
+            emit RewardsClaimed(user, pendingRewards, recordId);
+        }
+        
+        // If full withdrawal, physically remove the record
+        if (isFullWithdrawal) {
+            _removeStakingRecord(user, recordId);
+        } else {
+            emit StakingUpdated(user, stakingRecord.stakedAmount, currentCycle, recordId);
+        }
+        
+        emit Withdrawn(user, amount, recordId);
     }
     
     /**
-     * @dev Claim rewards
+     * @dev Claim rewards from a specific staking record
+     * @param recordId The unique ID of the staking record to claim rewards from
      */
-    function claimRewards() public nonReentrant {
+    function claimRewards(uint256 recordId) public nonReentrant {
+        // Checks
         address user = msg.sender;
+        require(userHasStakingRecord[user][recordId], "No staking record found with this ID");
+        
+        uint256 stakingIndex = stakingRecordIndex[user][recordId];
+        StakingRecord storage stakingRecord = userStakingRecords[user][stakingIndex];
+        
+        // Ensure minimum staking period of 1 hour has passed
+        require(block.timestamp >= stakingRecord.stakingStartTime + CYCLE_DURATION, "Minimum staking period not met");
+        require(stakingRecord.lastClaimedCycle < currentCycle, "Rewards already claimed for this cycle");
+        // Update cycle
+        _updateCycle();
+        
+        // Update staking record rewards
+        _updateStakingRecordRewards(stakingRecord);
+        
+        uint256 rewards = stakingRecord.pendingRewards;
+        
+        // Checks
+        require(rewards > 0, "No rewards to claim");
+        
+        // Effects - update state before interactions
+        // Reset pending rewards
+        stakingRecord.pendingRewards = 0;
+        
+        // Ensure the reward pool has enough balance
+        if (rewards > rewardPoolBalance) {
+            emit RewardPoolLow(rewards, rewardPoolBalance);
+            rewards = rewardPoolBalance;
+        }
+        
+        // Deduct the distributed rewards from the reward pool
+        rewardPoolBalance -= rewards;
+        
+        // Interactions - external calls
+        IERC20(petWorldToken).safeTransfer(user, rewards);
+        
+        emit RewardsClaimed(user, rewards, recordId);
+    }
+    
+    /**
+     * @dev Claim all pending rewards from all staking records
+     */
+    function claimAllRewards() public nonReentrant {
+        // Checks
+        address user = msg.sender;
+        require(isActiveStaker[user], "User has no active staking records");
         
         // Update cycle
         _updateCycle();
         
-        // Update eligible amount before calculating rewards
-        StakingInfo storage stakingInfo = userStakingInfo[user];
-        _updateEligibleAmount(stakingInfo);
+        uint256 totalRewards = 0;
         
-        // Effects - calculate rewards
-        _updateUserRewardsInternal(user);
-        
-        uint256 totalRewards = stakingInfo.pendingRewards;
+        // Process all staking records
+        for (uint256 i = 0; i < userStakingRecords[user].length; i++) {
+            StakingRecord storage stakingRecord = userStakingRecords[user][i];
+            
+            // Only include records that meet the minimum staking period of 1 hour
+            if (block.timestamp >= stakingRecord.stakingStartTime + CYCLE_DURATION && stakingRecord.lastClaimedCycle < currentCycle) {
+                // Update staking record rewards
+                _updateStakingRecordRewards(stakingRecord);
+                
+                // Add pending rewards to total
+                if (stakingRecord.pendingRewards > 0) {
+                    totalRewards += stakingRecord.pendingRewards;
+                    stakingRecord.pendingRewards = 0;
+                }
+            }
+        }
         
         // Checks
         require(totalRewards > 0, "No rewards to claim");
-        
-        // Effects - update state before interactions
-        // Reset pending rewards
-        stakingInfo.pendingRewards = 0;
         
         // Ensure the reward pool has enough balance
         if (totalRewards > rewardPoolBalance) {
@@ -426,36 +512,31 @@ contract PetWorldStaking is ReentrancyGuard, Ownable {
         // Interactions - external calls
         IERC20(petWorldToken).safeTransfer(user, totalRewards);
         
-        emit RewardsClaimed(user, totalRewards);
+        emit AllRewardsClaimed(user, totalRewards);
     }
     
-    /**
-     * @dev Update user's staking information and rewards
-     * This function can be called by anyone to update the user's reward status
-     * @param user User address
+         /**
+     * @dev Update a specific staking record's rewards
+     * @param recordId The unique ID of the staking record to update
      */
-    function updateUserRewards(address user) public {
-        // If the user has no stake, return directly
-        if (userStakingInfo[user].stakedAmount == 0) {
-            return;
-        }
+    function updateStakingRecord(uint256 recordId) public {
+        // Checks
+        address user = msg.sender;
+        require(userHasStakingRecord[user][recordId], "No staking record found with this ID");
+        
+        uint256 stakingIndex = stakingRecordIndex[user][recordId];
+        StakingRecord storage stakingRecord = userStakingRecords[user][stakingIndex];
         
         // Update cycle
         _updateCycle();
         
-        // Update eligible amount before calculating rewards
-        StakingInfo storage stakingInfo = userStakingInfo[user];
-        _updateEligibleAmount(stakingInfo);
-        
-        // Calculate new rewards
-        uint256 newRewards = _updateUserRewardsInternal(user);
+        // Update rewards
+        uint256 newRewards = _updateStakingRecordRewards(stakingRecord);
         
         if (newRewards > 0) {
-            emit StakingUpdated(user, userStakingInfo[user].stakedAmount, currentCycle);
+            emit StakingUpdated(user, stakingRecord.stakedAmount, currentCycle, recordId);
         }
     }
-
-    // ==== Management Functions ====
     
     /**
      * @dev Set PetWorldToken address
@@ -465,74 +546,4 @@ contract PetWorldStaking is ReentrancyGuard, Ownable {
         require(_petWorldToken != address(0), "PetWorld token address cannot be zero");
         petWorldToken = _petWorldToken;
     }
-    
-    /**
-     * @dev Get count of active stakers
-     * @return Number of active stakers
-     */
-    function getActiveStakersCount() external view returns (uint256) {
-        return stakingUsers.length;
-    }
-    
-    /**
-     * @dev Get active stakers with pagination
-     * @param start Starting index
-     * @param count Number of addresses to return
-     * @return Array of active staker addresses
-     */
-    function getActiveStakers(uint256 start, uint256 count) external view returns (address[] memory) {
-        uint256 totalCount = stakingUsers.length;
-        
-        if (start >= totalCount || count == 0) {
-            return new address[](0);
-        }
-        
-        uint256 end = start + count;
-        if (end > totalCount) {
-            end = totalCount;
-        }
-        
-        uint256 resultLength = end - start;
-        address[] memory result = new address[](resultLength);
-        
-        for (uint256 i = 0; i < resultLength; i++) {
-            result[i] = stakingUsers[start + i];
-        }
-        
-        return result;
-    }
-
-    // Transfer contract ownership
-    function transferContractOwnership(address newOwner) public onlyOwner {
-        require(newOwner != address(0), "New owner cannot be zero address");
-        _transferOwnership(newOwner);
-    }
-    
-    // Renounce contract ownership
-    function renounceContractOwnership() public onlyOwner {
-        _transferOwnership(address(0));
-        emit ContractRenounced(msg.sender);
-    }
-
-    /**
-     * @dev Update the eligible amount for rewards
-     * This function checks if the current deposit has been staked for over 24 hours
-     * and updates the rewardEligibleAmount accordingly
-     * @param stakingInfo The staking position to update
-     */
-    function _updateEligibleAmount(StakingInfo storage stakingInfo) internal {
-        // Check if 24 hours have passed since the last deposit
-        if (block.timestamp >= stakingInfo.lastDepositTimestamp + 24 hours) {
-            uint256 oldEligibleAmount = stakingInfo.rewardEligibleAmount;
-            // If 24 hours have passed, the entire staked amount is eligible for rewards
-            stakingInfo.rewardEligibleAmount = stakingInfo.stakedAmount;
-            
-            // Emit event if the eligible amount changed
-            if (oldEligibleAmount != stakingInfo.rewardEligibleAmount) {
-                emit EligibleAmountUpdated(msg.sender, oldEligibleAmount, stakingInfo.rewardEligibleAmount);
-            }
-        }
-    }
-
-
 } 

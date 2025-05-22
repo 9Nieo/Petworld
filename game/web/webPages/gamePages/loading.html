@@ -5,6 +5,64 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PetWorld Loading</title>
     <link rel="stylesheet" href="../../css/gamePages/loading.css">
+    <!-- Add starfield background script -->
+    <script src="../../scripts/styles/starfieldBackground.js"></script>
+    <style>
+        /* Override loading container styles to match starfield */
+        #loadingContainer {
+            background-color: transparent !important;
+        }
+        
+        .loading-title {
+            color: #ffffff;
+            text-shadow: 0 0 10px rgba(135, 206, 250, 0.8);
+        }
+        
+        .loading-description {
+            color: #e0e0ff;
+        }
+        
+        .loading-progress-container {
+            background-color: rgba(255, 255, 255, 0.2);
+            border-color: rgba(135, 206, 250, 0.4);
+        }
+        
+        .loading-progress-bar {
+            background: linear-gradient(90deg, #4169E1, #00BFFF);
+        }
+        
+        .loading-progress-text {
+            color: #ffffff;
+        }
+        
+        .loading-tip {
+            background-color: rgba(0, 0, 50, 0.4);
+            color: #ffffff;
+        }
+        
+        /* Interactive hint style */
+        .interactive-hint {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(0, 0, 0, 0.5);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            opacity: 0;
+            animation: fadeInOut 3s ease-in-out infinite;
+            pointer-events: none;
+            z-index: 1000;
+        }
+        
+        @keyframes fadeInOut {
+            0% { opacity: 0; }
+            50% { opacity: 1; }
+            100% { opacity: 0; }
+        }
+    </style>
 </head>
 <body>
     <div id="loadingContainer">
@@ -27,6 +85,9 @@
         </div>
     </div>
     
+    <!-- Interactive hint -->
+    <div class="interactive-hint">✨ Click or tap anywhere to create shooting stars!</div>
+    
     <div id="gameContainer" style="display: none;">
         <h1>Game Loaded</h1>
         <p>This is the game content area</p>
@@ -34,6 +95,80 @@
     
     <script src="../../scripts/gamePages/loading.js"></script>
     <script>
+        // Initialize starfield background
+        document.addEventListener('DOMContentLoaded', function() {
+            // Create starfield with custom options
+            const starfield = new StarfieldBackground({
+                starCount: 200,                // More stars
+                shootingStarChance: 0.3,      // More shooting stars
+                minSpeed: 0.05,
+                maxSpeed: 0.5,
+                colors: [
+                    'rgba(255, 255, 255, 0.8)', // White
+                    'rgba(135, 206, 250, 0.8)', // Light blue
+                    'rgba(238, 130, 238, 0.7)', // Violet
+                    'rgba(255, 215, 0, 0.6)',   // Gold
+                    'rgba(0, 191, 255, 0.7)'    // Deep sky blue
+                ],
+                interactive: true,            // Enable interactive features
+                mouseRadius: 150              // Increase mouse influence radius
+            }).init();
+            
+            // Remove starfield when game loads
+            window.addEventListener('gamePageLoaded', function() {
+                if (starfield) {
+                    starfield.destroy();
+                }
+                
+                // Also remove the interactive hint
+                const hint = document.querySelector('.interactive-hint');
+                if (hint && hint.parentNode) {
+                    hint.parentNode.removeChild(hint);
+                }
+            });
+            
+            // Add interactive functionality informational prompts
+            const firstInteraction = () => {
+                // Show a toast message after first interaction
+                const toast = document.createElement('div');
+                toast.textContent = '✨ Awesome! Try moving your mouse around too!';
+                toast.style.position = 'fixed';
+                toast.style.top = '20px';
+                toast.style.left = '50%';
+                toast.style.transform = 'translateX(-50%)';
+                toast.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+                toast.style.color = 'white';
+                toast.style.padding = '10px 20px';
+                toast.style.borderRadius = '20px';
+                toast.style.zIndex = '1000';
+                toast.style.opacity = '0';
+                toast.style.transition = 'opacity 0.5s';
+                
+                document.body.appendChild(toast);
+                
+                // Fade in
+                setTimeout(() => { toast.style.opacity = '1'; }, 10);
+                
+                // Fade out and remove
+                setTimeout(() => {
+                    toast.style.opacity = '0';
+                    setTimeout(() => {
+                        if (toast.parentNode) {
+                            toast.parentNode.removeChild(toast);
+                        }
+                    }, 500);
+                }, 3000);
+                
+                // Remove event listeners after first interaction
+                document.removeEventListener('click', firstInteraction);
+                document.removeEventListener('touchstart', firstInteraction);
+            };
+            
+            // Listen for first interaction
+            document.addEventListener('click', firstInteraction);
+            document.addEventListener('touchstart', firstInteraction);
+        });
+        
         setTimeout(() => {
             console.log('Simulating NFT loading complete');
             window.dispatchEvent(new CustomEvent('nftRefreshed', {

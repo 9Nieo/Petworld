@@ -91,8 +91,7 @@ contract PwFoodManager is ReentrancyGuard {
         address to = msg.sender;
         // Checks
         uint256 currentTime = block.timestamp;
-        uint256 utcDayStart = (currentTime / 86400) * 86400;
-        require(lastClaimTime[to] < utcDayStart, "Today's pwfood already claimed");
+        require(lastClaimTime[to] < currentTime, "Today's pwfood already claimed");
         // Check if user has claimed a free NFT in NFTLotteryManager
         require(nftLotteryManager != address(0), "NFTLotteryManager not set");
         require(INFTLotteryManager(nftLotteryManager).hasClaimedFreeNFT(to), "Must claim free NFT first");

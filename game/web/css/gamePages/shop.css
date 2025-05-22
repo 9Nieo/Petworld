@@ -200,12 +200,17 @@
 
 /* Inviter input box styles */
 .inviter-input-container {
-    margin-bottom: 10px;
+    max-width: 100%;
     width: 100%;
+    padding: 0 10px;
+    box-sizing: border-box;
+    margin-bottom: 10px;
 }
 
 .inviter-input {
     width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
     padding: 8px;
     border: 1px solid #ddd;
     border-radius: 4px;
@@ -220,7 +225,7 @@
 
 .inviter-tip {
     font-size: 0.75rem;
-    color: #888;
+    color: #f44336;
     margin-top: 5px;
     text-align: center;
 }
@@ -240,8 +245,8 @@
 }
 
 .food-amount-input {
-    width: 100%;
-    padding: 8px 10px;
+    width: 60px;
+    padding: 4px 8px;
     border: 1px solid #ddd;
     border-radius: 4px;
     font-size: 0.95rem;
@@ -280,8 +285,8 @@
 }
 
 .batch-amount-input {
-    width: 100%;
-    padding: 8px 10px;
+    width: 60px;
+    padding: 4px 8px;
     border: 1px solid #ddd;
     border-radius: 4px;
     font-size: 0.95rem;

@@ -40,7 +40,7 @@
         cut: "Cortar",
         reset: "Reiniciar",
         all: "Todos",
-        copyright: "© 2025 Pet World - All rights reserved",
+        copyright: "© 2025 Petworld - All rights reserved",
         pageInfo: "Página {{current}} de {{total}}",
         pageInfoWithTotal: "Página {{current}} de {{total}} ({{items}} registros)",
         featureNotImplemented: "{feature} estará disponible pronto, ¡espere!"
@@ -210,6 +210,8 @@
         max: "Máximo",
         claim: "Reclamar",
         confirm: "Confirmar",
+        approve: "Aprobar",
+        ok:"Aceptar",
       },
       
       // home welcome text
@@ -320,6 +322,10 @@
           withdrawAmount: "Withdraw amount",
           selectStakedCoin: "Seleccionar moneda stake",
           stakedBalance: "Saldo stake",
+          selectStakedRecord: "Seleccionar registro stake",
+          selectPlaceholder: "Seleccionar moneda estable",
+          selectStakingRecord: "Seleccionar registro stake",
+          selectRecordPlaceholder: "Seleccionar registro stake",
         },
         history: {
           title: "Historial stake",
@@ -333,7 +339,32 @@
           cycle: "Ciclo",
         },
         notification: {
-          noRewards: "No hay recompensas",
+          noRewards: "No hay recompensas disponibles",
+          stakeSuccess: "La apuesta fue exitosa",
+          stakeFailed: "La apuesta falló",
+          withdrawSuccess: "Retirada exitosa",
+          withdrawFailed: "Retirada fallida",
+          claimSuccess: "Reclamación exitosa",
+          claimFailed: "Reclamación fallida",
+          claimAllSuccess: "Todas las recompensas reclamadas exitosamente",
+          claimAllFailed: "No se pudieron reclamar todas las recompensas",
+          insufficientAuth: "Autorización insuficiente",
+          authSuccess: "Autorización exitosa",
+          authFailed: "Autorización fallida",
+          invalidAmount: "Cantidad inválida",
+          amountMultiple10: "La cantidad debe ser múltiplo de 10",
+          noStakingRecord: "No hay registro de stake seleccionado",
+          loadingData: "Cargando datos...",
+          dataRefreshFailed: "Error al actualizar los datos",
+          walletConnectionError: "Error de conexión de billetera",
+          contractInitError: "Error al inicializar el contrato",
+          unknownError: "Ocurrió un error desconocido",
+          connectWallet: "Conectar billetera",
+          selectCoin: "Seleccionar moneda",
+          approveConfirmation: "Confirmación de aprobación",
+          approving: "Aprobando...",
+          approveSuccess: "Aprobación exitosa",
+          approveFailed: "Aprobación fallida",
         }
       },
       // pets related
@@ -437,9 +468,13 @@
       details: "Detalles",
       level: "Nivel: {level}",
       
+      lottery:{
+        batchResultTitle:"Resultado de lote",
+        summary:"Resumen",
+      },
       // shop page
       shop: {
-        title: "Tienda de sorteo",
+        title: "Tienda",
         subtitle: "Obtenga mascotas raras",
         description: "Compre huevos aquí para obtener mascotas raras, o compre comida para mascotas",
         freePwFoodDesc:"Cada 24 horas, cada dirección puede reclamar 10 comidas para mascotas",
@@ -496,12 +531,85 @@
         inviterTip: "Rellene la dirección del invitado para que reciba una recompensa",
         foodAmount: "Cantidad de compra (USD):",
         foodAmountTip: "Ingrese un número entero entre 1 y 10,000",
-        batchAmount: "Cantidad (1-10):",
+        batchAmount: "Cantidad (1-5):",
         quantity: "Cantidad",
         price: "Precio",
         total: "Total",
         batchPurchasing: "Comprando en lotes...",
-        batchEggs: "huevos"
+        batchEggs: "huevos",
+        unclaimedEggs: "Huevos no reclamados",
+        rareEggs: "Huevos raros",
+        legendaryEggs: "Huevos legendarios",
+        confirmClaim: "Confirmar reclamación",
+        claimUnclaimedEggs: "Reclamar huevos no reclamados",
+        nowCanClaim:"Puede reclamar",
+        batchAmountTip:"Ingrese un número entero entre 1 y 5",
+        inviterPlaceholder: "Dirección del invitado (opcional)",
+        totalPrice: "Precio total",
+        notification: {
+          // General
+          success: "¡Éxito!",
+          error: "Error ocurrido",
+          warning: "Advertencia",
+          info: "Información",
+          
+          noClaimableEggs: "No hay mascotas reclamables",
+          requiredNFTFirst: "Reclama la mascota gratis primero",
+          // Payment process
+          paymentProcessing: "Procesando pago...",
+          paymentSuccess: "Pago exitoso!",
+          paymentFailed: "Pago fallido: {message}",
+          paymentCancelled: "Pago cancelado",
+          
+          // Authorization
+          checkingApprovals: "Verificando aprobaciones necesarias...",
+          requestingApproval: "Solicitando aprobación de token...",
+          authorizationSuccess: "Aprobación exitosa",
+          authorizationFailed: "Aprobación de token fallida: {message}",
+          userCancelledAuth: "Cancelaste la transacción de aprobación",
+          
+          // Purchase process
+          purchasingEggs: "Comprando {eggName}...",
+          purchasingFood: "Comprando comida para mascotas...",
+          purchaseSuccess: "Compra exitosa!",
+          purchaseFailed: "Compra fallida",
+          purchaseEggsSuccess: "¡Felicitaciones! ¡Compraste {count} {eggName} con éxito!",
+          purchaseFoodSuccess: "¡Felicitaciones! ¡Compraste {quantity} comida para mascotas con éxito!",
+          purchaseNoLotteryResult: "¡Compraste huevos con éxito, por favor, verifica tu colección para obtener nuevas mascotas.",
+          purchaseNoLotteryDisplay: "¡Compraste huevos con éxito, pero no se puede mostrar el resultado de la lotería",
+          
+          // Claim process
+          claimingNFT: "Reclamando mascota gratis...",
+          claimingFood: "Reclamando comida para mascotas gratis...",
+          claimingEggs: "Reclamando mascotas no reclamadas...",
+          claimNFTSuccess: "¡Reclamaste la mascota gratis con éxito! Por favor, verifica tu nueva mascota en el juego",
+          claimFoodSuccess: "¡Reclamaste la comida para mascotas gratis con éxito! Obtén {count} comida para mascotas",
+          claimEggsSuccess: "¡Reclamaste {count} mascotas con éxito! Por favor, verifícalas en el juego",
+          
+          // Validation errors
+          amountInputError: "Por favor, ingrese una cantidad entera",
+          amountRangeError: "Por favor, ingrese una cantidad entre 1 y {min} y {max}",
+          invalidLotteryResult: "Resultado de lotería inválido",
+          
+          // Status messages
+          alreadyClaimedNFT: "Ya has reclamado la mascota gratis",
+          alreadyClaimedFood: "Hoy has reclamado la comida para mascotas gratis, por favor, vuelve mañana",
+          noClaimableEggs: "No tienes mascotas reclamables",
+          requiredNFTFirst: "Por favor, reclama el NFT de mascota gratis primero",
+          
+          // Input issues
+          invalidInviterAddress: "El formato de la dirección del invitado es inválido, usando la dirección predeterminada",
+          amountInputNotFound: "No se puede encontrar la casilla de entrada de la cantidad",
+          
+          // Result notifications
+          pendingRareEggs: "¡Compraste huevos con éxito, por favor, espera 1 minuto y luego reclama tu nueva mascota en el módulo \"reclamar mascotas no reclamadas\"",
+          claimSuccess: "Reclamación exitosa!",
+          claimFailed: "Reclamación fallida: {message}",
+
+          pendingClaimAlert: "Alerta de reclamación pendiente",
+          pendingClaimAlertMessage: "¡Compraste huevos con éxito, por favor, espera 1 minuto y luego reclama tu nueva mascota en el módulo \"reclamar mascotas no reclamadas\"",
+          pendingClaimAlertTip: "La blockchain tomará 1 minuto para confirmar la transacción, por favor, espera pacientemente",
+        }
       },
       exchange: {
         title: "Intercambio",
@@ -543,6 +651,7 @@
         yourStaking: 'Tu stake',
         stakeWithdraw: 'Stakear/Retirar',
         donateAmount: 'Cantidad de donación',
+        
       },
       // more features menu related
       moreFeatures: {
@@ -645,9 +754,10 @@
         claimRewards: "Claim rewards",
         claimInfo: "After burning, you can claim your PetWorld tokens here",
         claimCycles: "Select the number of cycles to claim",
-        claimButton: "Claim",
+        claimButton: "Claim All",
         yourRecords: "Your burn records",
-        noRecords: "No burn records"
+        noRecords: "No burn records",
+        expiryWarning: "Importante: Debes reclamar tus recompensas dentro de 1200 ciclos después de quemar, de lo contrario se perderán y perderás todos los PwPoints y recompensas PW."
       },
       
       payment: {
@@ -664,20 +774,21 @@
   
       // loading page
       loading: {
-        title: "Pet World is loading",
+        title: "Petworld is loading",
         description: "Getting your pet NFT data, please wait...",
         connecting: "Connecting to blockchain...",
         loadingAssets: "Loading game assets...",
         initializingGame: "Initializing game...",
         loadingPets: "Loading your pets...",
         loadingComplete: "Loading complete!",
-        enteringWorld: "Entering Pet World...",
+        enteringWorld: "Entering Petworld...",
         tip1: "Tip: Feed your pets regularly to keep them happy!",
         tip2: "Tip: Rare pets have special abilities!",
         tip3: "Tip: You can trade your pets on the marketplace!",
         tip4: "Tip: Stake your tokens to earn rewards!",
         tip5: "Tip: Complete daily tasks for extra rewards!"
-      }
+      },
+      
     };
 
   if (window.i18n) {

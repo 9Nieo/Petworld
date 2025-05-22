@@ -771,23 +771,6 @@ window.NFTFeedingManagerABI = [
   },
   {
     "type": "function",
-    "name": "setUserInviter",
-    "constant": false,
-    "payable": false,
-    "inputs": [
-      {
-        "type": "address",
-        "name": "user"
-      },
-      {
-        "type": "address",
-        "name": "inviter"
-      }
-    ],
-    "outputs": []
-  },
-  {
-    "type": "function",
     "name": "transferContractOwnership",
     "constant": false,
     "payable": false,
@@ -811,25 +794,6 @@ window.NFTFeedingManagerABI = [
       }
     ],
     "outputs": []
-  },
-  {
-    "type": "function",
-    "name": "userInviter",
-    "constant": true,
-    "stateMutability": "view",
-    "payable": false,
-    "inputs": [
-      {
-        "type": "address",
-        "name": ""
-      }
-    ],
-    "outputs": [
-      {
-        "type": "address",
-        "name": ""
-      }
-    ]
   }
 ];
 

@@ -252,6 +252,17 @@ class WalletConnector {
                         // Modify: Do not automatically disconnect wallet connection, only record warning
                         debug.warn('UI shows connected but wallet may not be connected, keep current connection status');
                         
+                        // Ensure we retrieve any stored connection status
+                        const storedAddress = localStorage.getItem('walletAddress');
+                        if (storedAddress) {
+                            debug.log('Found stored wallet address, maintaining connection with:', storedAddress);
+                            
+                            // Update stored connection status to ensure consistency
+                            localStorage.setItem('walletConnected', 'true');
+                            sessionStorage.setItem('walletConnected', 'true');
+                            sessionStorage.setItem('walletAddress', storedAddress);
+                        }
+                        
                         // Try to request Web3 instance again as a backup
                         setTimeout(() => {
                             if (this.walletFrame && this.walletFrame.contentWindow) {
@@ -392,7 +403,7 @@ class WalletConnector {
             const storedAddress = localStorage.getItem('walletAddress');
             const storedConnected = localStorage.getItem('walletConnected') === 'true';
             
-            // If local storage has an address and is marked as connected, but we cannot detect a connection, perform additional verification
+                            // If local storage has an address and is marked as connected, but we cannot detect a connection, perform additional verification
             if (storedConnected && storedAddress && !isConnected) {
                 console.log('Stored display shows connected but detection shows not connected, attempting additional verification...');
                 
@@ -410,6 +421,12 @@ class WalletConnector {
                     }, 500);
                     return;
                 }
+                
+                // Even if we can't detect a connection, maintain the connection status
+                // to prevent auto-disconnection
+                console.log('Cannot verify wallet connection, but maintaining connected state based on stored data');
+                isConnected = true;
+                currentAddress = storedAddress;
             }
             
             // Send current status directly
@@ -435,8 +452,15 @@ class WalletConnector {
                 console.log('Using stored address as a backup:', storedAddress);
                 address = storedAddress;
             } else {
-                console.warn('Claimed to be connected but no address, modifying status to disconnected');
-                connected = false;
+                // Instead of disconnecting, try to use stored status
+                const storedConnected = localStorage.getItem('walletConnected') === 'true';
+                if (storedConnected) {
+                    console.log('Maintaining connected status based on stored data, even without address');
+                    // Don't modify connected status, it should remain true
+                } else {
+                    console.warn('No stored connection status and no address, cannot maintain connection');
+                    connected = false;
+                }
             }
         }
         

@@ -7,6 +7,14 @@
     <link rel="stylesheet" href="css/index.css">
 </head>
 <body>
+    <!-- Loading overlay -->
+    <div id="loadingOverlay" class="loading-overlay">
+        <div class="loading-content">
+            <img src="resources/images/icons/logo.png" alt="PetWorld Logo" class="loading-logo">
+            <div class="loading-spinner"></div>
+        </div>
+    </div>
+    
     <div class="app-container">
         <header class="app-header">
             <div class="logo-container">
@@ -14,6 +22,30 @@
                 <h1 data-i18n="game.title">PetWorld</h1>
             </div>
             <div class="wallet-info">
+                <div class="language-selector">
+                    <svg class="language-selector-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M2 12H22" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M12 2C14.5013 4.73835 15.9228 8.29203 16 12C15.9228 15.708 14.5013 19.2616 12 22C9.49872 19.2616 8.07725 15.708 8 12C8.07725 8.29203 9.49872 4.73835 12 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                    <div class="language-dropdown">
+                        <div class="language-option" data-lang="en">
+                            <span>English</span>
+                        </div>
+                        <div class="language-option" data-lang="zh_tw">
+                            <span>繁體中文</span>
+                        </div>
+                        <div class="language-option" data-lang="es">
+                            <span>Español</span>
+                        </div>
+                        <div class="language-option" data-lang="ko">
+                            <span>한국어</span>
+                        </div>
+                        <div class="language-option" data-lang="ja">
+                            <span>日本語</span>
+                        </div>
+                    </div>
+                </div>
                 <span id="walletAddress" data-i18n="wallet.noWallet">No Wallet Connected</span>
                 <button id="connectWalletBtn" class="wallet-btn" data-i18n="wallet.connect">Connect Wallet</button>
             </div>
@@ -59,6 +91,13 @@
     <script src="i18n/locales/ja.js"></script>
     <!-- Include Web3.js library -->
     <script src="https://cdn.jsdelivr.net/npm/web3@1.8.2/dist/web3.min.js"></script>
+    
+    <!-- Include GSAP animation library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
+    
+    <!-- Include background styles -->
+    <script src="scripts/styles/sakuraBackground.js"></script>
     
     <!-- Include contract addresses and ABI -->
     <script src="scripts/contracts/contractAddresses.js"></script>

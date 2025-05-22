@@ -4,7 +4,94 @@
 document.addEventListener('DOMContentLoaded', () => {
     // Initialize loading page
     initLoadingPage();
+    
+    // Initialize starfield background if available
+    initStarfieldBackground();
 });
+
+/**
+ * Initialize starfield background
+ */
+function initStarfieldBackground() {
+    // Check if StarfieldBackground is available
+    if (typeof StarfieldBackground !== 'undefined') {
+        console.log('Initializing starfield background...');
+        
+        // Create starfield with custom options
+        const starfield = new StarfieldBackground({
+            starCount: 200,                // More stars
+            shootingStarChance: 0.3,      // More shooting stars
+            minSpeed: 0.05,
+            maxSpeed: 0.5,
+            colors: [
+                'rgba(255, 255, 255, 0.8)', // White
+                'rgba(135, 206, 250, 0.8)', // Light blue
+                'rgba(238, 130, 238, 0.7)', // Violet
+                'rgba(255, 215, 0, 0.6)',   // Gold
+                'rgba(0, 191, 255, 0.7)'    // Deep sky blue
+            ],
+            interactive: true,            // Enable interactive features
+            mouseRadius: 150              // Increase mouse influence radius
+        }).init();
+        
+        // Remove starfield when game loads
+        window.addEventListener('gamePageLoaded', function() {
+            if (starfield) {
+                console.log('Destroying starfield background...');
+                starfield.destroy();
+            }
+            
+            // Also remove the interactive hint
+            const hint = document.querySelector('.interactive-hint');
+            if (hint && hint.parentNode) {
+                hint.parentNode.removeChild(hint);
+            }
+        });
+        
+        // Add interactive functionality informational prompts
+        const firstInteraction = () => {
+            // Show a toast message after first interaction
+            const toast = document.createElement('div');
+            toast.textContent = '✨ Awesome! Try moving your mouse around too!';
+            toast.style.position = 'fixed';
+            toast.style.top = '20px';
+            toast.style.left = '50%';
+            toast.style.transform = 'translateX(-50%)';
+            toast.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+            toast.style.color = 'white';
+            toast.style.padding = '10px 20px';
+            toast.style.borderRadius = '20px';
+            toast.style.zIndex = '1000';
+            toast.style.opacity = '0';
+            toast.style.transition = 'opacity 0.5s';
+            
+            document.body.appendChild(toast);
+            
+            // Fade in
+            setTimeout(() => { toast.style.opacity = '1'; }, 10);
+            
+            // Fade out and remove
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                setTimeout(() => {
+                    if (toast.parentNode) {
+                        toast.parentNode.removeChild(toast);
+                    }
+                }, 500);
+            }, 3000);
+            
+            // Remove event listeners after first interaction
+            document.removeEventListener('click', firstInteraction);
+            document.removeEventListener('touchstart', firstInteraction);
+        };
+        
+        // Listen for first interaction
+        document.addEventListener('click', firstInteraction);
+        document.addEventListener('touchstart', firstInteraction);
+    } else {
+        console.error('StarfieldBackground not available, please ensure starfieldBackground.js is loaded correctly');
+    }
+}
 
 /**
  * Get random emojis from the list
@@ -66,6 +153,14 @@ function initLoadingPage() {
     if (!progressBar || !progressText || !loadingContainer || !gameContainer) {
         console.error('Key elements of the loading page not found');
         return;
+    }
+    
+    // Add interactive hint if it doesn't exist
+    if (!document.querySelector('.interactive-hint')) {
+        const hintElement = document.createElement('div');
+        hintElement.className = 'interactive-hint';
+        hintElement.textContent = '✨ Click or tap anywhere to create shooting stars!';
+        document.body.appendChild(hintElement);
     }
     
     // Hide game container, show loading container

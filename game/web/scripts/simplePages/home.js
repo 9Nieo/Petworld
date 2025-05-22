@@ -1,4 +1,3 @@
-
 const i18n = window.i18n;
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -46,6 +45,25 @@ document.addEventListener('DOMContentLoaded', () => {
      */
     function init() {
         debug.log('Initializing normal mode homepage...');
+        
+        // Initialize bubble background
+        if (window.BubbleBackground) {
+            debug.log('Initializing bubble background...');
+            new BubbleBackground({
+                bubbleCount: 30,  
+                colors: [
+                    'rgba(123, 206, 234, 0.2)', // Light blue
+                    'rgba(194, 145, 255, 0.2)', // Light purple
+                    'rgba(148, 224, 250, 0.2)', // Light cyan
+                    'rgba(255, 255, 255, 0.5)'  // White
+                ],
+                minDuration: 8,
+                maxDuration: 20,
+                bgColor: 'white' 
+            }).init();
+        } else {
+            debug.error('BubbleBackground not available, please ensure bubbleBackground.js is loaded correctly');
+        }
         
         // Check critical DOM elements
         if (!walletBtn) debug.error('Wallet connection button not found');
@@ -1389,37 +1407,37 @@ document.addEventListener('DOMContentLoaded', () => {
         
         if (pwStakingBtn) {
             pwStakingBtn.addEventListener('click', function() {
-                window.location.href = './staking.html';
-                // ModalDialog.alert('Coming soon.......', {
-                //     title: 'Notice'
-                // });
+                // window.location.href = './staking.html';
+                ModalDialog.alert('Coming soon.......', {
+                    title: 'Notice'
+                });
             });
         }
         
         if (burnBtn) {
             burnBtn.addEventListener('click', function() {
-                window.location.href = './burn.html';
-                // ModalDialog.alert('Coming soon.......', {
-                //     title: 'Notice'
-                // });
+                // window.location.href = './burn.html';
+                ModalDialog.alert('Coming soon.......', {
+                    title: 'Notice'
+                });
             });
         }
         
         if (reverseBurnBtn) {
             reverseBurnBtn.addEventListener('click', function() {
-                window.location.href = './reverseburn.html';
-                // ModalDialog.alert('Coming soon.......', {
-                //     title: 'Notice'
-                // });
+                // window.location.href = './reverseburn.html';
+                ModalDialog.alert('Coming soon.......', {
+                    title: 'Notice'
+                });
             });
         }
         
         if (exchangeBtn) {
             exchangeBtn.addEventListener('click', function() {
-                window.location.href = './exchange.html';
-                // ModalDialog.alert('Coming soon.......', {
-                //     title: 'Notice'
-                // });
+                // window.location.href = './exchange.html';
+                ModalDialog.alert('Coming soon.......', {
+                    title: 'Notice'
+                });
             });
         }
     }

@@ -435,7 +435,7 @@ function loadUserData() {
  * @param {number} currentCycle - the current cycle
  * @returns {string} the calculated reward amount
  */
-function calculatePendingRewards(stakingInfo, currentCycle) {
+function calculatePendingRewards(stakingInfo, currentCycle, lastUpdateTime) {
     try {
         // ensure the stakingInfo exists
         if (!stakingInfo) {
@@ -471,19 +471,6 @@ function calculatePendingRewards(stakingInfo, currentCycle) {
         // consider the case where the chain data is not updated, calculate the additional cycles
         const now = Math.floor(Date.now() / 1000); // the current timestamp (seconds)
         // check if there is a saved last update time
-        let lastUpdateTime = 0;
-        if (typeof window.lastUpdateTimestamp !== 'undefined') {
-            lastUpdateTime = parseInt(window.lastUpdateTimestamp);
-        } else if (pwusdStakingContract && typeof pwusdStakingContract.methods.lastUpdateTimestamp === 'function') {
-            // try to get from the contract, but do not wait for the async call result
-            pwusdStakingContract.methods.lastUpdateTimestamp().call()
-                .then(result => {
-                    window.lastUpdateTimestamp = result;
-                    debug.log('got and cached the last update timestamp:', result);
-                })
-                .catch(err => debug.error('failed to get the last update timestamp:', err));
-        }
-        
         if (lastUpdateTime > 0) {
             const timeSinceLastUpdate = now - lastUpdateTime;
             const cycleDuration = 86400; // one cycle per day, unit: seconds
@@ -504,8 +491,8 @@ function calculatePendingRewards(stakingInfo, currentCycle) {
         
         // use the normal unit to calculate, no longer use BigInt
         // calculate the reward rate: 1 PWP per 10 USD
-        // assume each stable coin unit is 1 USD, each stable coin unit gets 0.1 PWP
-        const rewardRatePerToken = 0.1; // the normal unit, each stable coin unit gets 0.1 PWP
+        // assume each stable coin unit is 1 USD, each stable coin unit gets 0.2 PWP
+        const rewardRatePerToken = 0.2; 
         
         // convert the pending rewards from the contract to the normal unit
         const contractPendingRewards = parseInt(stakingInfo.pendingRewards || '0');
@@ -1001,178 +988,47 @@ async function loadUserStakingInfo() {
     try {
         debug.log('loading the user staking info...');
         
-        // check if the getUserStakingInfo method exists according to the contract ABI
-        let stakingInfo;
+        // clear the existing info
+        userStakingInfo = [];
         
-        if (typeof pwusdStakingContract.methods.getUserStakingInfo === 'function') {
-            stakingInfo = await pwusdStakingContract.methods.getUserStakingInfo(currentUserAddress).call();
-        } else {
-            // try the alternative method: if the hasActiveStaking and userStakingIndexByToken methods exist
-            stakingInfo = { stableCoins: [], amounts: [], lastClaimedCycles: [] };
+        // Get user staking record count
+        if (typeof pwusdStakingContract.methods.userStakingRecordCount === 'function') {
+            const recordCount = await pwusdStakingContract.methods.userStakingRecordCount(currentUserAddress).call();
+            debug.log(`user has ${recordCount} staking records`);
             
-            // iterate the supported stable coins, check if the user has staked
-            for (const coin of supportedStableCoins) {
+            // Get each staking record
+            for (let i = 0; i < recordCount; i++) {
                 try {
-                    let hasStaking = false;
-                    let stakingIndex = 0;
+                    const stakingInfo = await pwusdStakingContract.methods.userStakingInfo(currentUserAddress, i).call();
                     
-                    // check if the user has staked the stable coin
-                    if (typeof pwusdStakingContract.methods.hasActiveStaking === 'function') {
-                        hasStaking = await pwusdStakingContract.methods.hasActiveStaking(currentUserAddress, coin.address).call();
+                    if (stakingInfo && stakingInfo.stakedAmount && stakingInfo.stakedAmount !== '0') {
+                        const coinAddress = stakingInfo.stableCoin;
+                        const recordId = parseInt(stakingInfo.recordId);
                         
-                        if (hasStaking && typeof pwusdStakingContract.methods.userStakingIndexByToken === 'function') {
-                            stakingIndex = await pwusdStakingContract.methods.userStakingIndexByToken(currentUserAddress, coin.address).call();
-                        }
-                    }
-                    
-                    if (hasStaking && typeof pwusdStakingContract.methods.userStakingInfo === 'function') {
-                        // get the staking info
-                        const info = await pwusdStakingContract.methods.userStakingInfo(currentUserAddress, stakingIndex).call();
+                        // Create the ERC20 contract instance to get token details
+                        const coinContract = new web3.eth.Contract(GENERIC_ERC20_ABI, coinAddress);
                         
-                        if (info && info.stakedAmount && info.stakedAmount !== '0') {
-                            stakingInfo.stableCoins.push(coin.address);
-                            stakingInfo.amounts.push(info.stakedAmount);
-                            stakingInfo.lastClaimedCycles.push(info.lastClaimedCycle);
-                        }
+                        // Get token symbol and decimals
+                        const symbol = await coinContract.methods.symbol().call();
+                        const decimals = await coinContract.methods.decimals().call();
+                        
+                        // Get pending rewards directly from the record
+                        const pendingRewards = stakingInfo.pendingRewards || '0';
+                        
+                        userStakingInfo.push({
+                            address: coinAddress,
+                            symbol: symbol,
+                            amount: stakingInfo.stakedAmount,
+                            decimals: parseInt(decimals),
+                            lastClaimedCycle: parseInt(stakingInfo.lastClaimedCycle),
+                            pendingRewards: pendingRewards,
+                            recordId: recordId
+                        });
+                        
+                        debug.log(`loaded staking record #${recordId}: ${symbol}, amount: ${stakingInfo.stakedAmount}, pending rewards: ${pendingRewards}`);
                     }
                 } catch (error) {
-                    debug.error(`failed to check the staking status of the stable coin ${coin.address}:`, error);
-                }
-            }
-        }
-        
-        if (stakingInfo && stakingInfo.stableCoins) {
-            // clear the existing info
-            userStakingInfo = [];
-            
-            // get the detailed info of each staked stable coin
-            for (let i = 0; i < stakingInfo.stableCoins.length; i++) {
-                const coinAddress = stakingInfo.stableCoins[i];
-                const amount = stakingInfo.amounts[i];
-                const lastClaimedCycle = stakingInfo.lastClaimedCycles[i];
-                
-                if (coinAddress === '0x0000000000000000000000000000000000000000' || amount === '0') {
-                    continue; // skip the zero address or zero amount
-                }
-                
-                // create the ERC20 contract instance
-                const coinContract = new web3.eth.Contract(GENERIC_ERC20_ABI, coinAddress);
-                
-                try {
-                    // get the token symbol and precision
-                    const symbol = await coinContract.methods.symbol().call();
-                    const decimals = await coinContract.methods.decimals().call();
-                    
-                    // calculate the pending rewards
-                    let pendingRewards = '0';
-                    if (typeof pwusdStakingContract.methods.calculatePendingRewards === 'function') {
-                        try {
-                            pendingRewards = await pwusdStakingContract.methods.calculatePendingRewards(
-                                currentUserAddress,
-                                coinAddress
-                            ).call();
-                            debug.log(`the pending rewards got from the contract: ${pendingRewards}, address: ${coinAddress}`);
-                        } catch (error) {
-                            debug.error(`failed to get the rewards from the contract: ${error.message}`);
-                        }
-                    }
-                    
-                    // if the rewards got from the contract is 0 or failed, try to estimate it
-                    if (pendingRewards === '0') {
-                        try {
-                            // try to use the pendingRewards or pendingPwPoints method of the contract
-                            if (typeof pwusdStakingContract.methods.pendingRewards === 'function') {
-                                const result = await pwusdStakingContract.methods.pendingRewards(
-                                    currentUserAddress,
-                                    coinAddress
-                                ).call();
-                                pendingRewards = result;
-                                debug.log(`the rewards got from the pendingRewards function: ${pendingRewards}, address: ${coinAddress}`);
-                            } else if (typeof pwusdStakingContract.methods.pendingPwPoints === 'function') {
-                                const result = await pwusdStakingContract.methods.pendingPwPoints(
-                                    currentUserAddress,
-                                    coinAddress
-                                ).call();
-                                pendingRewards = result;
-                                debug.log(`the rewards got from the pendingPwPoints function: ${pendingRewards}, address: ${coinAddress}`);
-                            }
-                            
-                            // if the rewards are still 0, try to get the staking info for detailed info
-                            if (pendingRewards === '0' && typeof pwusdStakingContract.methods.stakingInfo === 'function') {
-                                const stakingInfoResult = await pwusdStakingContract.methods.stakingInfo(
-                                    currentUserAddress,
-                                    coinAddress
-                                ).call();
-                                
-                                if (stakingInfoResult) {
-                                    // try different field names
-                                    if (stakingInfoResult.pendingPwPoints) {
-                                        pendingRewards = stakingInfoResult.pendingPwPoints;
-                                        debug.log(`the pendingPwPoints got from the stakingInfo function: ${pendingRewards}`);
-                                    } else if (stakingInfoResult.pendingRewards) {
-                                        pendingRewards = stakingInfoResult.pendingRewards;
-                                        debug.log(`the pendingRewards got from the stakingInfo function: ${pendingRewards}`);
-                                    }
-                                }
-                            }
-                            
-                            // if the rewards are still 0, try to get the staking info for detailed info
-                            if (pendingRewards === '0' && typeof pwusdStakingContract.methods.userStakingInfo === 'function') {
-                                try {
-                                    // find the staking index for the stable coin
-                                    let stakingIndex = 0;
-                                    if (typeof pwusdStakingContract.methods.userStakingIndexByToken === 'function') {
-                                        stakingIndex = await pwusdStakingContract.methods.userStakingIndexByToken(
-                                            currentUserAddress,
-                                            coinAddress
-                                        ).call();
-                                    }
-                                    
-                                    const stakingData = await pwusdStakingContract.methods.userStakingInfo(
-                                        currentUserAddress,
-                                        stakingIndex
-                                    ).call();
-                                    
-                                    if (stakingData) {
-                                        if (stakingData.pendingPwPoints) {
-                                            pendingRewards = stakingData.pendingPwPoints;
-                                            debug.log(`the pendingPwPoints got from the userStakingInfo function: ${pendingRewards}`);
-                                        } else if (stakingData.pendingRewards) {
-                                            pendingRewards = stakingData.pendingRewards;
-                                            debug.log(`the pendingRewards got from the userStakingInfo function: ${pendingRewards}`);
-                                        }
-                                    }
-                                } catch (error) {
-                                    debug.error(`failed to get the staking info: ${error.message}`);
-                                }
-                            }
-                            
-                            // if all the contract methods failed to get the rewards, try to estimate it
-                            if (pendingRewards === '0') {
-                                const stakingInfoObj = {
-                                    amount: amount,
-                                    lastClaimedCycle: parseInt(lastClaimedCycle),
-                                    pendingRewards: '0'
-                                };
-                                // calculate the pending rewards
-                                pendingRewards = calculatePendingRewards(stakingInfoObj, currentCycleValue);
-                                debug.log(`the pending rewards calculated by myself: ${pendingRewards}, address: ${coinAddress}, staked amount: ${amount}, last claimed cycle: ${lastClaimedCycle}, current cycle: ${currentCycleValue}`);
-                            }
-                        } catch (error) {
-                            debug.error('failed to estimate the pending rewards:', error);
-                        }
-                    }
-                    
-                    userStakingInfo.push({
-                        address: coinAddress,
-                        symbol: symbol,
-                        amount: amount,
-                        decimals: parseInt(decimals),
-                        lastClaimedCycle: parseInt(lastClaimedCycle),
-                        pendingRewards: pendingRewards
-                    });
-                } catch (error) {
-                    debug.error(`failed to get the staking info of the stable coin ${coinAddress}:`, error);
+                    debug.error(`failed to get staking record at index ${i}:`, error);
                 }
             }
             
@@ -1181,7 +1037,11 @@ async function loadUserStakingInfo() {
             // update the staking history list
             updateStakingHistoryUI();
         } else {
-            debug.log('the user has no staking record');
+            // Fallback to old method
+            debug.log('userStakingRecordCount method not found, trying legacy method');
+            // The legacy code from the old implementation is removed to avoid 
+            // conflicts with the new implementation
+            debug.log('the contract does not support userStakingRecordCount, cannot load staking info');
             document.getElementById('noHistoryMessage').style.display = 'block';
         }
     } catch (error) {
@@ -1222,21 +1082,47 @@ function updateStakingHistoryUI() {
         }
     }
     
+    // Add "Claim All Rewards" button if we have multiple records with rewards
+    let totalRewards = 0;
+    for (const info of userStakingInfo) {
+        const rewards = parseInt(info.pendingRewards || '0');
+        if (!isNaN(rewards)) {
+            totalRewards += rewards;
+        }
+    }
+    
+    // if (totalRewards > 0 && userStakingInfo.length > 1 && typeof pwusdStakingContract.methods.claimAllRewards === 'function') {
+    //     const claimAllContainer = document.createElement('div');
+    //     claimAllContainer.className = 'claim-all-container';
+    //     claimAllContainer.style.textAlign = 'right';
+    //     claimAllContainer.style.margin = '10px 0';
+        
+    //     const claimAllButton = document.createElement('button');
+    //     claimAllButton.className = 'primary-btn';
+    //     claimAllButton.textContent = window.i18n && window.i18n.t ? window.i18n.t('button.claimAll') : 'Claim All Rewards';
+    //     claimAllButton.addEventListener('click', claimAllRewards);
+        
+    //     claimAllContainer.appendChild(claimAllButton);
+    //     historyList.parentNode.insertBefore(claimAllContainer, historyList);
+    // }
+    
     // used to track the added staking records
     const addedRecords = new Set();
     
     // add the staking records
     userStakingInfo.forEach((coin, index) => {
         // create the unique identifier
-        const recordId = `${coin.address.toLowerCase()}_${coin.amount}`;
+        const recordId = coin.recordId || index;
+        const uniqueId = `record_${recordId}`;
         
         // check if the same record has been added
-        if (addedRecords.has(recordId)) {
+        if (addedRecords.has(uniqueId)) {
             return;
         }
         
         const historyItem = document.createElement('div');
         historyItem.className = 'history-row';
+        historyItem.setAttribute('data-record-id', recordId);
         
         // calculate the last claimed time
         const lastClaimedText = coin.lastClaimedCycle === 0 ? 
@@ -1256,10 +1142,10 @@ function updateStakingHistoryUI() {
                 amount: coin.amount,
                 lastClaimedCycle: coin.lastClaimedCycle,
                 pendingRewards: '0'
-            }, currentCycleValue);
+            }, currentCycleValue, lastUpdateTimestamp);
         }
         
-        debug.log(`the rewards displayed in the staking history UI: ${rewardsToShow}, address: ${coin.address}, staked amount: ${coin.amount}, last claimed cycle: ${coin.lastClaimedCycle}, original pending rewards: ${coin.pendingRewards}`);
+        debug.log(`the rewards displayed in the staking history UI: ${rewardsToShow}, token: ${coin.symbol}, record ID: ${recordId}, staked amount: ${coin.amount}, last claimed cycle: ${coin.lastClaimedCycle}`);
         
         // display the rewards value - ensure it is an integer (because PWP precision is 0)
         let rewardsAsInt;
@@ -1270,29 +1156,29 @@ function updateStakingHistoryUI() {
             rewardsAsInt = 0;
         }
         
-        const formattedRewards = `${rewardsAsInt} PwPoint`;
+        const formattedRewards = `${rewardsAsInt} PWP, ${rewardsAsInt} PWB`;
         const claimButtonText = window.i18n && window.i18n.t ? window.i18n.t('button.claim') : 'claim rewards';
         
         historyItem.innerHTML = `
-            <div class="history-cell">${coin.symbol}</div>
+            <div class="history-cell">${coin.symbol} (ID: ${recordId})</div>
             <div class="history-cell">${formattedAmount}</div>
             <div class="history-cell">${lastClaimedText}</div>
             <div class="history-cell">${formattedRewards}</div>
             <div class="history-cell">
-                <button class="claim-btn" data-address="${coin.address}">${claimButtonText}</button>
+                <button class="claim-btn" data-record-id="${recordId}">${claimButtonText}</button>
             </div>
         `;
         
         historyList.appendChild(historyItem);
         
         // record the added record
-        addedRecords.add(recordId);
+        addedRecords.add(uniqueId);
         
         // bind the claim rewards button event
         const claimBtn = historyItem.querySelector('.claim-btn');
         if (claimBtn) {
             claimBtn.addEventListener('click', function() {
-                claimRewards(this.getAttribute('data-address'));
+                claimRewards(this.getAttribute('data-record-id'));
             });
         }
     });
@@ -1353,8 +1239,8 @@ async function handleWithdrawCoinSelect() {
         return;
     }
     
-    const selectedAddress = select.value;
-    if (!selectedAddress) {
+    const selectedRecordId = select.value;
+    if (!selectedRecordId && selectedRecordId !== '0') {
         balanceElement.textContent = '0';
         return;
     }
@@ -1363,12 +1249,12 @@ async function handleWithdrawCoinSelect() {
         // show the loading status
         balanceElement.textContent = 'loading...';
         
-        // find the info of the selected stable coin in the staking list
-        const coinInfo = userStakingInfo.find(coin => coin.address === selectedAddress);
+        // find the info of the selected staking record
+        const recordInfo = userStakingInfo.find(info => info.recordId.toString() === selectedRecordId.toString());
         
-        if (coinInfo) {
+        if (recordInfo) {
             // format and display the staked balance
-            const formattedBalance = formatTokenAmount(coinInfo.amount, coinInfo.decimals);
+            const formattedBalance = formatTokenAmount(recordInfo.amount, recordInfo.decimals);
             balanceElement.textContent = formattedBalance;
         } else {
             balanceElement.textContent = '0';
@@ -1406,7 +1292,14 @@ async function stake() {
     }
     
     if (!amount || parseFloat(amount) <= 0) {
-        showNotification('stableStaking.notification.enterAmount', 'warning');
+        showNotification('stableStaking.notification.invalidAmount', 'warning');
+        return;
+    }
+
+    // Add validation for multiple of 10
+    const amountNumber = parseFloat(amount);
+    if (amountNumber % 10 !== 0) {
+        showNotification('stableStaking.notification.amountMultiple10', 'warning');
         return;
     }
     
@@ -1493,16 +1386,23 @@ async function withdraw() {
         return;
     }
     
-    const selectedCoinAddress = select.value;
+    const selectedRecordId = select.value;
     const amount = amountInput.value.trim();
     
-    if (!selectedCoinAddress) {
-        showNotification('stableStaking.notification.selectWithdrawCoin', 'warning');
+    if (!selectedRecordId && selectedRecordId !== '0') {
+        showNotification('stableStaking.notification.noStakingRecord', 'warning');
         return;
     }
     
     if (!amount || parseFloat(amount) <= 0) {
-        showNotification('stableStaking.notification.enterWithdrawAmount', 'warning');
+        showNotification('stableStaking.notification.invalidAmount', 'warning');
+        return;
+    }
+    
+    // Validate that the amount is a multiple of 10
+    const amountNumber = parseFloat(amount);
+    if (amountNumber % 10 !== 0) {
+        showNotification('stableStaking.notification.amountMultiple10', 'warning');
         return;
     }
     
@@ -1511,7 +1411,7 @@ async function withdraw() {
         const confirmResult = await ModalDialog.confirm(
             window.i18n && window.i18n.t 
                 ? window.i18n.t('stableStaking.notification.withdrawConfirmation', {amount: amount}) 
-                : `confirm to withdraw ${amount} stable coin?`, 
+                : `confirm to withdraw ${amount} stable coin from record #${selectedRecordId}?`, 
             {
                 title: window.i18n && window.i18n.t ? window.i18n.t('stableStaking.notification.withdrawTitle') : 'withdraw confirmation',
                 confirmText: window.i18n && window.i18n.t ? window.i18n.t('button.confirm') : 'confirm',
@@ -1523,25 +1423,72 @@ async function withdraw() {
             return; // the user cancels the withdraw
         }
         
-        debug.log('prepare to withdraw the stable coin:', selectedCoinAddress, amount);
+        // Find the staking record information
+        const recordInfo = userStakingInfo.find(info => info.recordId.toString() === selectedRecordId.toString());
+        
+        if (!recordInfo) {
+            showNotification('stableStaking.notification.stakingInfoNotFound', 'error');
+            return;
+        }
+        
+        debug.log('prepare to withdraw from staking record:', selectedRecordId, 'amount:', amount);
         
         // get the decimal places of the stable coin
-        const selectedOption = select.options[select.selectedIndex];
-        const decimals = selectedOption.getAttribute('data-decimals') || 18;
+        const decimals = recordInfo.decimals || 18;
         
         // convert the input amount to the precision required by the contract
         const amountInWei = web3.utils.toWei(amount, 'ether');
         
-        // execute the withdraw operation
+        // Check if PWUSD needs approval
+        try {
+            // If withdrawing stablecoins, we need to burn PWUSD so we may need to approve that
+            if (pwusdContract) {
+                const allowance = await pwusdContract.methods.allowance(
+                    currentUserAddress, 
+                    pwusdStakingContract._address
+                ).call();
+                
+                if (BigInt(allowance) < BigInt(amountInWei)) {
+                    showNotification('Approving PWUSD for withdrawal...', 'info');
+                    
+                    // Request maximum approval amount
+                    const maxUint256 = '115792089237316195423570985008687907853269984665640564039457584007913129639935'; // 2^256 - 1
+                    
+                    await pwusdContract.methods.approve(
+                        pwusdStakingContract._address, 
+                        maxUint256
+                    ).send({
+                        from: currentUserAddress
+                    });
+                    
+                    showNotification('PWUSD approved successfully', 'success');
+                }
+            }
+        } catch (approveError) {
+            debug.error('Failed to approve PWUSD:', approveError);
+            showNotification('Failed to approve PWUSD for withdrawal', 'error');
+            return;
+        }
+        
+        // Execute the withdraw operation directly without checking if method exists
+        showNotification('Processing withdrawal...', 'info');
+        
         const withdrawTx = await pwusdStakingContract.methods.withdraw(
-            selectedCoinAddress,
+            selectedRecordId,
             amountInWei
         ).send({ from: currentUserAddress });
         
         debug.log('withdraw transaction successful:', withdrawTx);
-        showNotification('stableStaking.notification.withdrawSuccess', 'success');
         
-        // clear the input
+        // Success notification
+        showNotification(
+            window.i18n && window.i18n.t 
+                ? window.i18n.t('stableStaking.notification.withdrawSuccess', {amount: amount}) 
+                : `successfully withdrew ${amount} stable coin!`, 
+            'success'
+        );
+        
+        // Clear the input
         amountInput.value = '';
         
         // refresh the data
@@ -1549,98 +1496,8 @@ async function withdraw() {
             refreshData();
         }, 2000);
     } catch (error) {
-        debug.error('failed to withdraw the stable coin:', error);
+        debug.error('withdraw stable coin failed:', error);
         showNotification('stableStaking.notification.withdrawFailed', 'error');
-    }
-}
-
-/**
- * claim the rewards
- * @param {string} stableCoinAddress - the stable coin contract address
- */
-async function claimRewards(stableCoinAddress) {
-    if (!web3 || !pwusdStakingContract || !currentUserAddress) {
-        showNotification('stableStaking.notification.connectWallet', 'warning');
-        return;
-    }
-    
-    if (!stableCoinAddress) {
-        showNotification('stableStaking.notification.invalidCoinAddress', 'error');
-        return;
-    }
-    
-    try {
-        // find the corresponding staking info
-        const stakingInfo = userStakingInfo.find(info => 
-            info.address.toLowerCase() === stableCoinAddress.toLowerCase()
-        );
-        
-        if (!stakingInfo) {
-            debug.error(`failed to find the staking info: ${stableCoinAddress}`);
-            showNotification('stableStaking.notification.stakingInfoNotFound', 'error');
-            return;
-        }
-        
-        // check if there is any pending rewards
-        const pendingRewards = stakingInfo.pendingRewards || '0';
-        debug.log(`prepare to claim the rewards: ${pendingRewards}, address: ${stableCoinAddress}`);
-        
-        if (pendingRewards === '0') {
-            showNotification('stableStaking.notification.noRewards', 'info');
-            return;
-        }
-        
-        // use the confirm dialog to ask the user if they want to confirm the claim
-        const confirmResult = await ModalDialog.confirm(
-            window.i18n && window.i18n.t 
-                ? window.i18n.t('stableStaking.notification.claimConfirmation', {amount: pendingRewards}) 
-                : `confirm to claim ${pendingRewards} PWPoint rewards?`, 
-            {
-                title: window.i18n && window.i18n.t ? window.i18n.t('stableStaking.notification.claimTitle') : 'claim rewards confirmation',
-                confirmText: window.i18n && window.i18n.t ? window.i18n.t('button.confirm') : 'confirm',
-                cancelText: window.i18n && window.i18n.t ? window.i18n.t('button.cancel') : 'cancel'
-            }
-        );
-        
-        if (confirmResult.action !== 'confirm') {
-            return; // the user cancels the claim
-        }
-        
-        debug.log('prepare to claim the rewards, stable coin address:', stableCoinAddress);
-        
-        // execute the claim rewards operation
-        // check if the contract has the claimPwPoints method (new version) or the claimRewards method (old version)
-        let claimTx;
-        
-        if (typeof pwusdStakingContract.methods.claimPwPoints === 'function') {
-            claimTx = await pwusdStakingContract.methods.claimPwPoints(
-                stableCoinAddress
-            ).send({ from: currentUserAddress });
-            debug.log('claim the rewards using the claimPwPoints method');
-        } else if (typeof pwusdStakingContract.methods.claimRewards === 'function') {
-            claimTx = await pwusdStakingContract.methods.claimRewards(
-                stableCoinAddress
-            ).send({ from: currentUserAddress });
-            debug.log('claim the rewards using the claimRewards method');
-        } else {
-            throw new Error('the contract does not provide the claim rewards method');
-        }
-        
-        debug.log('claim the rewards transaction successful:', claimTx);
-        showNotification(
-            window.i18n && window.i18n.t 
-                ? window.i18n.t('stableStaking.notification.claimSuccess', {amount: pendingRewards}) 
-                : `successfully claimed ${pendingRewards} PWPoint rewards!`, 
-            'success'
-        );
-        
-        // refresh the data
-        setTimeout(() => {
-            refreshData();
-        }, 2000);
-    } catch (error) {
-        debug.error('claim the rewards failed:', error);
-        showNotification('stableStaking.notification.claimFailed', 'error');
     }
 }
 
@@ -1779,64 +1636,44 @@ async function loadWithdrawableStableCoins() {
             withdrawCoinSelect.remove(1);
         }
         
-        // used to track the added addresses, avoid adding the same address twice
-        const addedAddresses = new Set();
+        // used to track the added records, avoid adding the same record twice
+        const addedRecords = new Set();
         
-        // First check if there are already staked coins in userStakingInfo
-        let hasAddedCoinsFromUserInfo = false;
-        
-        // Add the user's staked stable coins
-        userStakingInfo.forEach(coin => {
-            // check if the address has been added
-            if (addedAddresses.has(coin.address.toLowerCase())) {
+        // Add the user's staking records
+        userStakingInfo.forEach(staking => {
+            // Check if staking record ID is valid
+            if (!staking.recordId && staking.recordId !== 0) {
                 return;
             }
             
-            if (coin.amount && coin.amount !== '0') {
+            // check if the record has been added
+            const recordKey = `record-${staking.recordId}`;
+            if (addedRecords.has(recordKey)) {
+                return;
+            }
+            
+            if (staking.amount && staking.amount !== '0') {
                 const option = document.createElement('option');
-                option.value = coin.address;
-                option.textContent = coin.symbol;
-                option.setAttribute('data-decimals', coin.decimals);
-                option.setAttribute('data-amount', coin.amount);
+                option.value = staking.recordId;
+                option.textContent = `${staking.symbol} (ID: ${staking.recordId} - staked: ${formatTokenAmount(staking.amount, staking.decimals)})`;
+                option.setAttribute('data-decimals', staking.decimals);
+                option.setAttribute('data-amount', staking.amount);
+                option.setAttribute('data-record-id', staking.recordId);
+                option.setAttribute('data-address', staking.address);
                 withdrawCoinSelect.appendChild(option);
                 
-                // record the added address
-                addedAddresses.add(coin.address.toLowerCase());
-                hasAddedCoinsFromUserInfo = true;
+                // record the added record
+                addedRecords.add(recordKey);
             }
         });
         
-        // If no coins were added from userStakingInfo, try using SupportedStableCoins utility
-        if (!hasAddedCoinsFromUserInfo && window.SupportedStableCoins && typeof window.SupportedStableCoins.getAllWithdrawableStableCoins === 'function') {
-            const withdrawableCoins = window.SupportedStableCoins.getAllWithdrawableStableCoins();
-            
-            debug.log('Got withdrawable stable coins from SupportedStableCoins utility:', withdrawableCoins);
-            
-            // Add withdrawable coins to the dropdown
-            withdrawableCoins.forEach(coin => {
-                // Check if the address has already been added
-                if (addedAddresses.has(coin.address.toLowerCase())) {
-                    return;
-                }
-                
-                const option = document.createElement('option');
-                option.value = coin.address;
-                option.textContent = coin.symbol;
-                option.setAttribute('data-decimals', coin.decimals);
-                withdrawCoinSelect.appendChild(option);
-                
-                // Record the added address
-                addedAddresses.add(coin.address.toLowerCase());
-            });
-        }
-        
-        debug.log('the withdrawable stable coin select element is updated');
+        debug.log('the withdrawable staking records select element is updated');
         
         // update the staking history list
         updateStakingHistoryUI();
     } catch (error) {
-        debug.error('failed to load the withdrawable stable coins:', error);
-        showNotification('failed to load the withdrawable stable coins', 'error');
+        debug.error('failed to load the withdrawable staking records:', error);
+        showNotification('failed to load the withdrawable staking records', 'error');
     }
 }
 
@@ -1925,6 +1762,105 @@ function setPageStatus(message) {
     }
     
     debug.log('set the page status:', message);
+}
+
+/**
+ * claim all rewards at once
+ */
+async function claimAllRewards() {
+    if (!web3 || !pwusdStakingContract || !currentUserAddress) {
+        showNotification('stableStaking.notification.connectWallet', 'warning');
+        return;
+    }
+    
+    try {
+        // Show confirmation dialog
+        const confirmResult = await ModalDialog.confirm(
+            window.i18n && window.i18n.t 
+                ? window.i18n.t('stableStaking.notification.claimAllConfirmation') 
+                : 'Do you want to claim all your staking rewards?', 
+            {
+                title: window.i18n && window.i18n.t ? window.i18n.t('stableStaking.notification.claimTitle') : 'claim confirmation',
+                confirmText: window.i18n && window.i18n.t ? window.i18n.t('button.confirm') : 'confirm',
+                cancelText: window.i18n && window.i18n.t ? window.i18n.t('button.cancel') : 'cancel'
+            }
+        );
+        
+        if (confirmResult.action !== 'confirm') {
+            return; // User canceled the operation
+        }
+        
+        // Show processing notification
+        showNotification('stableStaking.notification.claiming', 'info');
+        
+        // Execute the claimAllRewards function
+        // const claimTx = await pwusdStakingContract.methods.claimAllRewards().send({ 
+        //     from: currentUserAddress 
+        // });
+        
+        debug.log('claim all rewards transaction successful:', claimTx);
+        
+        // Show success notification
+        showNotification('stableStaking.notification.claimSuccess', 'success');
+        
+        // Refresh the data after a short delay
+        setTimeout(() => {
+            refreshData();
+        }, 2000);
+    } catch (error) {
+        debug.error('failed to claim all rewards:', error);
+        showNotification('stableStaking.notification.claimFailed', 'error');
+    }
+}
+
+/**
+ * claim staking rewards for a specific record
+ * @param {string} recordId - the record ID of the staking
+ */
+async function claimRewards(recordId) {
+    if (!web3 || !pwusdStakingContract || !currentUserAddress) {
+        showNotification('stableStaking.notification.connectWallet', 'warning');
+        return;
+    }
+    
+    try {
+        // Show confirmation dialog
+        const confirmResult = await ModalDialog.confirm(
+            window.i18n && window.i18n.t 
+                ? window.i18n.t('stableStaking.notification.claimConfirmation', {recordId: recordId}) 
+                : `Do you want to claim rewards for record #${recordId}?`, 
+            {
+                title: window.i18n && window.i18n.t ? window.i18n.t('stableStaking.notification.claimTitle') : 'claim confirmation',
+                confirmText: window.i18n && window.i18n.t ? window.i18n.t('button.confirm') : 'confirm',
+                cancelText: window.i18n && window.i18n.t ? window.i18n.t('button.cancel') : 'cancel'
+            }
+        );
+        
+        if (confirmResult.action !== 'confirm') {
+            return; // User canceled the operation
+        }
+        
+        // Show processing notification
+        showNotification('stableStaking.notification.claiming', 'info');
+        
+        // Execute the claimRewards function
+        const claimTx = await pwusdStakingContract.methods.claimRewards(recordId).send({ 
+            from: currentUserAddress 
+        });
+        
+        debug.log('claim rewards transaction successful:', claimTx);
+        
+        // Show success notification
+        showNotification('stableStaking.notification.claimSuccess', 'success');
+        
+        // Refresh the data after a short delay
+        setTimeout(() => {
+            refreshData();
+        }, 2000);
+    } catch (error) {
+        debug.error('failed to claim rewards:', error);
+        showNotification('stableStaking.notification.claimFailed', 'error');
+    }
 }
 
 // initialize after the page is loaded

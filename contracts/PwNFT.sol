@@ -81,11 +81,5 @@ contract PwNFT is ERC721, Ownable {
         require(_ownerOf(tokenId) != address(0), "Token does not exist");
         return (tokenQualities[tokenId], tokenNftIds[tokenId]);
     }
-    
-    
-    // Renounce contract ownership
-    function renounceContractOwnership() public onlyOwner {
-        _transferOwnership(address(0));
-        emit ContractRenounced(msg.sender);
-    }
+
 }

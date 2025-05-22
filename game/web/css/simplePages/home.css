@@ -9,7 +9,7 @@
 
 body {
     font-family: 'Arial', sans-serif;
-    background-color: #f5f8fa;
+    background-color: rgb(255, 255, 255);
     color: #333;
     line-height: 1.6;
 }
@@ -113,7 +113,7 @@ body {
 
 /* Dashboard */
 .dashboard {
-    background-color: white;
+    background-color: rgba(219, 178, 116, 0.5);
     border-radius: 8px;
     padding: 20px;
     margin-bottom: 30px;

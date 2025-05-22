@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title data-i18n="home.title">PetWorld - Game Mode</title>
+    <!-- Add starfield background script -->
+    <script src="../../scripts/styles/starfieldBackground.js"></script>
     <!-- Add loading page styles -->
     <link rel="stylesheet" href="../../css/gamePages/loading.css">
     <link rel="stylesheet" href="../../css/gamePages/home.css">
@@ -27,6 +29,62 @@
     <link rel="stylesheet" href="../../css/pets/petSize.css">
     <!-- Add general pet animation CSS -->
     <link rel="stylesheet" href="../../css/other/directionControl.css">
+    <style>
+        /* Override loading container styles to match starfield */
+        #loadingContainer {
+            background-color: transparent !important;
+        }
+        
+        .loading-title {
+            color: #ffffff;
+            text-shadow: 0 0 10px rgba(135, 206, 250, 0.8);
+        }
+        
+        .loading-description {
+            color: #e0e0ff;
+        }
+        
+        .loading-progress-container {
+            background-color: rgba(255, 255, 255, 0.2);
+            border-color: rgba(135, 206, 250, 0.4);
+        }
+        
+        .loading-progress-bar {
+            background: linear-gradient(90deg, #4169E1, #00BFFF);
+        }
+        
+        .loading-progress-text {
+            color: #ffffff;
+        }
+        
+        .loading-tip {
+            background-color: rgba(0, 0, 50, 0.4);
+            color: #ffffff;
+        }
+        
+        /* Interactive hint style */
+        .interactive-hint {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(0, 0, 0, 0.5);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            opacity: 0;
+            animation: fadeInOut 3s ease-in-out infinite;
+            pointer-events: none;
+            z-index: 1000;
+        }
+        
+        @keyframes fadeInOut {
+            0% { opacity: 0; }
+            50% { opacity: 1; }
+            100% { opacity: 0; }
+        }
+    </style>
 </head>
 <body>
     <!-- Loading page -->
@@ -54,6 +112,9 @@
             <span id="loadingPetEmoji">🥚</span>
         </div>
     </div>
+
+    <!-- Interactive hint -->
+    <div class="interactive-hint">✨ Click or tap anywhere to create shooting stars!</div>
 
     <!-- Game content container -->
     <div id="gameContainer" class="game-container">
@@ -286,6 +347,9 @@
     
     <!-- Add pet Z-Index manager -->
     <script src="../../scripts/functionPackages/petZIndexManager.js"></script>
+    
+    <!-- Add Sound Manager -->
+    <script src="../../scripts/other/soundManager.js"></script>
     
     <!-- Add pet animations and logic -->
     <script src="../../scripts/pets/egg.js"></script>

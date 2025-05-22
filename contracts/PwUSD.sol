@@ -36,10 +36,4 @@ contract PwUSD is ERC20, Ownable {
         _burn(msg.sender, amount);
         emit TokensBurned(msg.sender, amount);
     }
-    
-    // Renounce contract ownership
-    function renounceContractOwnership() external onlyOwner {
-        _transferOwnership(address(0));
-        emit ContractRenounced(msg.sender);
-    }
 } 

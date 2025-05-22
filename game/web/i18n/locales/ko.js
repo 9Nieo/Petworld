@@ -52,7 +52,7 @@
       initializingGame: "게임을 초기화 중입니다...",
       loadingPets: "펫을 로딩 중입니다...",
       loadingComplete: "로딩이 완료되었습니다!",
-      enteringWorld: "Pet World에 진입 중입니다...",
+      enteringWorld: "Petworld에 진입 중입니다...",
       tip1: "Tip: 정기적으로 펫을 먹여 행복하게 유지하세요!",
       tip2: "Tip: 희귀 펫은 특별한 능력을 가지고 있습니다!",
       tip3: "Tip: 당신은 시장에서 펫을 거래할 수 있습니다!",
@@ -185,7 +185,7 @@
     // Home welcome text
     home: {
       welcome: {
-        title: "Pet World 게임에 오신 것을 환영합니다!",
+        title: "Petworld 게임에 오신 것을 환영합니다!",
         description: "탐험, 수집, 그리고 자신의 펫을 키우세요"
       },
       myAssets: "내 자산"
@@ -194,7 +194,7 @@
     // Network detection
     network: {
       wrongNetwork: "잘못된 네트워크 연결",
-      pleaseSwitch: "Pet World를 계속 사용하려면 지갑을 {requiredNetwork} 네트워크로 전환하세요.",
+      pleaseSwitch: "Petworld를 계속 사용하려면 지갑을 {requiredNetwork} 네트워크로 전환하세요.",
       switchNetwork: "네트워크 전환",
       networkChanged: "네트워크 전환 성공",
       checkingNetwork: "네트워크 확인 중...",
@@ -224,6 +224,8 @@
       max: "최대",
       claim: "클레임",
       confirm: "확인",
+      approve: "승인",
+      ok: "확인",
     },
     quality: {
       common: "일반",
@@ -343,6 +345,10 @@
         withdrawAmount: "출금 금액",
         selectStakedCoin: "스테이킹 코인 선택",
         stakedBalance: "스테이킹 잔액",
+        selectStakedRecord: "스테이킹 레코드 선택",
+        selectPlaceHolder: "안정적인 코인 선택",
+        selectStakingRecord: "스테이킹 레코드 선택",
+        selectRecordPlaceholder: "스테이킹 레코드 선택",
       },
       history: {
         title: "스테이킹 기록",
@@ -357,6 +363,31 @@
       },
       notification: {
         noRewards: "보상 없음",
+        stakeSuccess: "스테이킹 성공",
+        stakeFailed: "스테이킹 실패",
+        withdrawSuccess: "출금 성공",
+        withdrawFailed: "출금 실패",
+        claimSuccess: "클레임 성공",
+        claimFailed: "클레임 실패",
+        claimAllSuccess: "모든 보상 클레임 성공",
+        claimAllFailed: "모든 보상 클레임 실패",
+        insufficientAuth: "인증 부족",
+        authSuccess: "인증 성공",
+        authFailed: "인증 실패",
+        invalidAmount: "유효하지 않은 금액",
+        amountMultiple10: "금액은 10의 배수여야 합니다",
+        noStakingRecord: "스테이킹 기록 없음",
+        loadingData: "데이터 로딩 중...",
+        dataRefreshFailed: "데이터 새로고침 실패",
+        walletConnectionError: "지갑 연결 오류",
+        contractInitError: "컨트랙트 초기화 오류",
+        unknownError: "알 수 없는 오류가 발생했습니다",
+        connectWallet: "지갑 연결",
+        selectCoin: "코인 선택",
+        approveConfirmation: "승인 확인",
+        approving: "승인 중...",
+        approveSuccess: "승인 성공",
+        approveFailed: "승인 실패",
       }
     },
     // Market-related terms
@@ -444,41 +475,148 @@
     buy: "구매",
     details: "세부 정보",
     level: "레벨: {level}",
-
+    lottery:{
+      batchResultTitle:"로또 결과",
+      summary:"요약",
+    },
     // Shop-related terms
     shop: {
-      title: "로또 상점",
+      title: "상점",
+      subtitle: "희귀 펫 얻기",
+      description: "희귀 펫을 얻으려면 알을 구매하거나 펫 음식을 구매하세요",
+      freePwFoodDesc:"매일 24시간, 각 주소는 10 펫 음식을 클레임할 수 있습니다",
+      
+      // items
       items: {
-        freeNFT: "무료 펫",
         commonEgg: "일반 알",
         rareEgg: "희귀 알",
         legendaryEgg: "전설 알",
         pwfood: "펫 음식",
+        freeNFT: "무료 펫",
         claimEggs: "보류 펫 클레임",
-        freePwFoodDesc: "매일 24시간, 각 주소는 10개의 무료 펫 음식을 클레임할 수 있습니다",
-        freePwFood: "무료 PwFood"
+        freePwFood: "무료 펫 음식"
       },
-      freeNFTDesc: "각 주소는 하나의 무료 펫 NFT을 클레임할 수 있습니다",
-      commonEggDesc: "일반 및 좋은 퀄리티 펫을 얻을 확률이 높습니다",
-      rareEggDesc: "희귀 펫을 얻을 확률이 높습니다",
-      legendaryEggDesc: "전설 희귀 펫을 얻을 확률이 높습니다",
-      pwfoodDesc: "펫을 먹여 허기를 채웁니다",
-      claimEggsDesc: "보류 펫을 클레임합니다",
-      claim: "클레임",
-      inviterTip: "보상을 받을 초대자 주소를 입력하세요",
       
-      // Claiming pending pets related
+      // item descriptions
+      commonEggDesc: "일반 및 최고 펫 획득 확률 높음",
+      rareEggDesc: "희귀 펫 획득 확률 높음",
+      legendaryEggDesc: "전설 펫 획득 확률 높음",
+      pwfoodDesc: "펫을 위해 사용되며 포만감 복구",
+      freeNFTDesc: "각 주소는 하루에 한 번 무료 펫 NFT를 클레임할 수 있습니다",
+      claimEggsDesc: "로또 후 보류 펫 클레임",
+      
+      // claim texts
+      claim: "클레임",
+      alreadyClaimed: "이미 클레임",
+      claimed: "클레임",
+      freeNFTClaimSuccess: "무료 펫 NFT 클레임 성공!",
+      alreadyClaimedFreeNFT: "이미 무료 펫 NFT를 클레임했습니다",
+      
+      // claim texts
       claimEggsConfirmTitle: "보류 펫 클레임",
       claimEggsConfirm: "클레임 확인",
       claimEggsCancel: "취소",
       claimEggsSuccess: "성공적으로 {count} 펫을 클레임했습니다!",
       noPendingEggs: "보류 펫 없음",
-      pendingEggsCount: "보류 펫 {total}개: {rare} 희귀 및 {legendary} 전설",
+      pendingEggsCount: "당신은 {total} 보류 펫을 가지고 있습니다: {rare} 희귀와 {legendary} 전설",
+      
+      // buying status
+      buying: "Buying...",
+      buySuccess: "구매 성공!",
+      buyFailed: "구매 실패",
+      buyCommonEggSuccess: "일반 알 구매 성공!",
+      buyRareEggSuccess: "희귀 알 구매 성공!",
+      buyLegendaryEggSuccess: "전설 알 구매 성공!",
+      buyCommonEggFailed: "일반 알 구매 실패",
+      buyRareEggFailed: "희귀 알 구매 실패",
+      buyLegendaryEggFailed: "전설 알 구매 실패",
+      buyingCommonEgg: "일반 알 구매 중...",
+      buyingRareEgg: "희귀 알 구매 중...",
+      buyingLegendaryEgg: "전설 알 구매 중...",
+      
+      // shop related
+      inviterTip: "초대자 주소를 입력하세요, 그래서 당신과 당신의 친구들이 보상을 받을 수 있습니다",
       foodAmount: "구매 금액 ($):",
-      foodAmountTip: "1-10000 사이의 정수를 입력하세요",
+      foodAmountTip: "1과 10000 사이의 정수 금액을 입력하세요",
+      batchAmount: "수량 (1-5):",
       quantity: "수량",
       price: "가격",
-      total: "총계"
+      total: "총계",
+      batchPurchasing: "일괄 구매 중...",
+      batchEggs: "알",
+      unclaimedEggs: "보류 알",
+      rareEggs: "희귀 알",
+      legendaryEggs: "전설 알",
+      confirmClaim: "클레임 확인",
+      claimUnclaimedEggs: "보류 알 클레임",
+      nowCanClaim:"지금 클레임 가능",
+      batchAmountTip:"1과 5 사이의 정수 금액을 입력하세요",
+      inviterPlaceholder: "초대자 주소 (선택 사항)",
+      totalPrice: "총 가격",
+      notification: {
+        // General
+        success: "성공!",
+        error: "오류가 발생했습니다",
+        warning: "경고",
+        info: "정보",
+        
+        noClaimableEggs: "클레임 가능한 펫 없음",
+        requiredNFTFirst: "무료 펫 NFT를 먼저 클레임하세요",
+        // Payment process
+        paymentProcessing: "결제 처리 중...",
+        paymentSuccess: "결제 성공!",
+        paymentFailed: "결제 실패: {message}",
+        paymentCancelled: "결제 취소",
+        
+        // Authorization
+        checkingApprovals: "필요한 인증 확인 중...",
+        requestingApproval: "토큰 인증 요청 중...",
+        authorizationSuccess: "인증 성공",
+        authorizationFailed: "토큰 인증 실패: {message}",
+        userCancelledAuth: "인증 거래를 취소했습니다",
+        
+        // Purchase process
+        purchasingEggs: "구매 {eggName}...",
+        purchasingFood: "구매 펫 음식...",
+        purchaseSuccess: "구매 성공!",
+        purchaseFailed: "구매 실패",
+        purchaseEggsSuccess: "축하합니다! 성공적으로 {count} {eggName}을 구매했습니다",
+        purchaseFoodSuccess: "축하합니다! 성공적으로 {quantity} 펫 음식을 구매했습니다",
+        purchaseNoLotteryResult: "성공적으로 구매했습니다, 새로운 펫을 확인하세요.",
+        purchaseNoLotteryDisplay: "성공적으로 구매했습니다, 하지만 결과를 표시할 수 없습니다",
+        
+        // Claim process
+        claimingNFT: "무료 펫 클레임...",
+        claimingFood: "무료 펫 음식 클레임...",
+        claimingEggs: "보류 펫 클레임...",
+        claimNFTSuccess: "무료 펫 클레임 성공! 게임에서 새로운 펫을 확인하세요",
+        claimFoodSuccess: "무료 펫 음식 클레임 성공! {count} 펫 음식을 얻으세요",
+        claimEggsSuccess: "성공적으로 {count} 펫을 클레임했습니다! 게임에서 확인하세요",
+        
+        // Validation errors
+        amountInputError: "정수 금액을 입력하세요",
+        amountRangeError: "1과 {min} 사이의 금액을 입력하세요",
+        invalidLotteryResult: "유효하지 않은 결과",
+        
+        // Status messages
+        alreadyClaimedNFT: "무료 펫을 이미 클레임했습니다",
+        alreadyClaimedFood: "오늘 무료 펫 음식을 클레임했습니다, 내일 다시 시도하세요",
+        noClaimableEggs: "클레임 가능한 펫 없음",
+        requiredNFTFirst: "무료 펫 NFT를 먼저 클레임하세요",
+        
+        // Input issues
+        invalidInviterAddress: "초대자 주소 형식이 유효하지 않습니다, 기본 주소를 사용하세요",
+        amountInputNotFound: "금액 입력 상자를 찾을 수 없습니다",
+        
+        // Result notifications
+        pendingRareEggs: "성공적으로 구매했습니다, 1분 후에 \"보류 펫 클레임\" 모듈에서 새로운 펫을 클레임하세요",
+        claimSuccess: "클레임 성공!",
+        claimFailed: "클레임 실패: {message}",
+
+        pendingClaimAlert: "보류 클레임 알림",
+        pendingClaimAlertMessage: "성공적으로 구매했습니다, 1분 후에 \"보류 펫 클레임\" 모듈에서 새로운 펫을 클레임하세요",
+        pendingClaimAlertTip: "블록체인은 1분 동안 거래를 확인하므로, 참고하세요",
+      }
     },
     
     // More features menu related
@@ -530,9 +668,10 @@
       claimRewards: "보상 클레임",
       claimInfo: "번 후, 여기에 PetWorld 토큰을 클레임하세요",
       claimCycles: "클레임할 주기 선택",
-      claimButton: "클레임",
+      claimButton: "모두 클레임",
       yourRecords: "번 기록",
-      noRecords: "번 기록 없음"
+      noRecords: "번 기록 없음",
+      expiryWarning: "중요: 번 후 1200 주기 내에 보상을 클레임해야 합니다, 그렇지 않으면 모든 PwPoints와 PW 보상이 손실됩니다."
     },
 
     staking: {

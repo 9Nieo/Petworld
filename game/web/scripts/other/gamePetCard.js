@@ -222,8 +222,8 @@ const GamePetCard = (function() {
         const lastClaimTime = parseInt(feedingInfo.lastClaimTime) || 0;
         
         // Use the larger value between lastFeedTime and lastClaimTime as the calculation base point
-        const lastActionTime = Math.max(lastFeedTime, lastClaimTime);
-        
+        // const lastActionTime = Math.max(lastFeedTime, lastClaimTime);
+        const lastActionTime = lastFeedTime;
         // The feeding hours recorded in the contract
         const recordedFeedingHours = parseInt(feedingInfo.feedingHours) || 0;
         
@@ -547,7 +547,7 @@ const GamePetCard = (function() {
         
         // Bind the feed button click event
         if (feedButton) {
-            feedButton.addEventListener('click', function(event) {
+            feedButton.addEventListener('click', async function(event) {
                 event.preventDefault();
                 event.stopPropagation();
                 
@@ -562,46 +562,76 @@ const GamePetCard = (function() {
                 
                 // If the pet is already full, display a prompt message
                 if (maxFeedHours <= 0) {
-                    showFeedingMessage(card, "宠物已经吃饱了，无法继续喂食！", "error");
+                    showFeedingMessage(card, "This pet is full, cannot feed anymore!", "error");
                     return;
                 }
                 
                 // Pop up an input box to allow the user to enter the number of hours to feed
-                const inputHours = window.prompt(`Please enter the number of hours to feed (1-${maxFeedHours}):`, "1");
-                
-                // If the user cancels the input, do not perform any operations
-                if (inputHours === null) {
+                let feedHours = 0;
+                try {
+                    if (!window.ModalDialog) {
+                        console.error("ModalDialog is not available.");
+                        showFeedingMessage(card, "Dialog component not loaded", "error");
+                        return;
+                    }
+
+                    const promptResult = await window.ModalDialog.prompt({
+                        title: 'Feed Pet',
+                        content: `Enter the number of hours to feed (1-${maxFeedHours}):`,
+                        inputValue: "1",
+                        inputType: 'number',
+                        confirmText: 'Feed',
+                        cancelText: 'Cancel',
+                        inputLabel: 'Hours:',
+                        validator: (value) => {
+                            const parsedValue = parseInt(value);
+                            if (isNaN(parsedValue) || parsedValue <= 0) {
+                                return 'Please enter a valid positive number.';
+                            }
+                            if (parsedValue > maxFeedHours) {
+                                return `Cannot feed more than ${maxFeedHours} hours.`;
+                            }
+                            return '';
+                        }
+                    });
+
+                    // If the user confirmed and provided a value
+                    if (promptResult.action === 'confirm' && promptResult.value !== null) {
+                        feedHours = parseInt(promptResult.value);
+                    } else {
+                        // The user cancelled the input
+                        showFeedingMessage(card, "Feed operation cancelled", "info");
+                        return;
+                    }
+
+                } catch (error) {
+                    console.error("Error using ModalDialog:", error);
+                    showFeedingMessage(card, "Error opening feed dialog", "error");
                     return;
                 }
-                
-                // Parse the user input and ensure it is a valid number
-                let feedHours = parseInt(inputHours);
-                
-                // Validate the input and ensure it is a valid number
+
+                // After getting the validated feedHours (via modal or fallback)
                 if (isNaN(feedHours) || feedHours <= 0) {
+                     // This case should ideally be caught by the validator in modal,
+                     // but keeping for fallback/safety.
                     showFeedingMessage(card, "Please enter a valid number of feeding hours", "error");
                     return;
                 }
-                
+
                 console.log(`Feeding the pet: TokenID ${tokenId}, Contract ${contractAddress}, Current feeding time: ${feedingHours} hours, Feeding: ${feedHours} hours`);
-                
+
                 // Ensure it does not exceed the maximum feeding amount
-                if (feedHours > maxFeedHours) {
-                    feedHours = maxFeedHours;
-                    showFeedingMessage(card, `Exceeded the maximum feeding amount, adjusted to ${maxFeedHours} hours`, "info");
-                }
-                
-                if (feedHours <= 0) {
-                    showFeedingMessage(card, "The pet is already full and cannot be fed anymore!", "error");
+                // Note: Validation is already handled by the modal validator, this is a final check.
+                const actualFeedHours = Math.min(feedHours, maxFeedHours);
+
+                if (actualFeedHours <= 0) {
+                    showFeedingMessage(card, "This pet is already full and cannot be fed anymore!", "error");
                     return;
                 }
-                
-                // Calculate the actual feeding hours
-                const actualFeedHours = Math.min(feedHours, maxFeedHours);
-                
+
                 // Save the user input feeding hours to the card data attribute
                 card.dataset.feedHours = actualFeedHours;
-                
+
                 // Trigger a custom event
                 const actionEvent = new CustomEvent('gamepetcard.action', {
                     detail: {
@@ -614,25 +644,30 @@ const GamePetCard = (function() {
                     },
                     bubbles: true
                 });
-                
+
                 card.dispatchEvent(actionEvent);
-                
+
                 // Display waiting message
-                showFeedingMessage(card, `Submitting feed request...`, "info");
-                
+                showFeedingMessage(card, `Submitting feed request for ${actualFeedHours} hours...`, "info");
+
                 // Listen for the feed completion event, update the level and accumulated feeding value
-                document.addEventListener('gamepetcard.feedcompleted', function(event) {
+                // Use a unique event listener for each card/action to avoid conflicts
+                const feedCompletedHandler = function(event) {
                     const eventData = event.detail;
-                    if (eventData.tokenId === tokenId) {
-                        console.log('Feeding completed event triggered, updating level and accumulated feeding value:', eventData);
-                        
+                    // Check if the event is for this specific pet's feed action
+                    if (eventData.tokenId === tokenId && eventData.action === 'feed-completed') {
+                         console.log('Feeding completed event triggered, updating level and accumulated feeding value:', eventData);
+
                         // Check if the event data contains new level and accumulated feeding value
                         if (eventData.level !== undefined && eventData.accumulatedFood !== undefined) {
                             // Update level and accumulated feeding value
                             updatePetLevel(card, eventData.level, eventData.accumulatedFood);
                         }
+                         // Remove the listener after processing
+                         document.removeEventListener('gamepetcard.action', feedCompletedHandler);
                     }
-                }, { once: true }); // Listen only once
+                };
+                 document.addEventListener('gamepetcard.action', feedCompletedHandler);
             });
         }
         
@@ -1595,7 +1630,8 @@ const GamePetCard = (function() {
         updatePetStats,
         calculateEstimatedRewards,
         getQualityRewards,
-        calculateLevelProgress
+        calculateLevelProgress,
+        MAX_FEEDING_HOURS // Expose constants if needed
     };
 })();
 

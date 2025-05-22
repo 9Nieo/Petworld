@@ -209,6 +209,13 @@
     color: #777;
 }
 
+.withdraw-hint {
+    color: #e57373;
+    font-size: 12px;
+    margin-top: 4px;
+    font-weight: 500;
+}
+
 .input-with-button {
     display: flex;
     gap: 10px;

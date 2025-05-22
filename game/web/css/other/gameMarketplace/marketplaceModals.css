@@ -21,6 +21,8 @@
     padding: 20px;
     position: relative;
     max-height: 90vh;
+    height: auto;
+    min-height: 500px;
     overflow-y: auto;
 }
 
@@ -397,6 +399,10 @@
 }
 
 /* Manage listing NFT modal styles */
+.manage-listings-content {
+    min-height: 600px;
+}
+
 .empty-listings-message {
     text-align: center;
     padding: 30px;
@@ -409,6 +415,9 @@
     flex-direction: column;
     gap: 10px;
     margin-top: 15px;
+    max-height: 450px;
+    overflow-y: auto;
+    padding-right: 5px;
 }
 
 .listing-item {
@@ -528,10 +537,10 @@
 .update-price-container {
     background-color: white;
     border-radius: 8px;
-    padding: 15px;
+    padding: 20px;
     margin-top: 15px;
     border: 1px solid #eee;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.2);
 }
 
 .update-price-container h3 {

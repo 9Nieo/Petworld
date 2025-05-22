@@ -56,9 +56,6 @@ contract NFTFeedingManager is Ownable, ReentrancyGuard {
     // All NFT feeding data stored uniformly
     mapping(uint256 => FeedingData) public nftFeeding;
     
-    // User inviter mapping (keep this feature)
-    mapping(address => address) public userInviter;
-    
     // Event definitions
     event NFTFed(address indexed user, uint256[] tokenIds, uint256 foodAmount, uint256 cyclesAdded);
     event RewardsClaimed(address indexed user, uint256[] tokenIds, uint256 totalPwpotRewards, uint256 totalPwbotRewards);
@@ -94,12 +91,6 @@ contract NFTFeedingManager is Ownable, ReentrancyGuard {
         require(_pwpointManager != address(0), "Invalid PwPointManager address");
         pwpointManager = PwPointManager(payable(_pwpointManager));
         emit ContractAddressUpdated("pwpointManager", _pwpointManager);
-    }
-
-    // Set user inviter
-    function setUserInviter(address user, address inviter) public onlyAuthorizedRegistrar {
-        require(user != address(0), "Invalid user address");
-        userInviter[user] = inviter;
     }
     
     // Update PWFOOD token receiver address
@@ -304,7 +295,7 @@ contract NFTFeedingManager is Ownable, ReentrancyGuard {
     }
       
     /**
-     * @dev Calculate valid claimable cycles and hours to deduct
+     * @dev Calculate valid claimable cycles
      * @notice This function handles time calculations with overflow protection and considers accumulated cycles
      */
     function _calculateValidClaimableCycles(FeedingData storage data) private view returns (uint256 validCycles, uint256 hoursToDeduct) {
@@ -402,7 +393,7 @@ contract NFTFeedingManager is Ownable, ReentrancyGuard {
             require(data.isActive, "NFT not registered");
             
             // Calculate valid claimable cycles
-            (uint256 validClaimableCycles, uint256 hoursToDeduct) = _calculateValidClaimableCycles(data);
+            (uint256 validClaimableCycles, ) = _calculateValidClaimableCycles(data);
             
             if (validClaimableCycles > 0) {
                 // Safety check: ensure quality is valid
@@ -422,12 +413,10 @@ contract NFTFeedingManager is Ownable, ReentrancyGuard {
                 totalPwpotRewards += pwpotReward;
                 totalPwbotRewards += pwbotReward;
                 
-                // Record old values for later verification
-                uint256 oldFeedingHours = data.feedingHours;
+                // Record old value for later verification
                 uint256 oldLastClaimTime = data.lastClaimTime;
                 
-                // Deduct feeding time
-                data.feedingHours -= hoursToDeduct;
+                // Do NOT deduct feeding hours as it causes calculation errors when users claim before feeding
                 
                 // Reset accumulated cycles since we're claiming them now
                 data.accumulatedCycles = 0;
@@ -436,7 +425,6 @@ contract NFTFeedingManager is Ownable, ReentrancyGuard {
                 data.lastClaimTime = block.timestamp;
                 
                 // Safety check: ensure update succeeded
-                require(data.feedingHours == oldFeedingHours - hoursToDeduct, "Feeding hours update failed");
                 require(data.lastClaimTime > oldLastClaimTime, "Claim time update failed");
             }
         }
@@ -448,17 +436,6 @@ contract NFTFeedingManager is Ownable, ReentrancyGuard {
         pwpointManager.claimNftReward(msg.sender, totalPwpotRewards, totalPwbotRewards);
         
         emit RewardsClaimed(msg.sender, tokenIds, totalPwpotRewards, totalPwbotRewards);
-    }
-
-    // Transfer contract ownership
-    function transferContractOwnership(address newOwner) external onlyOwner {
-        require(newOwner != address(0), "New owner cannot be zero address");
-        _transferOwnership(newOwner);
-    }
-    
-    // Renounce contract ownership
-    function renounceContractOwnership() external onlyOwner {
-        _transferOwnership(address(0));
     }
 
     // Update accumulated cycles for an NFT

@@ -186,21 +186,21 @@ contract PwPointManager is ReentrancyGuard {
     }
     
     // Functions to transfer tokens from this contract with auto-minting if necessary
-    function transferPwPoint(address to, uint256 amount) public onlyPwPointTransferAllowed nonReentrant {
+    function transferPwPoint(address to, uint256 amount) public onlyPwPointTransferAllowed {
         require(to != address(0), "Cannot transfer to the zero address");
         _ensureSufficientPwPoint(amount);
         IERC20(pwPoint).transfer(to, amount);
         totalPwPointTransferred += amount;  // Update total transferred amount
     }
     
-    function transferPwBounty(address to, uint256 amount) public onlyPwBountyTransferAllowed nonReentrant {
+    function transferPwBounty(address to, uint256 amount) public onlyPwBountyTransferAllowed {
         require(to != address(0), "Cannot transfer to the zero address");
         _ensureSufficientPwBounty(amount);
         IERC20(pwBounty).transfer(to, amount);
         totalPwBountyTransferred += amount;  // Update total transferred amount
     }
     
-    function transferPwReverse(address to, uint256 amount) public onlyPwReverseTransferAllowed nonReentrant {
+    function transferPwReverse(address to, uint256 amount) public onlyPwReverseTransferAllowed  {
         require(to != address(0), "Cannot transfer to the zero address");
         _ensureSufficientPwReverse(amount);
         IERC20(pwReverse).transfer(to, amount);
@@ -208,7 +208,7 @@ contract PwPointManager is ReentrancyGuard {
     }
     
     // New feature 1: Function to claim NFT reward
-    function claimNftReward(address to, uint256 pointAmount, uint256 bountyAmount) public onlyPwPointTransferAllowed nonReentrant {
+    function claimNftReward(address to, uint256 pointAmount, uint256 bountyAmount) public onlyPwPointTransferAllowed {
         require(to != address(0), "Cannot transfer to the zero address");
         
         // Ensure the contract has enough tokens
@@ -261,7 +261,7 @@ contract PwPointManager is ReentrancyGuard {
         // Emit events
         emit TokensSwapped(from, "BothForPoint", pointAmount, bountyAmount, reverseAmount);
     }
-    function inviteReward(address user, address inviter, uint256 pointAmount) public onlyPwPointTransferAllowed nonReentrant {
+    function inviteReward(address user, address inviter, uint256 pointAmount) public onlyPwPointTransferAllowed {
         // Ensure the contract has enough PwPoint
         _ensureSufficientPwPoint(pointAmount*2);
         // Transfer PwPoint to the user

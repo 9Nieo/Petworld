@@ -243,6 +243,76 @@ window.NFTLotteryManagerABI = [
   },
   {
     "type": "function",
+    "name": "CLAIM_INVITE_REWARD_POINT",
+    "constant": true,
+    "stateMutability": "view",
+    "payable": false,
+    "inputs": [],
+    "outputs": [
+      {
+        "type": "uint256",
+        "name": ""
+      }
+    ]
+  },
+  {
+    "type": "function",
+    "name": "COMMON_EGG_INVITE_REWARD_POINT",
+    "constant": true,
+    "stateMutability": "view",
+    "payable": false,
+    "inputs": [],
+    "outputs": [
+      {
+        "type": "uint256",
+        "name": ""
+      }
+    ]
+  },
+  {
+    "type": "function",
+    "name": "LEGENDARY_EGG_INVITE_REWARD_POINT",
+    "constant": true,
+    "stateMutability": "view",
+    "payable": false,
+    "inputs": [],
+    "outputs": [
+      {
+        "type": "uint256",
+        "name": ""
+      }
+    ]
+  },
+  {
+    "type": "function",
+    "name": "MAX_BATCH_OPEN_COUNT",
+    "constant": true,
+    "stateMutability": "view",
+    "payable": false,
+    "inputs": [],
+    "outputs": [
+      {
+        "type": "uint256",
+        "name": ""
+      }
+    ]
+  },
+  {
+    "type": "function",
+    "name": "RARE_EGG_INVITE_REWARD_POINT",
+    "constant": true,
+    "stateMutability": "view",
+    "payable": false,
+    "inputs": [],
+    "outputs": [
+      {
+        "type": "uint256",
+        "name": ""
+      }
+    ]
+  },
+  {
+    "type": "function",
     "name": "batchOpenCommonEgg",
     "constant": false,
     "payable": false,
@@ -326,34 +396,6 @@ window.NFTLotteryManagerABI = [
       }
     ],
     "outputs": []
-  },
-  {
-    "type": "function",
-    "name": "claimInviteRewardPoint",
-    "constant": true,
-    "stateMutability": "view",
-    "payable": false,
-    "inputs": [],
-    "outputs": [
-      {
-        "type": "uint256",
-        "name": ""
-      }
-    ]
-  },
-  {
-    "type": "function",
-    "name": "commonEggInviteRewardPoint",
-    "constant": true,
-    "stateMutability": "view",
-    "payable": false,
-    "inputs": [],
-    "outputs": [
-      {
-        "type": "uint256",
-        "name": ""
-      }
-    ]
   },
   {
     "type": "function",
@@ -683,20 +725,6 @@ window.NFTLotteryManagerABI = [
   },
   {
     "type": "function",
-    "name": "legendaryEggInviteRewardPoint",
-    "constant": true,
-    "stateMutability": "view",
-    "payable": false,
-    "inputs": [],
-    "outputs": [
-      {
-        "type": "uint256",
-        "name": ""
-      }
-    ]
-  },
-  {
-    "type": "function",
     "name": "linkAddress",
     "constant": true,
     "stateMutability": "view",
@@ -880,20 +908,6 @@ window.NFTLotteryManagerABI = [
     "outputs": [
       {
         "type": "address",
-        "name": ""
-      }
-    ]
-  },
-  {
-    "type": "function",
-    "name": "rareEggInviteRewardPoint",
-    "constant": true,
-    "stateMutability": "view",
-    "payable": false,
-    "inputs": [],
-    "outputs": [
-      {
-        "type": "uint256",
         "name": ""
       }
     ]
@@ -1138,6 +1152,25 @@ window.NFTLotteryManagerABI = [
     "outputs": [
       {
         "type": "uint256",
+        "name": ""
+      }
+    ]
+  },
+  {
+    "type": "function",
+    "name": "userInviter",
+    "constant": true,
+    "stateMutability": "view",
+    "payable": false,
+    "inputs": [
+      {
+        "type": "address",
+        "name": ""
+      }
+    ],
+    "outputs": [
+      {
+        "type": "address",
         "name": ""
       }
     ]

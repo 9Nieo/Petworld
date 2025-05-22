@@ -17,8 +17,8 @@ class PetSizeManager {
                 chicken: 0.06,   // Chickens
                 cat: 0.1,      // Cats
                 dog: 0.1,      // Dogs
-                dragon: 0.4,    // Dragons are large
-                unicorn: 0.33,   // Unicorns
+                dragon: 0.41,    // Dragons are large
+                unicorn: 0.3,   // Unicorns
                 'white tiger': 0.3,    // Tigers
                 'white lion': 0.2,     // Lions
                 'black panther': 0.2,    // Panthers
@@ -37,14 +37,14 @@ class PetSizeManager {
                 // These values are percentage offsets from center
                 egg: { x: 0, y: 0 },      // Centered
                 duck: { x: 0, y: 0 },     // Centered
-                dragon: { x: 0, y: -10 }  // Shifted up 10%
             },
             
             // Canvas size multiplier (for higher quality rendering)
             canvasQuality: {
                 default: 2,  // 2x the container size for better quality
                 egg: 2,
-                duck: 2
+                duck: 2,
+                dragon: 3
             }
         };
         

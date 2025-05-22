@@ -295,7 +295,7 @@
         
         // Default add a ETH option
         const ethOption = document.createElement('option');
-        ethOption.value = '0x4e79347Ea521Af7E3D948C63E22711fd24472158';
+        ethOption.value = '0xD9f52afe5EA8d84309888Dcf05a28bbF25c4630E';
         ethOption.textContent = 'USDT';
         paymentTokenSelect.appendChild(ethOption);
         

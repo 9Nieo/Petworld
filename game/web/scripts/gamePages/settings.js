@@ -47,6 +47,8 @@ document.addEventListener('DOMContentLoaded', () => {
         // bind the volume slider event
         if (musicVolumeSlider) {
             musicVolumeSlider.addEventListener('input', handleSliderChange);
+            // Add event handler for real-time sound updates
+            musicVolumeSlider.addEventListener('input', updateAudioSettingsInRealTime);
         } else {
             console.warn('Music volume slider element not found');
         }
@@ -63,6 +65,8 @@ document.addEventListener('DOMContentLoaded', () => {
         // bind the mute checkbox event
         if (muteBackgroundCheckbox) {
             muteBackgroundCheckbox.addEventListener('change', handleCheckboxChange);
+            // Add event handler for real-time mute updates
+            muteBackgroundCheckbox.addEventListener('change', updateAudioSettingsInRealTime);
         } else {
             console.warn('Mute background checkbox not found');
         }
@@ -167,6 +171,30 @@ document.addEventListener('DOMContentLoaded', () => {
         loadAndApplyAudioSettings();
         
         console.log('Game settings page initialization completed');
+    }
+    
+    /**
+     * Update audio settings in real-time without waiting for save
+     * This provides immediate feedback to the user when changing audio settings
+     */
+    function updateAudioSettingsInRealTime() {
+        if (window.SoundManager) {
+            const soundManager = window.SoundManager;
+            
+            // 获取UI设置
+            const backgroundVolume = parseInt(document.getElementById('backgroundMusicVolume').value);
+            const muteBackground = document.getElementById('backgroundMusicMute').checked;
+            const effectsVolume = parseInt(document.getElementById('soundEffectsVolume').value);
+            const muteEffects = document.getElementById('soundEffectsMute').checked;
+            
+            // 应用设置但不自动播放
+            soundManager.applySettings({
+                backgroundVolume,
+                muteBackground,
+                effectsVolume, 
+                muteEffects
+            });
+        }
     }
     
     /**
@@ -1036,23 +1064,23 @@ document.addEventListener('DOMContentLoaded', () => {
      * Load audio settings from localStorage and apply them.
      */
     function loadAndApplyAudioSettings() {
-        const savedSettings = JSON.parse(localStorage.getItem('gameSettings') || '{}');
-        if (savedSettings.audio) {
-            if (musicVolumeSlider) {
-                musicVolumeSlider.value = savedSettings.audio.musicVolume !== undefined ? 
-                    savedSettings.audio.musicVolume : defaultSettings.audio.musicVolume;
-                
-                // Update display value
-                const bgmValueDisplay = document.getElementById('bgm-value');
-                if (bgmValueDisplay) {
-                    bgmValueDisplay.textContent = `${musicVolumeSlider.value}%`;
-                }
-            }
+        // 获取全局SoundManager实例
+        if (window.SoundManager) {
+            const soundManager = window.SoundManager;
             
-            if (muteBackgroundCheckbox) {
-                muteBackgroundCheckbox.checked = savedSettings.audio.muteBackground !== undefined ? 
-                    savedSettings.audio.muteBackground : defaultSettings.audio.muteBackground;
-            }
+            // 只加载设置，不自动播放音乐
+            soundManager.loadSettings();
+            
+            // 更新UI显示
+            const audioSettings = soundManager.settings;
+            document.getElementById('backgroundMusicVolume').value = audioSettings.backgroundVolume;
+            document.getElementById('backgroundMusicMute').checked = audioSettings.muteBackground;
+            document.getElementById('soundEffectsVolume').value = audioSettings.effectsVolume;
+            document.getElementById('soundEffectsMute').checked = audioSettings.muteEffects;
+            
+            // 显示当前音量值
+            updateRangeValue(document.getElementById('backgroundMusicVolume'));
+            updateRangeValue(document.getElementById('soundEffectsVolume'));
         }
     }
 

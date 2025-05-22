@@ -404,6 +404,20 @@
                             // Modification: Do not automatically disconnect wallet, just log a warning
                             debug.warn('UI shows connected but wallet may not be connected, maintaining current connection status');
                             
+                            // Ensure we keep maintaining connection status
+                            if (this.currentAddress) {
+                                // Keep using current address
+                                debug.log('Maintaining connection with current address:', this.currentAddress);
+                                
+                                // Make sure local storage reflects connected state
+                                localStorage.setItem('walletConnected', 'true');
+                                localStorage.setItem('walletAddress', this.currentAddress);
+                                
+                                // Make sure session storage reflects connected state
+                                sessionStorage.setItem('walletConnected', 'true');
+                                sessionStorage.setItem('walletAddress', this.currentAddress);
+                            }
+                            
                             // Try to request Web3 instance again as a fallback
                             setTimeout(() => {
                                 if (this.walletFrame && this.walletFrame.contentWindow) {

@@ -714,6 +714,9 @@
             cancelButton.className = 'action-btn cancel-listing-btn';
             cancelButton.textContent = 'Cancel listing';
             cancelButton.setAttribute('data-i18n', 'market.cancelListing');
+            // Ensure text color is explicitly set to white and background color is set to red
+            cancelButton.style.color = 'white';
+            cancelButton.style.backgroundColor = '#ef5350';
             cancelButton.addEventListener('click', (e) => {
                 e.stopPropagation(); // prevent the event from bubbling up
                 handleCancelListing(listing);
@@ -724,11 +727,17 @@
             updateButton.className = 'action-btn update-price-btn';
             updateButton.textContent = 'Update price';
             updateButton.setAttribute('data-i18n', 'market.updatePrice');
+            // Ensure text color is explicitly set to white and background color is set to green
+            updateButton.style.color = 'white';
+            updateButton.style.backgroundColor = '#66bb6a';
             
             // if the NFT is in the price update cooldown, disable the update price button
             if (listing.inPriceUpdateCooldown) {
                 updateButton.disabled = true;
                 updateButton.classList.add('disabled');
+                // Change background color when disabled but keep text color visible
+                updateButton.style.backgroundColor = '#cccccc';
+                updateButton.style.color = '#666666';
                 updateButton.title = `NFT #${listing.tokenId} needs to wait ${formatTimeLeft(listing.priceUpdateCooldownTimeLeft)} to update the price`;
             } else {
                 // add the click event handler
@@ -789,15 +798,26 @@
         style.id = styleId;
         style.textContent = `
             .action-btn.disabled {
-                opacity: 0.5;
+                opacity: 0.7;
                 cursor: not-allowed;
-                background-color: #ccc;
+                background-color: #ccc !important;
+                color: #666 !important;
             }
             
             .price-cooldown-info {
                 color: #e74c3c;
                 font-size: 12px;
                 margin-top: 5px;
+            }
+            
+            .action-btn.cancel-listing-btn {
+                background-color: #ef5350;
+                color: white;
+            }
+            
+            .action-btn.update-price-btn {
+                background-color: #66bb6a;
+                color: white;
             }
         `;
         
@@ -900,11 +920,11 @@
             // create the update price container
             const updatePriceContainer = document.createElement('div');
             updatePriceContainer.className = 'update-price-container';
-            updatePriceContainer.style.position = 'absolute';
-            updatePriceContainer.style.top = '50%';
+            updatePriceContainer.style.position = 'fixed';
+            updatePriceContainer.style.top = '40%';
             updatePriceContainer.style.left = '50%';
             updatePriceContainer.style.transform = 'translate(-50%, -50%)';
-            updatePriceContainer.style.zIndex = '1000';
+            updatePriceContainer.style.zIndex = '2500';  // Higher z-index to appear above everything
             updatePriceContainer.style.width = '90%';
             updatePriceContainer.style.maxWidth = '350px';
             updatePriceContainer.style.backgroundColor = '#fff';
@@ -914,13 +934,13 @@
             // create the background overlay, for closing the modal
             const overlay = document.createElement('div');
             overlay.className = 'update-price-overlay';
-            overlay.style.position = 'absolute';
+            overlay.style.position = 'fixed';
             overlay.style.top = '0';
             overlay.style.left = '0';
             overlay.style.width = '100%';
             overlay.style.height = '100%';
             overlay.style.backgroundColor = 'rgba(0,0,0,0.5)';
-            overlay.style.zIndex = '999';
+            overlay.style.zIndex = '2400';  // Just below the update price container
             
             // click the overlay to close the modal
             overlay.addEventListener('click', () => {

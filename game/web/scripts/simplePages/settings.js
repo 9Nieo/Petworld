@@ -34,6 +34,14 @@ document.addEventListener('DOMContentLoaded', () => {
             walletBtn.addEventListener('click', handleWalletBtnClick);
         }
         
+        // Initialize SoundManager if available
+        if (window.SoundManager) {
+            console.log('Initializing SoundManager in settings page');
+            window.SoundManager.init();
+            // Ensure background music is stopped on settings page load
+            window.SoundManager.stopBackgroundMusic();
+        }
+        
         // Bind save settings button click event
         if (saveBtn) {
             saveBtn.addEventListener('click', saveSettings);
@@ -59,7 +67,10 @@ document.addEventListener('DOMContentLoaded', () => {
         langRadioButtons.forEach(radio => {
             radio.addEventListener('change', (e) => {
                 if (e.target.checked) {
-                    changeLanguage(e.target.value);
+                    // Only update the UI selection here, do not change the language immediately
+                    // The actual language change happens on saveSettings
+                    console.log('Language radio selected:', e.target.value);
+                    updateLanguageRadio(e.target.value);
                 }
             });
         });
@@ -77,18 +88,26 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Check wallet status after iframe is loaded
                 checkWalletStatus();
             };
-        }
-        
-        // If iframe is already loaded, check wallet status directly
-        if (walletFrame && walletFrame.complete) {
-            checkWalletStatus();
+            
+            // If iframe is already loaded, check wallet status directly
+             if (walletFrame.complete) {
+                 checkWalletStatus();
+             }
+        } else {
+             // If walletFrame does not exist, still check wallet status
+             checkWalletStatus();
         }
         
         // Load saved settings
         loadSettings();
         
-        // Update language radio button based on current language
-        updateLanguageRadio(i18n.getCurrentLocale() || 'en');
+        // Update language radio button based on current language (loaded from settings)
+        // Make sure i18n has loaded the current locale from localStorage before this point
+        // Assuming i18n.js handles loading locale from localStorage on its own load
+        updateLanguageRadio(i18n.getCurrentLocale() || 'en'); // Use i18n's current locale
+        
+        // Update UI texts based on the current locale *after* loading settings
+        updateUITexts(); // Call updateUITexts after loadSettings and setting radio button
         
         // Bind import tokens button click event
         const importTokensBtn = document.getElementById('importTokensBtn');
@@ -178,10 +197,9 @@ document.addEventListener('DOMContentLoaded', () => {
      * Save settings and apply language
      */
     function saveSettings() {
-        // Get current selected language
-        const selectedLang = document.querySelector('input[name="language"]:checked');
-        const langValue = selectedLang ? selectedLang.value : 'en';
-        const fullLocale = langValue === 'zh_tw' ? 'zh_tw' : langValue;
+        // Get current selected language from radio buttons
+        const selectedLangRadio = document.querySelector('input[name="language"]:checked');
+        const newLocale = selectedLangRadio ? selectedLangRadio.value : 'en';
         
         // Collect all settings values
         const settings = {
@@ -189,35 +207,39 @@ document.addEventListener('DOMContentLoaded', () => {
                 music: musicVolumeInput.value,
                 sound: soundVolumeInput.value
             },
-            language: fullLocale
+            language: newLocale // Save the newly selected locale
         };
         
         // Save to local storage
         localStorage.setItem('userSettings', JSON.stringify(settings));
-        localStorage.setItem('app_locale', fullLocale);
         
-        // Apply audio settings
-        applyAudioSettings(settings.audio);
-        
-        // Apply language settings - only apply language change when saving
+        // Check if language has changed
         const currentLocale = i18n.getCurrentLocale();
-        if (currentLocale !== fullLocale) {
-            if (applyLanguage(fullLocale)) {
-                // Update UI texts
-                updateUITexts();
+        
+        // Always apply audio settings immediately
+        applyAudioSettings(settings.audio);
+
+        if (currentLocale !== newLocale) {
+            console.log(`Language changed from ${currentLocale} to ${newLocale}. Applying new locale and reloading...`);
+             // Apply language settings by changing i18n locale
+            i18n.changeLocale(newLocale).then(() => {
+                // Update UI texts after changing locale (optional, will reload soon)
+                updateUITexts(); 
                 
-                // Show success message
+                // Show success message before reloading
                 showMessage(i18n.t('settings.languageChanged') || 'Language changed successfully');
                 
-                // Refresh page after 3 seconds to ensure all UI elements are displayed correctly
+                // Refresh page after a short delay to ensure all elements are updated
                 setTimeout(() => {
                     window.location.reload();
-                }, 1500);
-            } else {
-                showMessage(i18n.t('settings.languageChangeFailed') || 'Language change failed', 'error');
-            }
+                }, 800); // Shorter delay
+            }).catch(error => {
+                 console.error('Failed to change locale:', error);
+                 showMessage(i18n.t('settings.languageChangeFailed') || 'Language change failed', 'error');
+            });
         } else {
-            // Show success message
+            console.log('Language not changed, only saving settings.');
+            // Language is the same, just save other settings and show success message
             showMessage(i18n.t('settings.saved') || 'Settings saved successfully');
         }
         
@@ -234,7 +256,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 music: 70,
                 sound: 80
             },
-            language: 'en'
+            language: 'en' // Default language
         };
         
         // Update UI
@@ -245,28 +267,33 @@ document.addEventListener('DOMContentLoaded', () => {
         updateRangeValue(musicVolumeInput);
         updateRangeValue(soundVolumeInput);
         
-        // Update language radio button
-        updateLanguageRadio('en');
+        // Update language radio button to default
+        updateLanguageRadio(defaultSettings.language);
         
         // Save to local storage
         localStorage.setItem('userSettings', JSON.stringify(defaultSettings));
-        localStorage.setItem('app_locale', defaultSettings.language);
         
-        // Change language
+        // Apply audio settings
+        applyAudioSettings(defaultSettings.audio);
+
+        // Check if current language is different from default
         if (i18n.getCurrentLocale() !== defaultSettings.language) {
+             console.log(`Language reset to ${defaultSettings.language}. Applying new locale and reloading...`);
+            // Change i18n locale and reload
             i18n.changeLocale(defaultSettings.language).then(() => {
-                updateUITexts();
-                
-                // Show message
+                 updateUITexts();
+                // Show message before reloading
                 showMessage(i18n.t('settings.resetSuccess') || 'Settings reset to defaults');
-                
-                // Refresh page after 3 seconds to ensure all UI elements are displayed correctly
                 setTimeout(() => {
                     window.location.reload();
-                }, 1500);
+                }, 800); // Shorter delay
+            }).catch(error => {
+                 console.error('Failed to reset locale:', error);
+                 showMessage(i18n.t('settings.resetFailed') || 'Settings reset failed', 'error');
             });
         } else {
-            // Show message
+             console.log('Language already default, only resetting other settings.');
+            // Language is already default, just show message
             showMessage(i18n.t('settings.resetSuccess') || 'Settings reset to defaults');
         }
         
@@ -277,40 +304,100 @@ document.addEventListener('DOMContentLoaded', () => {
      * Load saved settings
      */
     function loadSettings() {
+        // Load audio settings from SoundManager (if it exists and loaded them)
+        if (window.SoundManager) {
+            const soundManager = window.SoundManager;
+            // SoundManager should have loaded settings on its init
+            const audioSettings = soundManager.settings;
+             console.log('Loaded audio settings from SoundManager:', audioSettings);
+
+            // Update UI display for audio settings
+            const backgroundMusicVolumeInput = document.getElementById('backgroundMusicVolume');
+            const backgroundMusicMuteCheckbox = document.getElementById('backgroundMusicMute');
+            const soundEffectsVolumeInput = document.getElementById('soundEffectsVolume');
+            const soundEffectsMuteCheckbox = document.getElementById('soundEffectsMute');
+
+            if (backgroundMusicVolumeInput && audioSettings.musicVolume !== undefined) {
+                 backgroundMusicVolumeInput.value = audioSettings.musicVolume;
+                 updateRangeValue(backgroundMusicVolumeInput);
+            }
+             if (backgroundMusicMuteCheckbox && audioSettings.muteBackground !== undefined) {
+                 backgroundMusicMuteCheckbox.checked = audioSettings.muteBackground;
+             }
+             // Assuming sound effects settings are also handled by SoundManager
+             if (soundEffectsVolumeInput && audioSettings.effectsVolume !== undefined) { // Need to add effectsVolume to SoundManager settings
+                 soundEffectsVolumeInput.value = audioSettings.effectsVolume;
+                 updateRangeValue(soundEffectsVolumeInput);
+             }
+             if (soundEffectsMuteCheckbox && audioSettings.muteEffects !== undefined) { // Need to add muteEffects to SoundManager settings
+                 soundEffectsMuteCheckbox.checked = audioSettings.muteEffects;
+             }
+
+
+        } else {
+             console.warn('SoundManager not available, cannot load audio settings via SoundManager.');
+        }
+
+        // Load other settings from localStorage, including language
         const savedSettings = localStorage.getItem('userSettings');
         
         if (savedSettings) {
             try {
                 const settings = JSON.parse(savedSettings);
                 
-                // Update audio settings
-                if (settings.audio) {
-                    if (settings.audio.music !== undefined) {
-                        musicVolumeInput.value = settings.audio.music;
-                        updateRangeValue(musicVolumeInput);
-                    }
+                // Update audio settings UI if not already updated by SoundManager (fallback)
+                 if (settings.audio) {
+                    const musicVolumeInput = document.getElementById('musicVolume');
+                    const soundVolumeInput = document.getElementById('soundVolume');
+
+                     if (settings.audio.music !== undefined && musicVolumeInput) {
+                         musicVolumeInput.value = settings.audio.music;
+                         updateRangeValue(musicVolumeInput);
+                     }
                     
-                    if (settings.audio.sound !== undefined) {
-                        soundVolumeInput.value = settings.audio.sound;
-                        updateRangeValue(soundVolumeInput);
-                    }
-                }
+                     if (settings.audio.sound !== undefined && soundVolumeInput) {
+                         soundVolumeInput.value = settings.audio.sound;
+                         updateRangeValue(soundVolumeInput);
+                     }
+                 }
                 
-                // If language settings exist, only update radio button status
+                // Update language radio button based on loaded settings
                 if (settings.language) {
-                    updateLanguageRadio(settings.language);
+                     console.log('Loaded language setting from userSettings:', settings.language);
+                    updateLanguageRadio(settings.language); // Update radio button based on loaded setting
+                    // The i18n locale itself should be set by i18n.js on page load based on 'app_locale'
                 }
-                
-                // Update UI texts
-                updateUITexts();
                 
                 console.log('Loaded saved settings:', settings);
             } catch (error) {
                 console.error('Error loading settings:', error);
             }
         } else {
-            // Default select English radio button, but not change language
+             console.log('No userSettings found in localStorage.');
+            // If no saved settings, default select English radio button
             updateLanguageRadio('en');
+        }
+        
+        // After loading settings, ensure SoundManager has the correct state
+        // This is important if SoundManager loaded defaults but settings were present
+        if (window.SoundManager && savedSettings) {
+             try {
+                 const settings = JSON.parse(savedSettings);
+                 if (settings.audio) {
+                     SoundManager.applySettings({
+                         musicVolume: settings.audio.music,
+                         soundEffectsVolume: settings.audio.sound // Assuming this property name
+                     });
+                     // Also explicitly set mute state based on loaded settings
+                     // Need UI elements for mute state in HTML for settings page
+                     const muteMusicCheckbox = document.getElementById('backgroundMusicMute');
+                     const muteEffectsCheckbox = document.getElementById('soundEffectsMute');
+                     if(muteMusicCheckbox) SoundManager.setMuteBackground(muteMusicCheckbox.checked);
+                     if(muteEffectsCheckbox && typeof SoundManager.setMuteEffects === 'function') SoundManager.setMuteEffects(muteEffectsCheckbox.checked);
+                 }
+             } catch (error) {
+                 console.error('Error applying loaded settings to SoundManager:', error);
+             }
         }
     }
     
@@ -357,6 +444,47 @@ document.addEventListener('DOMContentLoaded', () => {
                 window.game.audio.setSoundVolume(audioSettings.sound / 100);
             }
         }
+        
+        // Apply settings to SoundManager if available
+        if (window.SoundManager) {
+            console.log('Applying audio settings to SoundManager:', audioSettings);
+            // Use a specific method or flag to apply settings without playing
+            // Let's assume SoundManager has a method like applySettingsWithoutPlayback or just setting properties
+            
+            // Stop music immediately on settings page load/apply to prevent accidental playback
+            SoundManager.stopBackgroundMusic(); 
+            
+            // Now apply the new volume/mute settings to the manager's state
+            if (audioSettings.music !== undefined) {
+                SoundManager.setMusicVolume(audioSettings.music);
+            }
+            if (audioSettings.muteBackground !== undefined) {
+                 SoundManager.setMuteBackground(audioSettings.muteBackground);
+            } else if (audioSettings.music !== undefined) {
+                 // Also set mute state based on volume if muteBackground is not explicitly provided
+                 SoundManager.setMuteBackground(audioSettings.music === 0);
+            }
+            // Sound effects volume is also handled in SoundManager if implemented
+            if (audioSettings.sound !== undefined) {
+                // Assuming SoundManager has a setSoundEffectsVolume method
+                 if (typeof SoundManager.setSoundEffectsVolume === 'function') {
+                     SoundManager.setSoundEffectsVolume(audioSettings.sound);
+                 }
+            }
+             if (audioSettings.muteEffects !== undefined) {
+                 // Assuming SoundManager has a setMuteEffects method
+                 if (typeof SoundManager.setMuteEffects === 'function') {
+                      SoundManager.setMuteEffects(audioSettings.muteEffects);
+                 }
+             } else if (audioSettings.sound !== undefined) {
+                 // Mute effects if volume is zero
+                 if (typeof SoundManager.setMuteEffects === 'function') {
+                     SoundManager.setMuteEffects(audioSettings.sound === 0);
+                 }
+            }
+
+        }
+        
         console.log('Applied audio settings:', audioSettings);
     }
     

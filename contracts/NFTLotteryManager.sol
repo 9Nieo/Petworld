@@ -21,6 +21,9 @@ contract NFTLotteryManager is ReentrancyGuard, VRFV2PlusWrapperConsumerBase {
     // Record addresses that have claimed free NFTs
     mapping(address => bool) public hasClaimedFreeNFT;
     
+    // User inviter mapping 
+    mapping(address => address) public userInviter;
+    
     // Total number of registered users
     uint256 public totalRegisteredUsers;
     
@@ -37,6 +40,12 @@ contract NFTLotteryManager is ReentrancyGuard, VRFV2PlusWrapperConsumerBase {
     bytes32 private constant RARE_EGG = keccak256("RARE_EGG");
     bytes32 private constant LEGENDARY_EGG = keccak256("LEGENDARY_EGG");
     
+    uint256 public constant MAX_BATCH_OPEN_COUNT = 5;
+    uint256 public constant CLAIM_INVITE_REWARD_POINT = 50;
+    uint256 public constant COMMON_EGG_INVITE_REWARD_POINT = 500;
+    uint256 public constant RARE_EGG_INVITE_REWARD_POINT = 5000;
+    uint256 public constant LEGENDARY_EGG_INVITE_REWARD_POINT = 30000;
+    
     // Probability settings (calculated as a percentage, e.g., 5 means 5%)
     // Rare egg probability settings
     uint256 public initialRareEggGoodRate = 20;     // Initial good probability
@@ -47,12 +56,6 @@ contract NFTLotteryManager is ReentrancyGuard, VRFV2PlusWrapperConsumerBase {
     uint256 public initialLegendaryEggExcellentRate = 55; // Initial excellent probability
     uint256 public initialLegendaryEggRareRate = 40;     // Initial rare probability (maximum probability)
     uint256 public initialLegendaryEggLegendaryRate = 5; // Initial legendary probability (maximum probability)
-
-    
-    uint256 public claimInviteRewardPoint = 50;
-    uint256 public commonEggInviteRewardPoint = 500;
-    uint256 public rareEggInviteRewardPoint = 5000;
-    uint256 public legendaryEggInviteRewardPoint = 30000;
 
     // Record the initial total amount of rare and legendary NFTs (for probability calculation)
     uint256 public initialRareTotal;
@@ -125,6 +128,7 @@ contract NFTLotteryManager is ReentrancyGuard, VRFV2PlusWrapperConsumerBase {
         specialEggPaused = false;
         isUseNativePayment = true;
     }
+
 
     // Transfer ownership
     function transferOwnership(address newOwner) public onlyOwner {
@@ -481,9 +485,11 @@ contract NFTLotteryManager is ReentrancyGuard, VRFV2PlusWrapperConsumerBase {
         // Mark address as claimed
         hasClaimedFreeNFT[msg.sender] = true;
 
-        nftFeedingManager.setUserInviter(msg.sender, inviter);
+        // Set inviter directly in this contract, not in NFTFeedingManager
+        userInviter[msg.sender] = inviter;
+        
         if(inviter != address(0)){
-            pwPointManager.inviteReward(msg.sender, inviter, claimInviteRewardPoint);
+            pwPointManager.inviteReward(msg.sender, inviter, CLAIM_INVITE_REWARD_POINT);
         }
 
         // Increase registered user count
@@ -677,9 +683,9 @@ contract NFTLotteryManager is ReentrancyGuard, VRFV2PlusWrapperConsumerBase {
             processCommonEgg(msg.sender, randomNumber);
             
             // Send invite reward after processing the egg
-            address inviter = nftFeedingManager.userInviter(msg.sender);
+            address inviter = userInviter[msg.sender];
             if(inviter != address(0)){
-                pwPointManager.inviteReward(msg.sender, inviter, commonEggInviteRewardPoint);
+                pwPointManager.inviteReward(msg.sender, inviter, COMMON_EGG_INVITE_REWARD_POINT);
             }
         } catch Error(string memory reason) {
             // Directly pass the error message from PaymentManager
@@ -739,10 +745,10 @@ contract NFTLotteryManager is ReentrancyGuard, VRFV2PlusWrapperConsumerBase {
         }
     }
     
-    // Batch open common eggs (2-10)
+    // Batch open common eggs (2-5)
     function batchOpenCommonEgg(address _token, uint256 _count) public nonReentrant whenSpecialEggNotPaused {
         // Validate count is within allowed range
-        require(_count >= 2 && _count <= 10, "Count must be between 2 and 10");
+        require(_count >= 2 && _count <= MAX_BATCH_OPEN_COUNT, "Count must be between 2 and 5");
         
         // Call PaymentManager to handle payment for multiple eggs
         try paymentManager.payForCommonLottery(_token, _count, msg.sender) {
@@ -756,8 +762,8 @@ contract NFTLotteryManager is ReentrancyGuard, VRFV2PlusWrapperConsumerBase {
             }
             
             // Send batch invite reward after opening all eggs
-            address inviter = nftFeedingManager.userInviter(msg.sender);
-            _sendBatchInviteReward(msg.sender, inviter, commonEggInviteRewardPoint, _count);
+            address inviter = userInviter[msg.sender];
+            _sendBatchInviteReward(msg.sender, inviter, COMMON_EGG_INVITE_REWARD_POINT, _count);
             
         } catch Error(string memory reason) {
             // Directly pass the error message from PaymentManager
@@ -767,10 +773,10 @@ contract NFTLotteryManager is ReentrancyGuard, VRFV2PlusWrapperConsumerBase {
         }
     }
     
-    // Batch open rare eggs (2-10)
+    // Batch open rare eggs (2-5)
     function batchOpenRareEgg(address _token, uint256 _count) public nonReentrant whenSpecialEggNotPaused {
         // Validate count is within allowed range
-        require(_count >= 2 && _count <= 10, "Count must be between 2 and 10");
+        require(_count >= 2 && _count <= MAX_BATCH_OPEN_COUNT, "Count must be between 2 and 5");
         
         // ensure contract has enough funds
         if (isUseNativePayment) {
@@ -797,10 +803,10 @@ contract NFTLotteryManager is ReentrancyGuard, VRFV2PlusWrapperConsumerBase {
         }
     }
     
-    // Batch open legendary eggs (2-10)
+    // Batch open legendary eggs (2-5)
     function batchOpenLegendaryEgg(address _token, uint256 _count) public nonReentrant whenSpecialEggNotPaused {
         // Validate count is within allowed range
-        require(_count >= 2 && _count <= 10, "Count must be between 2 and 10");
+        require(_count >= 2 && _count <= MAX_BATCH_OPEN_COUNT, "Count must be between 2 and 5");
         
         // ensure contract has enough funds
         if (isUseNativePayment) {
@@ -945,7 +951,7 @@ contract NFTLotteryManager is ReentrancyGuard, VRFV2PlusWrapperConsumerBase {
         uint256 totalLegendaryClaimed = 0;
         
         // Process all rare eggs first
-        for (uint256 i = 0; i < pendingRare && i < 10; i++) { // Limit to 10 at a time to avoid gas issues
+        for (uint256 i = 0; i < pendingRare && i < MAX_BATCH_OPEN_COUNT; i++) { // Limit to 5 at a time to avoid gas issues
             bool claimed = _processSingleEgg(requests, RARE_EGG);
             if (claimed) {
                 pendingRareEggs[msg.sender]--;
@@ -956,7 +962,7 @@ contract NFTLotteryManager is ReentrancyGuard, VRFV2PlusWrapperConsumerBase {
         }
         
         // Process legendary eggs next
-        for (uint256 i = 0; i < pendingLegendary && i < 10; i++) { // Limit to 10 at a time to avoid gas issues
+        for (uint256 i = 0; i < pendingLegendary && i < MAX_BATCH_OPEN_COUNT; i++) { // Limit to 5 at a time to avoid gas issues
             bool claimed = _processSingleEgg(requests, LEGENDARY_EGG);
             if (claimed) {
                 pendingLegendaryEggs[msg.sender]--;
@@ -970,16 +976,16 @@ contract NFTLotteryManager is ReentrancyGuard, VRFV2PlusWrapperConsumerBase {
         require(totalRareClaimed > 0 || totalLegendaryClaimed > 0, "Failed to claim any eggs");
         
         // Send batch invite rewards after processing all eggs
-        address inviter = nftFeedingManager.userInviter(msg.sender);
+        address inviter = userInviter[msg.sender];
         
         // Only send rewards if eggs were claimed and there's an inviter
         if (inviter != address(0)) {
             if (totalRareClaimed > 0) {
-                _sendBatchInviteReward(msg.sender, inviter, rareEggInviteRewardPoint, totalRareClaimed);
+                _sendBatchInviteReward(msg.sender, inviter, RARE_EGG_INVITE_REWARD_POINT, totalRareClaimed);
             }
             
             if (totalLegendaryClaimed > 0) {
-                _sendBatchInviteReward(msg.sender, inviter, legendaryEggInviteRewardPoint, totalLegendaryClaimed);
+                _sendBatchInviteReward(msg.sender, inviter, LEGENDARY_EGG_INVITE_REWARD_POINT, totalLegendaryClaimed);
             }
         }
     }
@@ -1052,11 +1058,6 @@ contract NFTLotteryManager is ReentrancyGuard, VRFV2PlusWrapperConsumerBase {
         (bool success, ) = payable(owner).call{value: amount}("");
         // solhint-disable-next-line gas-custom-errors
         require(success, "withdrawNative failed");
-    }
-    
-    // get contract BNB balance
-    function getContractBalance() public view returns (uint256) {
-        return address(this).balance;
     }
     
     // admin deposit BNB for VRF payment

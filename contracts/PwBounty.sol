@@ -29,9 +29,4 @@ contract PwBounty is ERC20, Ownable {
         minter = newMinter;
     }
     
-    // Renounce contract ownership
-    function renounceContractOwnership() public onlyOwner {
-        _transferOwnership(address(0));
-        emit ContractRenounced(msg.sender);
-    }
 }

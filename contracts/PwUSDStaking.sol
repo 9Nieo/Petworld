@@ -18,8 +18,9 @@ contract PwUSDStaking is ReentrancyGuard, Ownable {
     // Constants
     uint256 public constant CYCLE_DURATION = 1 days;  // Each cycle lasts for 1 day
     uint256 public constant PWPOINT_REWARD_RATE = 2;  // 2 PwPoint for every 10 stablecoins per cycle
-    uint256 public constant PRECISION_FACTOR = 10 * 10**18;   
+    uint256 public constant PRECISION_FACTOR = 10 * 10**18;  // Precision factor for reward calculations
     uint256 public constant MAX_CYCLE_UPDATES = 100;  // Maximum number of cycles to update at once
+    uint256 public constant MIN_STAKE_MULTIPLE = 10 * 10**18;  // Minimum staking amount multiple (10 USD)
     
     // Contract addresses
     address public pwusdToken;         // PWUSD token address
@@ -45,9 +46,9 @@ contract PwUSDStaking is ReentrancyGuard, Ownable {
         uint256 stakedAmount;                  // Amount staked
         address stableCoin;                    // Type of stablecoin staked
         uint256 lastClaimedCycle;              // Last cycle in which rewards were claimed
-        uint256 pendingPwPoints;               // Pending PwPoint rewards
-        uint256 lastDepositTimestamp;          // Timestamp of last deposit
-        uint256 rewardEligibleAmount;          // Amount eligible for rewards (staked for at least 24 hours)
+        uint256 recordId;                      // Unique identifier for the staking record
+        uint256 pendingRewards;                // Pending PwPoint rewards not yet claimed
+        uint256 stakingStartTime;              // Timestamp when staking began
     }
     
     // Cycle statistics
@@ -58,28 +59,29 @@ contract PwUSDStaking is ReentrancyGuard, Ownable {
     
     // User's staking information mapping
     mapping(address => StakingInfo[]) public userStakingInfo;
-    // User active staking index mapping
-    mapping(address => mapping(address => uint256)) public userStakingIndexByToken;
-    // Whether the user has active staking for a specific token
-    mapping(address => mapping(address => bool)) public hasActiveStaking;
+    
+    // Track staking records by ID - necessary for individual record management
+    mapping(address => mapping(uint256 => uint256)) public userStakingRecordIndex; // user => recordId => array index
+    mapping(address => mapping(uint256 => bool)) public userHasStakingRecord; // user => recordId => exists
+    uint256 private nextRecordId = 1; // Global record ID counter
+    
+    // Active staker tracking
+    mapping(address => bool) public isActiveStaker;
+    mapping(address => uint256) public userStakingRecordCount; // Track the number of staking records per user
     
     // Cycle statistics information
     mapping(uint256 => CycleStats) public cycleStats;
     
-    // Active staker user list
-    mapping(address => bool) public isActiveStaker;
-    
     // Events
-    event Staked(address indexed user, address indexed stableCoin, uint256 amount, uint256 pwusdMinted);
-    event Withdrawn(address indexed user, address indexed stableCoin, uint256 amount, uint256 pwusdBurned);
-    event RewardsClaimed(address indexed user, uint256 amount);
+    event Staked(address indexed user, address indexed stableCoin, uint256 amount, uint256 pwusdMinted, uint256 recordId);
+    event Withdrawn(address indexed user, address indexed stableCoin, uint256 amount, uint256 pwusdBurned, uint256 recordId);
+    event RewardsClaimed(address indexed user, uint256 amount, uint256 recordId);
     event CycleUpdated(uint256 oldCycle, uint256 newCycle, uint256 updatedCycles);
-    event RewardsCalculated(address indexed user, address indexed stableCoin, uint256 rewards);
-    event ClaimFailed(address indexed user, uint256 amount, string reason);
+    event ClaimFailed(address indexed user, uint256 amount, string reason, uint256 recordId);
     event StableCoinAdded(address indexed stableCoin);
     event StableCoinRemoved(address indexed stableCoin);
     event ContractRenounced(address indexed previousOwner);
-    event EligibleAmountUpdated(address indexed user, address indexed stableCoin, uint256 oldEligibleAmount, uint256 newEligibleAmount);
+    event StakingRecordRemoved(address indexed user, uint256 recordId);
     
     /**
      * @dev Constructor
@@ -102,6 +104,7 @@ contract PwUSDStaking is ReentrancyGuard, Ownable {
         
         totalStakedAmount = 0;
         totalClaimedPwPoints = 0;
+        nextRecordId = 1;
     }
 
 
@@ -182,6 +185,7 @@ contract PwUSDStaking is ReentrancyGuard, Ownable {
             // If we've capped the cycle updates, adjust the lastUpdateTimestamp relative to 
             // the cycles we've actually processed, not the full elapsed time
             if (elapsedCycles == MAX_CYCLE_UPDATES) {
+                // Optimize by avoiding multiplication with large numbers
                 lastUpdateTimestamp += MAX_CYCLE_UPDATES * CYCLE_DURATION;
             } else {
                 lastUpdateTimestamp = block.timestamp;
@@ -202,26 +206,28 @@ contract PwUSDStaking is ReentrancyGuard, Ownable {
         uint256 elapsedCycles = elapsedTime / CYCLE_DURATION;
         uint256 actualCurrentCycle = currentCycle + elapsedCycles;
         
-        uint256 rewards = 0;
+        uint256 newRewards = 0;
         if (stakingInfo.lastClaimedCycle < actualCurrentCycle) {
             uint256 cyclesPassed = actualCurrentCycle - stakingInfo.lastClaimedCycle;
             
-            rewards = (stakingInfo.rewardEligibleAmount * PWPOINT_REWARD_RATE * cyclesPassed) / PRECISION_FACTOR;
+            newRewards = ((stakingInfo.stakedAmount / PRECISION_FACTOR) * PWPOINT_REWARD_RATE * cyclesPassed);
         }
         
-        return (rewards, actualCurrentCycle);
+        return (newRewards, actualCurrentCycle);
     }
     
     /**
      * @dev Stake stablecoins
      * @param stableCoin Stablecoin address
      * @param amount Amount to stake
+     * @return recordId The unique ID assigned to this staking record
      */
-    function stake(address stableCoin, uint256 amount) public nonReentrant {
+    function stake(address stableCoin, uint256 amount) public nonReentrant returns (uint256) {
         // Checks
         require(supportedStableCoins[stableCoin], "StableCoin not supported");
         require(amount > 0, "Amount must be greater than zero");
-        require(amount % (10 * 10**18) == 0, "Amount must be a multiple of 10 USD");
+        // Using pre-computed constant to avoid runtime calculations
+        require(amount % MIN_STAKE_MULTIPLE == 0, "Amount must be a multiple of 10 USD");
         
         address user = msg.sender;
         
@@ -239,56 +245,30 @@ contract PwUSDStaking is ReentrancyGuard, Ownable {
         // Calculate the equivalent PWUSD amount
         uint256 pwusdAmount = amount;
         
-        // Effects - Create or get the user's staking record and update state
-        uint256 stakingIndex;
+        // Create a new staking record with a unique ID
+        uint256 recordId = nextRecordId++;
+        uint256 stakingIndex = userStakingInfo[user].length;
         
-        if (hasActiveStaking[user][stableCoin]) {
-            stakingIndex = userStakingIndexByToken[user][stableCoin];
-            StakingInfo storage stakingInfo = userStakingInfo[user][stakingIndex];
-            
-            // Calculate and update rewards
-            (uint256 rewards, uint256 actualCurrentCycle) = _calculateRewards(stakingInfo);
-            
-            if (rewards > 0) {
-                stakingInfo.pendingPwPoints += rewards;
-                emit RewardsCalculated(user, stableCoin, rewards);
-            }
-            
-            stakingInfo.lastClaimedCycle = actualCurrentCycle;
-            
-            // Update rewardEligibleAmount for existing deposit if 24 hours have passed
-            if (block.timestamp >= stakingInfo.lastDepositTimestamp + 24 hours) {
-                stakingInfo.rewardEligibleAmount = stakingInfo.stakedAmount;
-            }
-            
-            // Increase staked amount
-            stakingInfo.stakedAmount += amount;
-            
-            // Update deposit timestamp for the new deposit
-            stakingInfo.lastDepositTimestamp = block.timestamp;
-        } else {
-            stakingIndex = userStakingInfo[user].length;
-            userStakingInfo[user].push(StakingInfo({
-                stakedAmount: amount,
-                stableCoin: stableCoin,
-                lastClaimedCycle: currentCycle,
-                pendingPwPoints: 0,
-                lastDepositTimestamp: block.timestamp,
-                rewardEligibleAmount: 0
-            }));
-            
-            userStakingIndexByToken[user][stableCoin] = stakingIndex;
-            hasActiveStaking[user][stableCoin] = true;
-        }
+        // Create the new staking record
+        userStakingInfo[user].push(StakingInfo({
+            stakedAmount: amount,
+            stableCoin: stableCoin,
+            lastClaimedCycle: currentCycle + 1,
+            recordId: recordId,
+            pendingRewards: 0,
+            stakingStartTime: block.timestamp
+        }));
         
-        // Mark as active if it's a new staker
-        if (!isActiveStaker[user]) {
-            isActiveStaker[user] = true;
-        }
+        // Update mapping to track the record
+        userStakingRecordIndex[user][recordId] = stakingIndex;
+        userHasStakingRecord[user][recordId] = true;
+        userStakingRecordCount[user]++;
+        
+        // Mark as active staker
+        isActiveStaker[user] = true;
         
         // Update the total staked amount for the current cycle
         cycleStats[currentCycle].totalStakedTokens += amount;
-        
         totalStakedAmount += amount;
         
         // Interactions - External calls
@@ -303,56 +283,65 @@ contract PwUSDStaking is ReentrancyGuard, Ownable {
         // Mint PWUSD for the user
         PwUSD(pwusdToken).mint(user, pwusdAmount);
         
-        emit Staked(user, stableCoin, amount, pwusdAmount);
+        emit Staked(user, stableCoin, amount, pwusdAmount, recordId);
+        
+        return recordId;
     }
     
+    
     /**
-     * @dev Update the eligible amount for rewards
-     * This function checks if the current deposit has been staked for over 24 hours
-     * and updates the rewardEligibleAmount accordingly
-     * @param stakingInfo The staking position to update
+     * @dev Physically remove a staking record from the user's array
+     * @param user The user address
+     * @param recordId The ID of the staking record to remove
      */
-    function _updateEligibleAmount(StakingInfo storage stakingInfo) private {
-        // Check if 24 hours have passed since the last deposit
-        if (block.timestamp >= stakingInfo.lastDepositTimestamp + 24 hours) {
-            uint256 oldEligibleAmount = stakingInfo.rewardEligibleAmount;
-            // If 24 hours have passed, the entire staked amount is eligible for rewards
-            stakingInfo.rewardEligibleAmount = stakingInfo.stakedAmount;
-            
-            // Emit event if the eligible amount changed
-            if (oldEligibleAmount != stakingInfo.rewardEligibleAmount) {
-                emit EligibleAmountUpdated(
-                    msg.sender, 
-                    stakingInfo.stableCoin, 
-                    oldEligibleAmount, 
-                    stakingInfo.rewardEligibleAmount
-                );
-            }
+    function _removeStakingRecord(address user, uint256 recordId) private {
+        require(userHasStakingRecord[user][recordId], "Record does not exist");
+        
+        uint256 index = userStakingRecordIndex[user][recordId];
+        uint256 lastIndex = userStakingInfo[user].length - 1;
+        
+        // If this is not the last element, move the last element to this position
+        if (index != lastIndex) {
+            StakingInfo storage lastRecord = userStakingInfo[user][lastIndex];
+            userStakingInfo[user][index] = lastRecord;
+            userStakingRecordIndex[user][lastRecord.recordId] = index;
         }
+        
+        // Remove the last element
+        userStakingInfo[user].pop();
+        
+        // Update mappings
+        delete userStakingRecordIndex[user][recordId];
+        delete userHasStakingRecord[user][recordId];
+        
+        // Decrease counter
+        userStakingRecordCount[user]--;
+        
+        // If no more records, mark user as inactive
+        if (userStakingRecordCount[user] == 0) {
+            isActiveStaker[user] = false;
+        }
+        
+        emit StakingRecordRemoved(user, recordId);
     }
     
     /**
      * @dev Withdraw staked stablecoins
-     * @param stableCoin Stablecoin address
+     * @param recordId The unique ID of the staking record
      * @param amount Amount to withdraw, 0 means withdraw all
      */
-    function withdraw(address stableCoin, uint256 amount) public nonReentrant {
+    function withdraw(uint256 recordId, uint256 amount) public nonReentrant {
+        // Using pre-computed constant to avoid runtime calculations
+        require(amount % MIN_STAKE_MULTIPLE == 0, "Amount must be a multiple of 10 USD");
         // Checks
-        require(historicalSupportedStableCoins[stableCoin], "StableCoin never supported");
         address user = msg.sender;
+        require(userHasStakingRecord[user][recordId], "No staking record found with this ID");
         
-        require(hasActiveStaking[user][stableCoin], "No active staking for this stable coin");
-        
-        uint256 stakingIndex = userStakingIndexByToken[user][stableCoin];
+        uint256 stakingIndex = userStakingRecordIndex[user][recordId];
         StakingInfo storage stakingInfo = userStakingInfo[user][stakingIndex];
+        address stableCoin = stakingInfo.stableCoin;
         
-        // If amount is 0, withdraw all
-        if (amount == 0) {
-            amount = stakingInfo.stakedAmount;
-        } else {
-            // If not withdrawing all, ensure the amount is a multiple of 10 USD (considering stablecoin decimals)
-            require(amount % (10 * 10**18) == 0, "Amount must be a multiple of 10 USD");
-        }
+        require(historicalSupportedStableCoins[stableCoin], "StableCoin never supported");
         
         require(amount <= stakingInfo.stakedAmount, "Amount exceeds staked balance");
         
@@ -370,74 +359,31 @@ contract PwUSDStaking is ReentrancyGuard, Ownable {
         // Update cycle
         _updateCycle();
         
-        // Update eligible amount before calculating rewards
-        _updateEligibleAmount(stakingInfo);
-        
         // Calculate and update rewards
-        (uint256 rewards, uint256 actualCurrentCycle) = _calculateRewards(stakingInfo);
+        (uint256 newRewards, uint256 actualCurrentCycle) = _calculateRewards(stakingInfo);
         
-        if (rewards > 0) {
-            stakingInfo.pendingPwPoints += rewards;
-            emit RewardsCalculated(user, stableCoin, rewards);
+        // Add new rewards to pending rewards
+        if (newRewards > 0) {
+            stakingInfo.pendingRewards += newRewards;
         }
         
-        stakingInfo.lastClaimedCycle = actualCurrentCycle;
-        
-
+        // Process withdrawal
         stakingInfo.stakedAmount -= amount;
         
-        // Calculate the non-eligible amount (tokens staked less than 24 hours)
-        uint256 nonEligibleAmount = stakingInfo.stakedAmount - stakingInfo.rewardEligibleAmount;
+        // Consider it a full withdrawal if the remaining amount is very small (less than 0.01 USD)
+        // Using 10**16 directly instead of calculating 0.01 * 10**18 to save gas
+        bool isFullWithdrawal = stakingInfo.stakedAmount == 0 || stakingInfo.stakedAmount < 10**16;
         
-        // Prioritize withdrawing non-eligible tokens first
-        if (amount <= nonEligibleAmount) {
-            // If withdrawal amount is less than or equal to non-eligible amount, 
-            // no need to modify rewardEligibleAmount
-            // Just deduct from non-eligible tokens
-        } else if (nonEligibleAmount > 0) {
-            // If withdrawal amount is greater than non-eligible amount but non-eligible amount exists
-            // Deduct the remainder from eligible amount
-            uint256 remainingToWithdraw = amount - nonEligibleAmount;
-            if (stakingInfo.rewardEligibleAmount >= remainingToWithdraw) {
-                stakingInfo.rewardEligibleAmount -= remainingToWithdraw;
-            } else {
-                stakingInfo.rewardEligibleAmount = 0;
-            }
-        } else {
-            // If all tokens are eligible (nonEligibleAmount == 0), deduct directly from eligible amount
-            if (stakingInfo.rewardEligibleAmount >= amount) {
-                stakingInfo.rewardEligibleAmount -= amount;
-            } else {
-                stakingInfo.rewardEligibleAmount = 0;
-            }
+        if (!isFullWithdrawal&&stakingInfo.lastClaimedCycle < actualCurrentCycle) {
+            // Update the last claimed cycle
+            stakingInfo.lastClaimedCycle = actualCurrentCycle;
         }
         
+        // Update global staked amount
         if (amount <= totalStakedAmount) {
             totalStakedAmount -= amount;
         } else {
             totalStakedAmount = 0;
-        }
-        
-        // If the user has no remaining stake, update the mapping
-        if (stakingInfo.stakedAmount == 0) {
-            hasActiveStaking[user][stableCoin] = false;
-            
-            // Check if there are any other active stakes
-            bool hasAnyActiveStaking = false;
-            for (uint256 i = 0; i < supportedStableCoinList.length; i++) {
-                if (hasActiveStaking[user][supportedStableCoinList[i]]) {
-                    hasAnyActiveStaking = true;
-                    break;
-                }
-            }
-            
-            // If there are no active stakes, mark as inactive
-            if (!hasAnyActiveStaking) {
-                isActiveStaker[user] = false;
-            }
-        } else {
-            // If there is remaining stake, ensure the remaining amount is also a multiple of 10 USD
-            require(stakingInfo.stakedAmount % (10 * 10**18) == 0, "Remaining staked amount must be a multiple of 10 USD");
         }
         
         // Decrease the total staked amount for the current cycle
@@ -455,65 +401,86 @@ contract PwUSDStaking is ReentrancyGuard, Ownable {
         // Transfer stablecoins back to the user
         IERC20(stableCoin).safeTransfer(user, amount);
         
-        emit Withdrawn(user, stableCoin, amount, pwusdAmount);
+        // If there are pending rewards on full withdrawal, claim them first
+        if (isFullWithdrawal && stakingInfo.pendingRewards > 0) {
+            uint256 pendingRewards = stakingInfo.pendingRewards;
+            
+            // Try to claim the rewards
+            try PwPointManager(pwpointManager).claimNftReward(user, pendingRewards, pendingRewards) {
+                totalClaimedPwPoints += pendingRewards;
+                emit RewardsClaimed(user, pendingRewards, recordId);
+                stakingInfo.pendingRewards = 0;
+            } catch Error(string memory reason) {
+                emit ClaimFailed(user, pendingRewards, reason, recordId);
+            } catch (bytes memory /* lowLevelData */) {
+                emit ClaimFailed(user, pendingRewards, "Unknown error", recordId);
+            }
+        }
+        
+        // If full withdrawal, physically remove the record
+        if (isFullWithdrawal) {
+            // Physically remove the record
+            _removeStakingRecord(user, recordId);
+        }
+        
+        emit Withdrawn(user, stableCoin, amount, pwusdAmount, recordId);
     }
     
     /**
      * @dev Claim PwPoint rewards
-     * @param stableCoin Stablecoin address, specify which stake to claim rewards from
+     * @param recordId The unique ID of the staking record to claim rewards from
      */
-    function claimPwPoints(address stableCoin) public nonReentrant {
+    function claimRewards(uint256 recordId) public nonReentrant {
         // Checks
         address user = msg.sender;
-        require(hasActiveStaking[user][stableCoin], "No active staking for this stable coin");
-        
-        uint256 stakingIndex = userStakingIndexByToken[user][stableCoin];
-        StakingInfo storage stakingInfo = userStakingInfo[user][stakingIndex];
-        
+        require(userHasStakingRecord[user][recordId], "No staking record found with this ID");
         // Update cycle
         _updateCycle();
+        uint256 stakingIndex = userStakingRecordIndex[user][recordId];
+        StakingInfo storage stakingInfo = userStakingInfo[user][stakingIndex];
         
-        // Update eligible amount before calculating rewards
-        _updateEligibleAmount(stakingInfo);
-        
-        // Calculate new rewards
+        // Ensure minimum staking period of 24 hours has passed
+        require(block.timestamp >= stakingInfo.stakingStartTime + CYCLE_DURATION, "Minimum staking period not met");
+        require(stakingInfo.lastClaimedCycle < currentCycle, "Rewards already claimed for this cycle");
+        // Calculate new rewards to add to pending
         (uint256 newRewards, uint256 actualCurrentCycle) = _calculateRewards(stakingInfo);
         
-        // Update the last claimed cycle
+        // Add new rewards to pending
+        if (newRewards > 0) {
+            stakingInfo.pendingRewards += newRewards;
+        }
+        
+        // Get total pending rewards
+        uint256 pendingRewards = stakingInfo.pendingRewards;
+        
+        // Ensure there are rewards to claim
+        require(pendingRewards > 0, "No rewards to claim");
+        
+        // Reset pending rewards and update the last claimed cycle
+        stakingInfo.pendingRewards = 0;
         stakingInfo.lastClaimedCycle = actualCurrentCycle;
-        
-        // Calculate total rewards
-        uint256 totalRewards = stakingInfo.pendingPwPoints + newRewards;
-        require(totalRewards > 0, "No rewards to claim");
-        
-        // Effects - Update the state to prevent reentrancy issues
-        // Store the reward amount in a memory variable
-        uint256 rewardsToTransfer = totalRewards;
-        
-        // Reset pending rewards
-        stakingInfo.pendingPwPoints = 0;
         
         // Interactions - External calls
         // Transfer PwPoint and PwBounty to the user through PwPointManager
-        try PwPointManager(pwpointManager).claimNftReward(user, rewardsToTransfer, rewardsToTransfer) {
-            totalClaimedPwPoints += rewardsToTransfer;
-            emit RewardsClaimed(user, rewardsToTransfer);
+        try PwPointManager(pwpointManager).claimNftReward(user, pendingRewards, pendingRewards) {
+            totalClaimedPwPoints += pendingRewards;
+            emit RewardsClaimed(user, pendingRewards, recordId);
         } catch Error(string memory reason) {
-            // Restore pending rewards in case of failure
-            stakingInfo.pendingPwPoints = rewardsToTransfer;
-            emit ClaimFailed(user, rewardsToTransfer, reason);
+            // If claim fails, restore pending rewards
+            stakingInfo.pendingRewards = pendingRewards;
+            emit ClaimFailed(user, pendingRewards, reason, recordId);
         } catch (bytes memory /* lowLevelData */) {
-            // Restore pending rewards in case of failure
-            stakingInfo.pendingPwPoints = rewardsToTransfer;
-            emit ClaimFailed(user, rewardsToTransfer, "Unknown error");
+            // If claim fails, restore pending rewards
+            stakingInfo.pendingRewards = pendingRewards;
+            emit ClaimFailed(user, pendingRewards, "Unknown error", recordId);
         }
     }
     
     /**
-     * @dev Claim all PwPoint rewards from all staked stablecoins
+     * @dev Claim all PwPoint rewards from all staked records
      * This function allows users to claim rewards from all their staked positions at once
      */
-    function claimAllPwPoints() public nonReentrant {
+    function claimAllRewards() public nonReentrant {
         // Checks
         address user = msg.sender;
         require(isActiveStaker[user], "User has no active staking");
@@ -524,32 +491,29 @@ contract PwUSDStaking is ReentrancyGuard, Ownable {
         // Variable to track total rewards across all stakes
         uint256 totalRewardsToTransfer = 0;
         
-        // Iterate through all supported stablecoins to find user's active stakes
-        for (uint256 i = 0; i < supportedStableCoinList.length; i++) {
-            address stableCoin = supportedStableCoinList[i];
+        // Store the indices of records with rewards to update
+        uint256[] memory recordsToUpdate = new uint256[](userStakingInfo[user].length);
+        uint256 recordCount = 0;
+        
+        // Process all staking records to calculate rewards
+        for (uint256 i = 0; i < userStakingInfo[user].length; i++) {
+            StakingInfo storage stakingInfo = userStakingInfo[user][i];
             
-            if (hasActiveStaking[user][stableCoin]) {
-                uint256 stakingIndex = userStakingIndexByToken[user][stableCoin];
-                StakingInfo storage stakingInfo = userStakingInfo[user][stakingIndex];
-                
-                // Update eligible amount before calculating rewards
-                _updateEligibleAmount(stakingInfo);
-                
+            // Only include records that meet the minimum staking period of 24 hours
+            if (block.timestamp >= stakingInfo.stakingStartTime + CYCLE_DURATION && stakingInfo.lastClaimedCycle < currentCycle) {
                 // Calculate new rewards
                 (uint256 newRewards, uint256 actualCurrentCycle) = _calculateRewards(stakingInfo);
                 
-                // Update the last claimed cycle
-                stakingInfo.lastClaimedCycle = actualCurrentCycle;
+                // Add new rewards to pending rewards
+                if (newRewards > 0) {
+                    stakingInfo.pendingRewards += newRewards;
+                }
                 
-                // Calculate total rewards for this stablecoin position
-                uint256 positionRewards = stakingInfo.pendingPwPoints + newRewards;
-                
-                if (positionRewards > 0) {
-                    // Add to total rewards
-                    totalRewardsToTransfer += positionRewards;
-                    
-                    // Reset pending rewards for this position
-                    stakingInfo.pendingPwPoints = 0;
+                // If there are any pending rewards, add to the total
+                if (stakingInfo.pendingRewards > 0) {
+                    totalRewardsToTransfer += stakingInfo.pendingRewards;
+                    recordsToUpdate[recordCount] = i;
+                    recordCount++;
                 }
             }
         }
@@ -557,44 +521,38 @@ contract PwUSDStaking is ReentrancyGuard, Ownable {
         // Ensure there are rewards to claim
         require(totalRewardsToTransfer > 0, "No rewards to claim");
         
+        // Prepare to clear pending rewards and update cycles
+        bool claimSuccessful = false;
+        
         // Interactions - External calls
         // Transfer all PwPoint and PwBounty rewards to the user through PwPointManager
         try PwPointManager(pwpointManager).claimNftReward(user, totalRewardsToTransfer, totalRewardsToTransfer) {
+            claimSuccessful = true;
             totalClaimedPwPoints += totalRewardsToTransfer;
             
-            emit RewardsClaimed(user, totalRewardsToTransfer);
+            emit RewardsClaimed(user, totalRewardsToTransfer, 0); // 0 as recordId indicates aggregated claim
         } catch Error(string memory reason) {
-            // Since we can't easily restore individual position's pending rewards,
-            // we'll add them all back to the first active staking position
-            for (uint256 i = 0; i < supportedStableCoinList.length; i++) {
-                address stableCoin = supportedStableCoinList[i];
-                if (hasActiveStaking[user][stableCoin]) {
-                    uint256 stakingIndex = userStakingIndexByToken[user][stableCoin];
-                    userStakingInfo[user][stakingIndex].pendingPwPoints = totalRewardsToTransfer;
-                    break;
-                }
-            }
-            emit ClaimFailed(user, totalRewardsToTransfer, reason);
+            emit ClaimFailed(user, totalRewardsToTransfer, reason, 0);
         } catch (bytes memory /* lowLevelData */) {
-            // Same recovery logic as above
-            for (uint256 i = 0; i < supportedStableCoinList.length; i++) {
-                address stableCoin = supportedStableCoinList[i];
-                if (hasActiveStaking[user][stableCoin]) {
-                    uint256 stakingIndex = userStakingIndexByToken[user][stableCoin];
-                    userStakingInfo[user][stakingIndex].pendingPwPoints = totalRewardsToTransfer;
-                    break;
-                }
+            emit ClaimFailed(user, totalRewardsToTransfer, "Unknown error", 0);
+        }
+        
+        // If the claim was successful, clear all pending rewards
+        if (claimSuccessful) {
+            for (uint256 j = 0; j < recordCount; j++) {
+                uint256 i = recordsToUpdate[j];
+                StakingInfo storage stakingInfo = userStakingInfo[user][i];
+                
+                // Calculate the actual current cycle again to ensure it's up to date
+                uint256 elapsedTime = block.timestamp - lastUpdateTimestamp;
+                uint256 elapsedCycles = elapsedTime / CYCLE_DURATION;
+                uint256 actualCurrentCycle = currentCycle + elapsedCycles;
+                
+                // Reset pending rewards and update claimed cycle
+                stakingInfo.pendingRewards = 0;
+                stakingInfo.lastClaimedCycle = actualCurrentCycle;
             }
-            emit ClaimFailed(user, totalRewardsToTransfer, "Unknown error");
         }
     }
-    
-    
-    // Renounce contract ownership
-    function renounceContractOwnership() external onlyOwner {
-        _transferOwnership(address(0));
-        emit ContractRenounced(msg.sender);
-    }
-
     
 } 

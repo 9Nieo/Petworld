@@ -217,6 +217,8 @@
       max: "最大",
       claim: "領取",
       confirm: "確認",
+      approve: "授權",
+      ok: "確定",
     },
     
     // home welcome text
@@ -327,6 +329,10 @@
         withdrawAmount: "提領金額",
         selectStakedCoin: "選擇質押幣",
         stakedBalance: "質押餘額",
+        selectStakedRecord: "選擇質押記錄",
+        selectPlaceHolder: "選擇穩定幣",
+        selectStakingRecord: "選擇質押記錄",
+        selectRecordPlaceholder: "選擇質押記錄",
       },
       history: {
         title: "質押歷史",
@@ -341,6 +347,31 @@
       },
       notification: {
         noRewards: "沒有收益",
+        stakeSuccess: "質押成功",
+        stakeFailed: "質押失敗",
+        withdrawSuccess: "提領成功",
+        withdrawFailed: "提領失敗",
+        claimSuccess: "領取成功",
+        claimFailed: "領取失敗",
+        claimAllSuccess: "全部領取成功",
+        claimAllFailed: "全部領取失敗",
+        insufficientAuth: "授權不足",
+        authSuccess: "授權成功",
+        authFailed: "授權失敗",
+        invalidAmount: "無效金額",
+        amountMultiple10: "金額必須是10的倍數",
+        noStakingRecord: "沒有質押記錄",
+        loadingData: "加載數據中...",
+        dataRefreshFailed: "刷新數據失敗",
+        walletConnectionError: "錢包連接錯誤",
+        contractInitError: "合約初始化錯誤",
+        unknownError: "未知錯誤",
+        connectWallet: "連接錢包",
+        selectCoin: "選擇穩定幣",
+        approveConfirmation: "授權確認",
+        approving: "授權中...",
+        approveSuccess: "授權成功",
+        approveFailed: "授權失敗",
       }
     },
     // pets related
@@ -443,10 +474,13 @@
     buy: "購買",
     details: "詳情",
     level: "等級: {level}",
-    
+    lottery:{
+      batchResultTitle:"批次結果",
+      summary:"摘要",
+    },
     // shop page
     shop: {
-      title: "抽獎商店",
+      title: "商店",
       subtitle: "獲取稀有寵物",
       description: "在這裡購買彩蛋來獲取稀有寵物，或者購買寵物食物",
       freePwFoodDesc:"每24小時，每個地址可以領取10個寵物食物",
@@ -500,15 +534,88 @@
       buyingLegendaryEgg: "購買傳奇蛋中...",
       
       // shop related
-      inviterTip: "填寫邀請人地址可以讓對方獲得獎勵",
+      inviterTip: "請輸入邀請人地址，讓自己和好友都能獲得獎勵",
       foodAmount: "購買金額（$）：",
       foodAmountTip: "輸入1-10000之間的整數金額",
-      batchAmount: "數量 (1-10):",
+      batchAmount: "數量 (1-5):",
       quantity: "數量",
       price: "價格",
       total: "總計",
       batchPurchasing: "批量購買中...",
-      batchEggs: "個蛋"
+      batchEggs: "個蛋",
+      unclaimedEggs: "未領取蛋",
+      rareEggs: "稀有蛋",
+      legendaryEggs: "傳奇蛋",
+      confirmClaim: "確認領取",
+      claimUnclaimedEggs: "領取未領取蛋",
+      nowCanClaim:"可以領取",
+      batchAmountTip:"請輸入1-5之間的整數",
+      inviterPlaceholder: "邀請人地址 (可選)",
+      totalPrice: "總價格",
+      notification: {
+        // General
+        success: "成功!",
+        error: "發生錯誤",
+        warning: "警告",
+        info: "資訊",
+        
+        noClaimableEggs: "沒有可領取的寵物",
+        requiredNFTFirst: "請先領取免費寵物NFT",
+        // Payment process
+        paymentProcessing: "支付處理中...",
+        paymentSuccess: "支付成功!",
+        paymentFailed: "支付失敗: {message}",
+        paymentCancelled: "支付取消",
+        
+        // Authorization
+        checkingApprovals: "檢查必要的授權...",
+        requestingApproval: "請求代幣授權...",
+        authorizationSuccess: "授權成功",
+        authorizationFailed: "代幣授權失敗: {message}",
+        userCancelledAuth: "您取消了授權交易",
+        
+        // Purchase process
+        purchasingEggs: "購買 {eggName}...",
+        purchasingFood: "購買寵物食物...",
+        purchaseSuccess: "購買成功!",
+        purchaseFailed: "購買失敗",
+        purchaseEggsSuccess: "恭喜! 成功購買了 {count} {eggName}",
+        purchaseFoodSuccess: "恭喜! 成功購買了 {quantity} 寵物食物",
+        purchaseNoLotteryResult: "成功購買了蛋, 請檢查您的收藏以獲得新寵物。",
+        purchaseNoLotteryDisplay: "成功購買了蛋, 但無法顯示抽獎結果",
+        
+        // Claim process
+        claimingNFT: "領取免費寵物...",
+        claimingFood: "領取免費寵物食物...",
+        claimingEggs: "領取未領取的寵物...",
+        claimNFTSuccess: "免費寵物領取成功! 請檢查您的遊戲中的新寵物",
+        claimFoodSuccess: "免費寵物食物領取成功! 獲得 {count} 寵物食物",
+        claimEggsSuccess: "成功領取了 {count} 個寵物! 請檢查它們",
+        
+        // Validation errors
+        amountInputError: "請輸入整數金額",
+        amountRangeError: "請輸入1到{min}和{max}之間的金額",
+        invalidLotteryResult: "無效的抽獎結果",
+        
+        // Status messages
+        alreadyClaimedNFT: "您已經領取過免費寵物",
+        alreadyClaimedFood: "今天已經領取過免費寵物食物, 請明天再來",
+        noClaimableEggs: "您沒有可領取的寵物",
+        requiredNFTFirst: "請先領取免費寵物NFT",
+        
+        // Input issues
+        invalidInviterAddress: "邀請人地址格式無效, 使用預設地址",
+        amountInputNotFound: "找不到金額輸入框",
+        
+        // Result notifications
+        pendingRareEggs: "成功購買了蛋, 請等待1分鐘後在\"領取未領取的寵物\"模組中領取您的寵物",
+        claimSuccess: "領取成功!",
+        claimFailed: "領取失敗: {message}",
+
+        pendingClaimAlert: "保留中領取提醒",
+        pendingClaimAlertMessage: "成功購買了蛋, 請等待1分鐘後在\"領取未領取的寵物\"模組中領取您的寵物",
+        pendingClaimAlertTip: "區塊鏈需要1分鐘來確認交易, 請耐心等待",
+      }
     },
     exchange: {
       title: "兌換",
@@ -652,9 +759,10 @@
       claimRewards: "領取獎勵",
       claimInfo: "完成燃燒後，可以在此領取您應得的PetWorld代幣",
       claimCycles: "選擇領取周期",
-      claimButton: "領取",
+      claimButton: "全部領取",
       yourRecords: "您的燃燒記錄",
-      noRecords: "暫無燃燒記錄"
+      noRecords: "暫無燃燒記錄",
+      expiryWarning: "重要: 燃燒後1200周期內必須領取獎勵，否則將失去所有PwPoints和PW獎勵。"
     },
     
     payment: {

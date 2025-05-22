@@ -823,14 +823,6 @@ window.NFTMarketplaceABI = [
   },
   {
     "type": "function",
-    "name": "testSetInitialized",
-    "constant": false,
-    "payable": false,
-    "inputs": [],
-    "outputs": []
-  },
-  {
-    "type": "function",
     "name": "transactionIndexer",
     "constant": true,
     "stateMutability": "view",

@@ -29,10 +29,4 @@ contract PwReverse is ERC20, Ownable {
         require(newMinter != address(0), "new minter is the zero address");
         minter = newMinter;
     }
-    
-    // Renounce contract ownership
-    function renounceContractOwnership() public onlyOwner {
-        _transferOwnership(address(0));
-        emit ContractRenounced(msg.sender);
-    }
 }

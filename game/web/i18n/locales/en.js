@@ -42,21 +42,21 @@
       paste: "Paste",
       reset: "Reset",
       all: "All",
-      copyright: "© 2025 Pet World - All Rights Reserved",
+      copyright: "© 2025 Petworld - All Rights Reserved",
       pageInfo: "Page {{current}} of {{total}}",
       pageInfoWithTotal: "Page {{current}} of {{total}} ({{items}} records)",
       featureNotImplemented: "{feature} coming soon, stay tuned!"
     },
     // Loading page
     loading: {
-      title: "Pet World is Loading",
+      title: "Petworld is Loading",
       description: "Retrieving your pet NFT data, please wait...",
       connecting: "Connecting to the blockchain...",
       loadingAssets: "Loading game assets...",
       initializingGame: "Initializing game...",
       loadingPets: "Loading your pets...",
       loadingComplete: "Loading complete!",
-      enteringWorld: "Entering the Pet World...",
+      enteringWorld: "Entering the Petworld...",
       tip1: "Tip: Feed your pets regularly to keep them happy!",
       tip2: "Tip: Rare pets have special abilities!",
       tip3: "Tip: You can trade your pets in the marketplace!",
@@ -146,13 +146,13 @@
 
     // Application-specific terms
     app: {
-      title: "Pet World"
+      title: "Petworld"
     },
 
     // Game-specific terms
     game: {
-      title: "Pet World",
-      selectMode: "Pet World - Select Mode",
+      title: "Petworld",
+      selectMode: "Petworld - Select Mode",
       sfx: "Sound Effects",
       bgm: "Background Music",
       graphics: "Graphics Quality",
@@ -189,7 +189,7 @@
     // Home welcome text
     home: {
       welcome: {
-        title: "Welcome to Pet World Game!",
+        title: "Welcome to Petworld Game!",
         description: "Explore, collect, and raise your own pets"
       },
       myAssets: "My Assets"
@@ -198,7 +198,7 @@
     // Network detection
     network: {
       wrongNetwork: "Wrong Network Connection",
-      pleaseSwitch: "Please switch your wallet to {requiredNetwork} network to continue using Pet World.",
+      pleaseSwitch: "Please switch your wallet to {requiredNetwork} network to continue using Petworld.",
       switchNetwork: "Switch Network",
       networkChanged: "Network switched successfully",
       checkingNetwork: "Checking network...",
@@ -208,7 +208,8 @@
       tryManually: "Please try to switch networks manually in your wallet",
       addNetwork: "Add Network",
       bscTestnet: "BSC Testnet",
-      bscMainnet: "Binance Smart Chain"
+      bscMainnet: "Binance Smart Chain",
+
     },
 
     // Button labels
@@ -228,6 +229,8 @@
       max: "Max",
       claim: "Claim",
       confirm: "Confirm",
+      approve: "Approve",
+      ok: "OK",
     },
     quality: {
       common: "Common",
@@ -347,6 +350,10 @@
         withdrawAmount: "Withdraw Amount",
         selectStakedCoin: "Select Staked Coin",
         stakedBalance: "Staked Balance",
+        selectStakedRecord: "Select Staked Record",
+        selectPlaceholder: "Select Stable Coin",
+        selectStakingRecord: "Select Staking Record",
+        selectRecordPlaceholder: "Select Staking Record",
       },
       history: {
         title: "Staking History",
@@ -361,6 +368,32 @@
       },
       notification: {
         noRewards: "No rewards available",
+        stakeSuccess: "Stake successful",
+        stakeFailed: "Stake failed",
+        withdrawSuccess: "Withdraw successful",
+        withdrawFailed: "Withdraw failed",
+        claimSuccess: "Claim successful",
+        claimFailed: "Claim failed",
+        claimAllSuccess: "All rewards claimed successfully",
+        claimAllFailed: "Failed to claim all rewards",
+        insufficientAuth: "Insufficient authorization",
+        authSuccess: "Authorization successful",
+        authFailed: "Authorization failed",
+        invalidAmount: "Invalid amount",
+        amountMultiple10: "Amount must be multiple of 10",
+        noStakingRecord: "No staking record selected",
+        loadingData: "Loading data...",
+        dataRefreshFailed: "Failed to refresh data",
+        walletConnectionError: "Wallet connection error",
+        contractInitError: "Contract initialization error",
+        unknownError: "An unknown error occurred",
+        connectWallet: "Connect Wallet",
+        selectCoin: "Select Coin",
+        approveConfirmation: "Approve Confirmation",
+        approving: "Approving...",
+        approveSuccess: "Approve successful",
+        approveFailed: "Approve failed",
+        
       }
     },
     // Market-related terms
@@ -420,7 +453,7 @@
 
     // Index page terms
     index: {
-      welcome: "Welcome to Pet World!",
+      welcome: "Welcome to Petworld!",
       selectMode: "Please select your preferred game mode",
       gameMode: "Game Mode",
       gameModeDesc: "Immersive pet-raising game experience, interact with pets and complete tasks for rewards",
@@ -448,41 +481,151 @@
     buy: "Buy",
     details: "Details",
     level: "Level: {level}",
+    lottery:{
+      batchResultTitle:"Batch Result",
+      summary:"Summary",
+    },
 
     // Shop-related terms
     shop: {
-      title: "Lottery Shop",
+      title: "Shop",
+      subtitle: "Get Rare Pets",
+      description: "Buy eggs to get rare pets, or buy pet food",
+      freePwFoodDesc:"Every 24 hours, each address can claim 10 pet food",
+      
+      // items
       items: {
-        freeNFT: "Free Pet",
         commonEgg: "Common Egg",
         rareEgg: "Rare Egg",
         legendaryEgg: "Legendary Egg",
         pwfood: "Pet Food",
-        claimEggs: "Claim Pending Pets",
-        freePwFoodDesc: "Every 24 hours, each address can claim 10 free pet food",
-        freePwFood: "Free PwFood"
+        freeNFT: "Free Pet",
+        claimEggs: "Claim Unclaimed Pets",
+        freePwFood: "Free Pet Food"
       },
-      freeNFTDesc: "Each address can claim one free pet NFT",
-      commonEggDesc: "Higher chance to get common and good quality pets",
-      rareEggDesc: "Higher chance to get rare pets",
-      legendaryEggDesc: "Chance to get legendary rare pets",
-      pwfoodDesc: "Feed your pets to restore their hunger",
-      claimEggsDesc: "Claim your pets from lottery that haven't been claimed",
-      claim: "Claim",
-      inviterTip: "Fill in an inviter address to let them get rewards",
       
-      // Claiming pending pets related
-      claimEggsConfirmTitle: "Claim Pending Pets",
+      // item descriptions
+      commonEggDesc: "Higher chance to get common and excellent pets",
+      rareEggDesc: "Higher chance to get rare pets",
+      legendaryEggDesc: "Higher chance to get legendary pets",
+      pwfoodDesc: "Used to feed your pets, restore satiety",
+      freeNFTDesc: "Each address can claim one free pet NFT",
+      claimEggsDesc: "Claim unclaimed pets after lottery",
+      
+      // claim texts
+      claim: "Claim",
+      alreadyClaimed: "Already Claimed",
+      claimed: "Claimed",
+      freeNFTClaimSuccess: "Free NFT claim successful!",
+      alreadyClaimedFreeNFT: "You have already claimed the free NFT",
+      
+      // claim texts
+      claimEggsConfirmTitle: "Claim Unclaimed Pets",
       claimEggsConfirm: "Confirm Claim",
       claimEggsCancel: "Cancel",
       claimEggsSuccess: "Successfully claimed {count} pets!",
       noPendingEggs: "No pending pets",
       pendingEggsCount: "You have {total} pending pets: {rare} rare and {legendary} legendary",
-      foodAmount: "Purchase Amount ($):",
-      foodAmountTip: "Enter an integer between 1-10000",
+      
+      // buying status
+      buying: "Buying...",
+      buySuccess: "Purchase successful!",
+      buyFailed: "Purchase failed",
+      buyCommonEggSuccess: "Common egg purchase successful!",
+      buyRareEggSuccess: "Rare egg purchase successful!",
+      buyLegendaryEggSuccess: "Legendary egg purchase successful!",
+      buyCommonEggFailed: "Common egg purchase failed",
+      buyRareEggFailed: "Rare egg purchase failed",
+      buyLegendaryEggFailed: "Legendary egg purchase failed",
+      buyingCommonEgg: "Buying common egg...",
+      buyingRareEgg: "Buying rare egg...",
+      buyingLegendaryEgg: "Buying legendary egg...",
+      
+      // shop related
+      inviterTip: "Please enter the inviter address, so you and your friends can get rewards",
+      foodAmount: "Purchase amount ($):",
+      foodAmountTip: "Enter an integer amount between 1 and 10000",
+      batchAmount: "Quantity (1-5):",
       quantity: "Quantity",
       price: "Price",
-      total: "Total"
+      total: "Total",
+      batchPurchasing: "Batch purchasing...",
+      batchEggs: "eggs",
+      unclaimedEggs: "Unclaimed eggs",
+      rareEggs: "Rare eggs",
+      legendaryEggs: "Legendary eggs",
+      confirmClaim: "Confirm claim",
+      claimUnclaimedEggs: "Claim unclaimed eggs",
+      nowCanClaim:"Now can claim",
+      batchAmountTip:"Enter an integer amount between 1 and 5",
+      inviterPlaceholder: "Inviter address (optional)",
+      totalPrice: "Total price",
+      notification: {
+        // General
+        success: "Success!",
+        error: "Error occurred",
+        warning: "Warning",
+        info: "Information",
+        
+       
+        noClaimableEggs: "No claimable pets",
+        requiredNFTFirst: "Claim free pet first",
+        
+        // Payment process
+        paymentProcessing: "Payment processing...",
+        paymentSuccess: "Payment successful!",
+        paymentFailed: "Payment failed: {message}",
+        paymentCancelled: "Payment cancelled",
+        
+        // Authorization
+        checkingApprovals: "Checking necessary approvals...",
+        requestingApproval: "Requesting token approval...",
+        authorizationSuccess: "Authorization successful",
+        authorizationFailed: "Token authorization failed: {message}",
+        userCancelledAuth: "You canceled the authorization transaction",
+        
+        // Purchase process
+        purchasingEggs: "Purchasing {eggName}...",
+        purchasingFood: "Purchasing pet food...",
+        purchaseSuccess: "Purchase successful!",
+        purchaseFailed: "Purchase failed",
+        purchaseEggsSuccess: "Congratulations! Successfully purchased {count} {eggName}",
+        purchaseFoodSuccess: "Congratulations! Successfully purchased {quantity} pet food",
+        purchaseNoLotteryResult: "Successfully purchased eggs, please check your collection for new pets.",
+        purchaseNoLotteryDisplay: "Successfully purchased eggs, but unable to display lottery results",
+        
+        // Claim process
+        claimingNFT: "Claiming free pet...",
+        claimingFood: "Claiming free pet food...",
+        claimingEggs: "Claiming unclaimed pets...",
+        claimNFTSuccess: "Free pet claim successful! Please check your new pet in the game",
+        claimFoodSuccess: "Free pet food claim successful! Get {count} pet food",
+        claimEggsSuccess: "Successfully claimed {count} pets! Please check them in the game",
+        
+        // Validation errors
+        amountInputError: "Please enter an integer amount",
+        amountRangeError: "Please enter an amount between 1 and {min} and {max}",
+        invalidLotteryResult: "Invalid lottery result",
+        
+        // Status messages
+        alreadyClaimedNFT: "You have already claimed the free pet",
+        alreadyClaimedFood: "Today has claimed the free pet food, please come back tomorrow",
+        noClaimableEggs: "You do not have claimable pets",
+        requiredNFTFirst: "Please claim the free pet NFT first",
+        
+        // Input issues
+        invalidInviterAddress: "The inviter address format is invalid, using the default address",
+        amountInputNotFound: "Cannot find the amount input box",
+        
+        // Result notifications
+        pendingRareEggs: "Successfully purchased eggs, please wait for 1 minute and then claim your new pet in the \"claim unclaimed pets\" module",
+        claimSuccess: "Claim successful!",
+        claimFailed: "Claim failed: {message}",
+
+        pendingClaimAlert: "Pending Claim Alert",
+        pendingClaimAlertMessage: "Successfully purchased eggs, please wait for 1 minute and then claim your new pet in the \"claim unclaimed pets\" module",
+        pendingClaimAlertTip: "Blockchain will take 1 minute to confirm the transaction, please wait patiently",
+      }
     },
     
     // More features menu related
@@ -534,9 +677,10 @@
       claimRewards: "Claim Rewards",
       claimInfo: "After burning, claim your PetWorld tokens here",
       claimCycles: "Select Cycles to Claim",
-      claimButton: "Claim",
+      claimButton: "Claim All",
       yourRecords: "Your Burning Records",
-      noRecords: "No burning records found"
+      noRecords: "No burning records found",
+      expiryWarning: "Important: You must claim your rewards within 1200 cycles after burning, otherwise they will expire and you will lose all PwPoints and PW rewards."
     },
 
     staking: {
