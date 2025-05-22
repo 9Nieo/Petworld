@@ -22,27 +22,22 @@ window.currentNetwork = window.CONTRACT_NETWORKS.MAIN;
 
 // Contract address configuration for different network environments
 window.contractAddresses = window.contractAddresses || {
-    [window.CONTRACT_NETWORKS.TEST]: {
-      PwPoint: '0x0000000000000000000000000000000000000000',  
-      PwFood: '0x0000000000000000000000000000000000000000',  
-      PwBounty: '0x0000000000000000000000000000000000000000',  
-      PwReverse: '0x0000000000000000000000000000000000000000',  
-      PwNFT: '0x0000000000000000000000000000000000000000',  
-      PwUSD: '0x0000000000000000000000000000000000000000',  
-      NFTManager: '0x0000000000000000000000000000000000000000',  
-      NFTFeedingManager: '0x0000000000000000000000000000000000000000',  
-      NFTLotteryManager: '0x0000000000000000000000000000000000000000',  
-      PwPointManager: '0x0000000000000000000000000000000000000000',  
-      PaymentManager: '0x0000000000000000000000000000000000000000',  
-      PwFoodManager: '0x0000000000000000000000000000000000000000',  
-      PwUSDStaking: '0x0000000000000000000000000000000000000000',  
-      NFTMarketplace: '0x0000000000000000000000000000000000000000',  
-      RareNFTTransactionIndexer: '0x0000000000000000000000000000000000000000',  
-      PetWorld: '0x0000000000000000000000000000000000000000',  
-      PetWorldManager: '0x0000000000000000000000000000000000000000',  
-      PwPointBurner: '0x0000000000000000000000000000000000000000',  
-      PetWorldStaking: '0x0000000000000000000000000000000000000000',  
-      PwReverseBurner: '0x0000000000000000000000000000000000000000',  
+      [window.CONTRACT_NETWORKS.TEST]: {
+    PwPoint: '0x0000000000000000000000000000000000000000',  // test network's PwPoint contract address
+    PwFood: '0x0000000000000000000000000000000000000000',  // test network's PwFood contract address
+    PwBounty: '0x0000000000000000000000000000000000000000',  // test network's PwBounty contract address
+    PwReverse: '0x0000000000000000000000000000000000000000',  // test network's PwReverse contract address
+    PwNFT: '0x0000000000000000000000000000000000000000',  // test network's PwNFT contract address
+    PwUSD: '0x0000000000000000000000000000000000000000',  // test network's PwUSD contract address
+    NFTManager: '0x0000000000000000000000000000000000000000',  // test network's NFTManager contract address
+    NFTFeedingManager: '0x0000000000000000000000000000000000000000',  // test network's NFTFeedingManager contract address
+    NFTLotteryManager: '0x0000000000000000000000000000000000000000',  // test network's NFTLotteryManager contract address
+    PwPointManager: '0x0000000000000000000000000000000000000000',  // test network's PwPointManager contract address
+    PaymentManager: '0x0000000000000000000000000000000000000000',  // test network's PaymentManager contract address
+    PwFoodManager: '0x0000000000000000000000000000000000000000',  // test network's PwFoodManager contract address
+    PwUSDStaking: '0x0000000000000000000000000000000000000000',  // test network's PwUSDStaking contract address
+    NFTMarketplace: '0x0000000000000000000000000000000000000000',  // test network's NFTMarketplace contract address
+    RareNFTTransactionIndexer: '0x0000000000000000000000000000000000000000',  // test network's RareNFTTransactionIndexer contract address
   },
       [window.CONTRACT_NETWORKS.MAIN]: {
     PwPoint: '0xb9705AD3e3431ef63d33c9965A4Cdaf5Cc87139E',  // main network's PwPoint contract address
@@ -73,21 +68,21 @@ window.contractAddresses = window.contractAddresses || {
 function getContractAddress(contractName) {
   // Check if current network exists in contractAddresses
   if (!window.contractAddresses[window.currentNetwork]) {
-    console.warn(`Network ${window.currentNetwork} not found, falling back to TEST network`);
-    window.currentNetwork = window.CONTRACT_NETWORKS.TEST;
+    console.warn(`Network ${window.currentNetwork} not found, falling back to MAIN network`);
+    window.currentNetwork = window.CONTRACT_NETWORKS.MAIN;
   }
   
   // Check if the contract exists in the current network
   if (!window.contractAddresses[window.currentNetwork][contractName]) {
-    console.warn(`Contract ${contractName} not found in network ${window.currentNetwork}, checking TEST network`);
+    console.warn(`Contract ${contractName} not found in network ${window.currentNetwork}, checking MAIN network`);
     
-    // Try to use TEST network as fallback
-    if (window.contractAddresses[window.CONTRACT_NETWORKS.TEST] && 
-        window.contractAddresses[window.CONTRACT_NETWORKS.TEST][contractName]) {
-      return window.contractAddresses[window.CONTRACT_NETWORKS.TEST][contractName];
+    // Try to use MAIN network as fallback
+    if (window.contractAddresses[window.CONTRACT_NETWORKS.MAIN] && 
+        window.contractAddresses[window.CONTRACT_NETWORKS.MAIN][contractName]) {
+      return window.contractAddresses[window.CONTRACT_NETWORKS.MAIN][contractName];
     }
     
-    // If not in TEST, try LOCAL
+    // If not in MAIN, try LOCAL
     if (window.contractAddresses[window.CONTRACT_NETWORKS.LOCAL] && 
         window.contractAddresses[window.CONTRACT_NETWORKS.LOCAL][contractName]) {
       return window.contractAddresses[window.CONTRACT_NETWORKS.LOCAL][contractName];
