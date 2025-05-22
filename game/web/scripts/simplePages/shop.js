@@ -1047,7 +1047,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!window.ERC20TokenAddresses) {
             window.ERC20TokenAddresses = {};
         }
-        window.ERC20TokenAddresses.USDT = '0x4e79347Ea521Af7E3D948C63E22711fd24472158';
+        window.ERC20TokenAddresses.USDT = '0x55d398326f99059ff775485246999027b3197955';
         debug.log('Set default USDT address:', window.ERC20TokenAddresses.USDT);
         
         // Check if there is a global SUPPORTED_PAYMENT_TOKENS configuration
@@ -1122,7 +1122,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // Add default hardcoded USDT address (if not found in SUPPORTED_PAYMENT_TOKENS)
             if (!window.ERC20TokenAddresses.USDT) {
-                window.ERC20TokenAddresses.USDT = window.ERC20TokenAddresses.USDT || '0x4e79347Ea521Af7E3D948C63E22711fd24472158';
+                window.ERC20TokenAddresses.USDT = window.ERC20TokenAddresses.USDT || '0x55d398326f99059ff775485246999027b3197955';
                 debug.log('Using default USDT address:', window.ERC20TokenAddresses.USDT);
             }
             
@@ -1132,9 +1132,9 @@ document.addEventListener('DOMContentLoaded', () => {
             
                 // Set default token addresses
             window.ERC20TokenAddresses = {
-                USDT: '0x4e79347Ea521Af7E3D948C63E22711fd24472158',  
-                USDC: '0x4e79347Ea521Af7E3D948C63E22711fd24472158',  
-                DAI: '0x4e79347Ea521Af7E3D948C63E22711fd24472158',   
+                USDT: '0x55d398326f99059ff775485246999027b3197955',  
+                USDC: '0x55d398326f99059ff775485246999027b3197955',  
+                DAI: '0x55d398326f99059ff775485246999027b3197955',   
             };
             
         }
@@ -1860,7 +1860,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                     else {
                         debug.log("Using default USDT address");
-                        payToken = '0x4e79347Ea521Af7E3D948C63E22711fd24472158'; 
+                        payToken = '0x55d398326f99059ff775485246999027b3197955'; 
                         
                         // Ensure the USDT ERC20 contract is initialized
                         if (!tokenContracts.USDT && typeof window.initERC20Contract === 'function') {
@@ -2436,7 +2436,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Finally use the fixed USDT address as a backup option
                     else {
                         debug.log("Using the fixed USDT address as a backup option");
-                        payToken = '0x4e79347Ea521Af7E3D948C63E22711fd24472158'; // Default USDT address
+                        payToken = '0x55d398326f99059ff775485246999027b3197955'; // Default USDT address
                         
                         // Ensure the USDT ERC20 contract is initialized
                         if (!tokenContracts.USDT && typeof window.initERC20Contract === 'function') {
