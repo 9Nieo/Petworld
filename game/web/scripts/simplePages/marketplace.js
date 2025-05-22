@@ -1094,7 +1094,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // If ETH payment, no approval needed, directly buy
             if (!nft.paymentToken || nft.paymentToken === '0x0000000000000000000000000000000000000000') {
-                console.log('Using ETH to buy NFT');
+                console.log('Using USDC to buy NFT');
                 
                 // Get price and fee
                 const price = nft.price;
@@ -1891,11 +1891,74 @@ document.addEventListener('DOMContentLoaded', () => {
             const nftData = await fetchNFTData(tokenId, listing.seller);
             
             // Get payment token info
-            let paymentTokenInfo = { symbol: 'ETH' };
-            if (window.SupportedMarketTokens && listing.paymentToken) {
-                const tokenInfo = window.SupportedMarketTokens.getMarketTokenByAddress(listing.paymentToken);
-                if (tokenInfo) {
-                    paymentTokenInfo = tokenInfo;
+            let paymentTokenInfo = { symbol: '' };
+            
+            if (listing.paymentToken && listing.paymentToken !== '0x0000000000000000000000000000000000000000') {
+                // First try to get from SupportedMarketTokens
+                if (window.SupportedMarketTokens) {
+                    const tokenInfo = window.SupportedMarketTokens.getMarketTokenByAddress(listing.paymentToken);
+                    if (tokenInfo && tokenInfo.symbol) {
+                        paymentTokenInfo = tokenInfo;
+                    }
+                }
+                
+                // If not found in supported tokens, try to get directly from contract
+                if (!paymentTokenInfo.symbol && web3) {
+                    try {
+                        // Create token contract instance
+                        const abi = window.GENERIC_ERC20_ABI || [
+                            {"constant":true,"inputs":[],"name":"symbol","outputs":[{"name":"","type":"string"}],"payable":false,"stateMutability":"view","type":"function"}
+                        ];
+                        const tokenContract = new web3.eth.Contract(abi, listing.paymentToken);
+                        
+                        // Get symbol - this is async but we need the symbol now
+                        // We'll fetch it asynchronously and update later if possible
+                        tokenContract.methods.symbol().call().then(symbol => {
+                            console.log(`Got token symbol for ${listing.paymentToken}: ${symbol}`);
+                            
+                            // Add to supported tokens for future use
+                            if (window.SupportedMarketTokens && typeof window.SupportedMarketTokens.addToken === 'function') {
+                                window.SupportedMarketTokens.addToken({
+                                    address: listing.paymentToken,
+                                    symbol: symbol,
+                                    name: symbol
+                                });
+                            }
+                        }).catch(error => {
+                            console.warn(`Failed to get token symbol for ${listing.paymentToken}:`, error);
+                        });
+                        
+                        // Use TOKEN as temporary placeholder
+                        if (!paymentTokenInfo.symbol) {
+                            paymentTokenInfo.symbol = 'TOKEN';
+                        }
+                    } catch (error) {
+                        console.warn(`Failed to create contract for ${listing.paymentToken}:`, error);
+                    }
+                }
+                
+                // Still no symbol, use TOKEN as fallback
+                if (!paymentTokenInfo.symbol) {
+                    paymentTokenInfo.symbol = 'TOKEN';
+                }
+            } else {
+                // Zero address or null payment token (native token)
+                // Check if there's a default token
+                if (window.SupportedMarketTokens && typeof window.SupportedMarketTokens.getDefaultToken === 'function') {
+                    const defaultToken = window.SupportedMarketTokens.getDefaultToken();
+                    if (defaultToken && defaultToken.symbol) {
+                        paymentTokenInfo.symbol = defaultToken.symbol;
+                    }
+                }
+                
+                // Check if there's a network config with native currency
+                if (!paymentTokenInfo.symbol && window.networkConfig && window.networkConfig.nativeCurrency) {
+                    paymentTokenInfo.symbol = window.networkConfig.nativeCurrency.symbol;
+                }
+                
+                // Final fallback
+                if (!paymentTokenInfo.symbol) {
+                    paymentTokenInfo.symbol = 'USD';
                 }
             }
             

@@ -460,7 +460,8 @@
         seller: "Vendedor",
         buyer: "Comprador",
         price: "Precio",
-        transactionTime: "Tiempo de transacción"
+        transactionTime: "Tiempo de transacción",
+        paymentTokenAddress: "Dirección del token de pago",
       },
       
       // public keys

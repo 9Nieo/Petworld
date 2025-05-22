@@ -467,7 +467,8 @@
       seller: "賣家",
       buyer: "買家",
       price: "價格",
-      transactionTime: "交易時間"
+      transactionTime: "交易時間",
+      paymentTokenAddress: "支付代幣地址",
     },
     
     // public keys

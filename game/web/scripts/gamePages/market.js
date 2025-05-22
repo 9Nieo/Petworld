@@ -1484,8 +1484,13 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('nftTokenId').textContent = nft.tokenId;
         document.getElementById('nftQuality').textContent = getQualityName(nft.quality);
         document.getElementById('nftSeller').textContent = formatAddress(nft.seller);
-        document.getElementById('nftPrice').textContent = formatPrice(nft.price);
-        document.getElementById('nftPaymentToken').textContent = nft.paymentTokenSymbol || getTokenName(nft.paymentToken);
+        
+        // Format price with token symbol
+        const tokenSymbol = nft.paymentTokenSymbol || getTokenName(nft.paymentToken);
+        document.getElementById('nftPrice').textContent = `${formatPrice(nft.price)} ${tokenSymbol}`;
+        
+        // Format payment token address to show symbol and address
+        document.getElementById('nftPaymentTokenAddress').textContent = `${tokenSymbol} (${nft.paymentToken || '0x0000000000000000000000000000000000000000'})`;
         
         // Set level and accumulated food values - use existing HTML elements
         const nftLevelElem = document.getElementById('nftLevel');
@@ -1734,15 +1739,88 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     /**
-     * Get token name
+     * Get token name/symbol
      */
     function getTokenName(tokenAddress) {
-        if (!tokenAddress || !supportedTokens) return tokenAddress;
+        if (!tokenAddress) return 'USD';
         
-        for (const token of Object.values(supportedTokens)) {
-            if (token.address.toLowerCase() === tokenAddress.toLowerCase()) {
+        // For zero address, check default token
+        if (tokenAddress === '0x0000000000000000000000000000000000000000') {
+            // Check if there's a default token in SupportedMarketTokens
+            if (window.SupportedMarketTokens && typeof window.SupportedMarketTokens.getDefaultToken === 'function') {
+                const defaultToken = window.SupportedMarketTokens.getDefaultToken();
+                if (defaultToken && defaultToken.symbol) {
+                    return defaultToken.symbol;
+                }
+            }
+            
+            // Check if there's a network native token defined
+            if (window.networkConfig && window.networkConfig.nativeCurrency && window.networkConfig.nativeCurrency.symbol) {
+                return window.networkConfig.nativeCurrency.symbol;
+            }
+            
+            return 'USD'; // Last fallback
+        }
+        
+        // Check in supportedTokens object (cached tokens)
+        if (supportedTokens) {
+            for (const token of Object.values(supportedTokens)) {
+                if (token.address && token.address.toLowerCase() === tokenAddress.toLowerCase() && token.symbol) {
+                    return token.symbol;
+                }
+            }
+        }
+        
+        // Check in SupportedMarketTokens
+        if (window.SupportedMarketTokens) {
+            const token = window.SupportedMarketTokens.getMarketTokenByAddress(tokenAddress);
+            if (token && token.symbol) {
                 return token.symbol;
             }
+        }
+        
+        // Try to get the symbol directly from the token contract
+        if (window.web3) {
+            try {
+                const tokenContract = new window.web3.eth.Contract(
+                    window.GENERIC_ERC20_ABI || [
+                        {"constant":true,"inputs":[],"name":"symbol","outputs":[{"name":"","type":"string"}],"payable":false,"stateMutability":"view","type":"function"}
+                    ],
+                    tokenAddress
+                );
+                
+                // This is async, so return token address for now, but update when available
+                tokenContract.methods.symbol().call().then(symbol => {
+                    console.log(`Got token symbol for ${tokenAddress}: ${symbol}`);
+                    
+                    // Add to supported tokens for future use
+                    if (window.SupportedMarketTokens && typeof window.SupportedMarketTokens.addToken === 'function') {
+                        window.SupportedMarketTokens.addToken({
+                            address: tokenAddress,
+                            symbol: symbol
+                        });
+                    }
+                    
+                    // Also add to local cache
+                    if (supportedTokens) {
+                        supportedTokens[tokenAddress] = { address: tokenAddress, symbol: symbol };
+                    }
+                    
+                    // Update all UI elements with this token address
+                    document.querySelectorAll(`[data-token-address="${tokenAddress}"]`).forEach(elem => {
+                        elem.textContent = symbol;
+                    });
+                }).catch(err => {
+                    console.warn(`Failed to get symbol for token ${tokenAddress}:`, err);
+                });
+            } catch (error) {
+                console.warn(`Failed to create contract for ${tokenAddress}:`, error);
+            }
+        }
+        
+        // As fallback, return shortened address
+        if (tokenAddress.length > 8) {
+            return `${tokenAddress.substring(0, 6)}...`;
         }
         
         return tokenAddress;
@@ -2096,7 +2174,7 @@ document.addEventListener('DOMContentLoaded', () => {
             <div class="item-pet-level">等级: ${item.level || '1'}</div>
             <div class="item-price">
                 <span class="price-value">${formatPrice(item.price)}</span>
-                <span class="price-currency">${getTokenName(item.paymentToken)}</span>
+                <span class="price-currency" data-token-address="${item.paymentToken || ''}">${getTokenName(item.paymentToken)}</span>
             </div>
         </div>
         <button class="item-btn buy-btn" data-i18n="button.buy" style="color: white; border-radius: 0;">购买</button>

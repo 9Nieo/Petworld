@@ -474,7 +474,8 @@
       seller: "Seller",
       buyer: "Buyer",
       price: "Price",
-      transactionTime: "Transaction Time"
+      transactionTime: "Transaction Time",
+      paymentTokenAddress: "Payment Token"
     },
     
     // Common keys

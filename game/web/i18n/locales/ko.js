@@ -468,7 +468,8 @@
       seller: "판매자",
       buyer: "구매자",
       price: "가격",
-      transactionTime: "거래 시간"
+      transactionTime: "거래 시간",
+      paymentTokenAddress: "결제 토큰 주소",
     },
     
     // Common keys

@@ -472,7 +472,8 @@
         seller: "売却者",
         buyer: "購入者",
         price: "価格",
-        transactionTime: "取引時間"
+        transactionTime: "取引時間",
+        paymentTokenAddress: "支払いトークンアドレス",
       },
       
       // Common keys

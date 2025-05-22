@@ -322,7 +322,7 @@
         const qualityElem = document.getElementById('nftQuality');
         const sellerElem = document.getElementById('nftSeller');
         const priceElem = document.getElementById('nftPrice');
-        const paymentTokenElem = document.getElementById('nftPaymentToken');
+        const paymentTokenAddressElem = document.getElementById('nftPaymentTokenAddress');
         const listTimeElem = document.getElementById('nftListTime');
         const buyBtn = modal.querySelector('.buy-btn');
         const cancelBtn = modal.querySelector('.cancel-btn');
@@ -362,19 +362,14 @@
         }
         
         // Show price and token information
-        const tokenSymbol = nft.paymentTokenSymbol || 'ETH';
+        const tokenSymbol = nft.paymentTokenSymbol || 'USD';
         const formattedPrice = formatTokenPrice(nft.price, nft.paymentToken, tokenSymbol);
         priceElem.textContent = `${formattedPrice} ${tokenSymbol}`;
         
-        // Get token name
-        let tokenName = tokenSymbol;
-        if (window.SupportedMarketTokens && nft.paymentToken) {
-            const tokenInfo = window.SupportedMarketTokens.getMarketTokenByAddress(nft.paymentToken);
-            if (tokenInfo) {
-                tokenName = tokenInfo.name;
-            }
+        // Format payment token address to show symbol and address
+        if (paymentTokenAddressElem) {
+            paymentTokenAddressElem.textContent = `${tokenSymbol} (${nft.paymentToken || '0x0000000000000000000000000000000000000000'})`;
         }
-        paymentTokenElem.textContent = tokenName;
         
         // Show listing time (if available)
         if (listTimeElem) {

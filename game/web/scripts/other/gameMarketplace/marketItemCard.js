@@ -292,12 +292,51 @@ window.MarketItemCard = (function() {
      * @returns {string} Token symbol
      */
     function getTokenSymbol(tokenAddress) {
-        if (!tokenAddress) return 'ETH';
+        if (!tokenAddress || tokenAddress === '0x0000000000000000000000000000000000000000') {
+            // Check if there's a default token in SupportedMarketTokens
+            if (window.SupportedMarketTokens && typeof window.SupportedMarketTokens.getDefaultToken === 'function') {
+                const defaultToken = window.SupportedMarketTokens.getDefaultToken();
+                if (defaultToken && defaultToken.symbol) {
+                    return defaultToken.symbol;
+                }
+            }
+            // Check if there's a network native token defined
+            if (window.networkConfig && window.networkConfig.nativeCurrency && window.networkConfig.nativeCurrency.symbol) {
+                return window.networkConfig.nativeCurrency.symbol;
+            }
+            return 'USD'; // Last fallback
+        }
         
         if (window.SupportedMarketTokens) {
             const token = window.SupportedMarketTokens.getMarketTokenByAddress(tokenAddress);
-            if (token) {
+            if (token && token.symbol) {
                 return token.symbol;
+            }
+        }
+        
+        // Try to get the symbol directly from the token contract if web3 is available
+        if (window.web3 && tokenAddress !== '0x0000000000000000000000000000000000000000') {
+            try {
+                const tokenContract = new window.web3.eth.Contract(
+                    window.GENERIC_ERC20_ABI || [
+                        {"constant":true,"inputs":[],"name":"symbol","outputs":[{"name":"","type":"string"}],"payable":false,"stateMutability":"view","type":"function"}
+                    ],
+                    tokenAddress
+                );
+                
+                // Note: This is async but we can't make this function async without refactoring
+                // So we'll return TOKEN and let a future token update fix it
+                tokenContract.methods.symbol().call().then(symbol => {
+                    // Store in cache for future use
+                    if (window.SupportedMarketTokens && typeof window.SupportedMarketTokens.addToken === 'function') {
+                        window.SupportedMarketTokens.addToken({
+                            address: tokenAddress,
+                            symbol: symbol
+                        });
+                    }
+                });
+            } catch (error) {
+                console.warn('Failed to get token symbol from contract:', error);
             }
         }
         
