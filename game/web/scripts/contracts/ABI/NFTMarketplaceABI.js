@@ -191,30 +191,6 @@ window.NFTMarketplaceABI = [
   {
     "type": "event",
     "anonymous": false,
-    "name": "MarketplacePaused",
-    "inputs": [
-      {
-        "type": "address",
-        "name": "account",
-        "indexed": false
-      }
-    ]
-  },
-  {
-    "type": "event",
-    "anonymous": false,
-    "name": "MarketplaceUnpaused",
-    "inputs": [
-      {
-        "type": "address",
-        "name": "account",
-        "indexed": false
-      }
-    ]
-  },
-  {
-    "type": "event",
-    "anonymous": false,
     "name": "NFTReturnedToSeller",
     "inputs": [
       {
@@ -729,14 +705,6 @@ window.NFTMarketplaceABI = [
   },
   {
     "type": "function",
-    "name": "renounceContractOwnership",
-    "constant": false,
-    "payable": false,
-    "inputs": [],
-    "outputs": []
-  },
-  {
-    "type": "function",
     "name": "renounceOwnership",
     "constant": false,
     "payable": false,
@@ -834,19 +802,6 @@ window.NFTMarketplaceABI = [
         "name": ""
       }
     ]
-  },
-  {
-    "type": "function",
-    "name": "transferContractOwnership",
-    "constant": false,
-    "payable": false,
-    "inputs": [
-      {
-        "type": "address",
-        "name": "newOwner"
-      }
-    ],
-    "outputs": []
   },
   {
     "type": "function",

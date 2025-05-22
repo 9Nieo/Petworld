@@ -10,14 +10,14 @@ window.SupportedStableCoins = (function() {
             name: 'USDT',
             decimals: 18,
             logoUrl: '../../resources/images/icons/usdt.png',
-            address: '0xD9f52afe5EA8d84309888Dcf05a28bbF25c4630E'
+            address: '0x55d398326f99059ff775485246999027b3197955'
         },
         {
             symbol: 'USDC',
             name: 'USDC',
             decimals: 18,
             logoUrl: '../../resources/images/icons/usdc.png',
-            address: '0x0d1dd796C390b7980F0528ce697a0e545fC3C647'
+            address: '0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d'
         }
     ];
     
@@ -27,14 +27,14 @@ window.SupportedStableCoins = (function() {
             name: 'USDT',
             decimals: 18,
             logoUrl: '../../resources/images/icons/usdt.png',
-            address: '0xD9f52afe5EA8d84309888Dcf05a28bbF25c4630E'
+            address: '0x55d398326f99059ff775485246999027b3197955'
         },
         {
             symbol: 'USDC',
             name: 'USDC',
             decimals: 18,
             logoUrl: '../../resources/images/icons/usdc.png',
-            address: '0x0d1dd796C390b7980F0528ce697a0e545fC3C647'
+            address: '0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d'
         }
     ];
 

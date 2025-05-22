@@ -484,14 +484,6 @@ window.RareNFTTransactionIndexerABI = [
   },
   {
     "type": "function",
-    "name": "renounceContractOwnership",
-    "constant": false,
-    "payable": false,
-    "inputs": [],
-    "outputs": []
-  },
-  {
-    "type": "function",
     "name": "renounceOwnership",
     "constant": false,
     "payable": false,
@@ -561,19 +553,6 @@ window.RareNFTTransactionIndexerABI = [
         "name": "accumulatedFood"
       }
     ]
-  },
-  {
-    "type": "function",
-    "name": "transferContractOwnership",
-    "constant": false,
-    "payable": false,
-    "inputs": [
-      {
-        "type": "address",
-        "name": "newOwner"
-      }
-    ],
-    "outputs": []
   },
   {
     "type": "function",

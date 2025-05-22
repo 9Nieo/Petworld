@@ -570,14 +570,6 @@ window.PaymentManagerABI = [
   },
   {
     "type": "function",
-    "name": "renounceContractOwnership",
-    "constant": false,
-    "payable": false,
-    "inputs": [],
-    "outputs": []
-  },
-  {
-    "type": "function",
     "name": "renounceOwnership",
     "constant": false,
     "payable": false,
@@ -623,19 +615,6 @@ window.PaymentManagerABI = [
       {
         "type": "address",
         "name": "_pwFoodManager"
-      }
-    ],
-    "outputs": []
-  },
-  {
-    "type": "function",
-    "name": "transferContractOwnership",
-    "constant": false,
-    "payable": false,
-    "inputs": [
-      {
-        "type": "address",
-        "name": "newOwner"
       }
     ],
     "outputs": []

@@ -513,14 +513,6 @@ window.PwUSDStakingABI = [
   },
   {
     "type": "function",
-    "name": "renounceContractOwnership",
-    "constant": false,
-    "payable": false,
-    "inputs": [],
-    "outputs": []
-  },
-  {
-    "type": "function",
     "name": "renounceOwnership",
     "constant": false,
     "payable": false,

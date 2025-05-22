@@ -422,20 +422,6 @@ window.NFTLotteryManagerABI = [
   },
   {
     "type": "function",
-    "name": "getContractBalance",
-    "constant": true,
-    "stateMutability": "view",
-    "payable": false,
-    "inputs": [],
-    "outputs": [
-      {
-        "type": "uint256",
-        "name": ""
-      }
-    ]
-  },
-  {
-    "type": "function",
     "name": "getLinkBalance",
     "constant": true,
     "stateMutability": "view",

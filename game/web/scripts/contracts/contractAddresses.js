@@ -18,7 +18,7 @@ window.CONTRACT_NETWORKS = window.CONTRACT_NETWORKS || {
 };
 
 // Current network environment
-window.currentNetwork = window.CONTRACT_NETWORKS.TEST;
+window.currentNetwork = window.CONTRACT_NETWORKS.MAIN;
 
 // Contract address configuration for different network environments
 window.contractAddresses = window.contractAddresses || {
@@ -44,27 +44,22 @@ window.contractAddresses = window.contractAddresses || {
       PetWorldStaking: '0x0000000000000000000000000000000000000000',  
       PwReverseBurner: '0x0000000000000000000000000000000000000000',  
   },
-    [window.CONTRACT_NETWORKS.MAIN]: {
-        PwPoint: '0x0000000000000000000000000000000000000000',  
-        PwFood: '0x0000000000000000000000000000000000000000',  
-        PwBounty: '0x0000000000000000000000000000000000000000',  
-        PwReverse: '0x0000000000000000000000000000000000000000',  
-        PwNFT: '0x0000000000000000000000000000000000000000',  
-        PwUSD: '0x0000000000000000000000000000000000000000',  
-        NFTManager: '0x0000000000000000000000000000000000000000',  
-        NFTFeedingManager: '0x0000000000000000000000000000000000000000',  
-        NFTLotteryManager: '0x0000000000000000000000000000000000000000',  
-        PwPointManager: '0x0000000000000000000000000000000000000000',  
-        PaymentManager: '0x0000000000000000000000000000000000000000',  
-        PwFoodManager: '0x0000000000000000000000000000000000000000',  
-        PwUSDStaking: '0x0000000000000000000000000000000000000000',  
-        NFTMarketplace: '0x0000000000000000000000000000000000000000',  
-        RareNFTTransactionIndexer: '0x0000000000000000000000000000000000000000',  
-    PetWorld: '0x0000000000000000000000000000000000000000',  
-    PetWorldManager: '0x0000000000000000000000000000000000000000',  
-    PwPointBurner: '0x0000000000000000000000000000000000000000',  
-    PetWorldStaking: '0x0000000000000000000000000000000000000000',  
-    PwReverseBurner: '0x0000000000000000000000000000000000000000',  
+      [window.CONTRACT_NETWORKS.MAIN]: {
+    PwPoint: '0xb9705AD3e3431ef63d33c9965A4Cdaf5Cc87139E',  // main network's PwPoint contract address
+    PwFood: '0xB02716d358451eE61Bf304488dE1fd921c388841',  // main network's PwFood contract address
+    PwBounty: '0x44f5CC77FA3c0302AE8A7Cfe833c4b30C82af9E2',  // main network's PwBounty contract address
+    PwReverse: '0xaFCC6C3A807eFe46Cf2471b6ddB932196ed42C33',  // main network's PwReverse contract address
+    PwNFT: '0x7C109a4DEd3fb919921349e42784673B115d1894',  // main network's PwNFT contract address
+    PwUSD: '0xEB2a881aeBb4e95DA2F355c91C23435C48A84d4C',  // main network's PwUSD contract address
+    NFTManager: '0x38C99E4338Badf6dC997927b534eF19A38EcFA65',  // main network's NFTManager contract address
+    NFTFeedingManager: '0xF0A713E6Cf32A0392fd8020e0Eae6Cef16e72AF6',  // main network's NFTFeedingManager contract address
+    NFTLotteryManager: '0x753f2Abe4091022fb7B43921163EEEE88F5Ddd82',  // main network's NFTLotteryManager contract address
+    PwPointManager: '0x9b56dd201bC0656fFa64Ee385Cce1EbF65B5077B',  // main network's PwPointManager contract address
+    PaymentManager: '0x7b713f315818c2eEF6490b7205c2407c21e88fd9',  // main network's PaymentManager contract address
+    PwFoodManager: '0xeBCF08FbAaEFB3867d468BfBaDD156002eA47973',  // main network's PwFoodManager contract address
+    PwUSDStaking: '0x8ad99d641B27056dC2862936e59395192f3E7EFf',  // main network's PwUSDStaking contract address
+    NFTMarketplace: '0x1DAaD60260C2672c4ab84F887C12481d9c3aA6b5',  // main network's NFTMarketplace contract address
+    RareNFTTransactionIndexer: '0x69a306dFD5Cb96b3200177040Ea142A8B803D604',  // main network's RareNFTTransactionIndexer contract address
   },
     [window.CONTRACT_NETWORKS.LOCAL]: {
   },
