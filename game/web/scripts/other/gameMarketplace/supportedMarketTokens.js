@@ -10,7 +10,7 @@ window.SupportedMarketTokens = (function() {
             name: 'USDT',
             decimals: 18,
             logoUrl: '../../resources/images/icons/usdt.png',
-            address: '0xD9f52afe5EA8d84309888Dcf05a28bbF25c4630E'
+            address: '0x55d398326f99059ff775485246999027b3197955'
         },
         {
             symbol: 'USDC',

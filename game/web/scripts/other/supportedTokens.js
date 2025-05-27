@@ -2,7 +2,7 @@ const SUPPORTED_PAYMENT_TOKENS = [
     {
         id: 'USDT',
         name: 'USDT',
-        contractAddress: '0xD9f52afe5EA8d84309888Dcf05a28bbF25c4630E',
+        contractAddress: '0x55d398326f99059ff775485246999027b3197955',
         icon: '../../resources/images/icons/usdt.png',
         decimals: 18,
         isDefault: true
