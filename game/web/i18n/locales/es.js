@@ -111,6 +111,40 @@
         okx: "OKX Wallet",
         connectUsingOKX: "Usar la extensión de navegador OKX para conectar",
         
+
+         // Wallet choice modal
+      choiceTitle: "Elegir método de conexión",
+      choiceDescription: "Para acceder a todas las funciones, por favor, conecte su billetera o use una clave privada",
+      connectWalletDesc: "Conectar MetaMask, OKX o otras billeteras soportadas",
+      usePrivateKey: "Usar clave privada (Recomendado)",
+      usePrivateKeyDesc: "Almacene y use su clave privada de forma segura",
+      skipForNow: "Omitir por ahora",
+      
+      // Private key setup
+      setupPrivateKey: "Configurar billetera de clave privada",
+      securityWarning: "Su clave privada se encriptará y se almacenará localmente. ¡Nunca comparta con nadie!",
+      masterPassword: "Contraseña maestra",
+      masterPasswordDesc: "Esta contraseña protegerá su clave privada almacenada",
+      walletName: "Nombre de la billetera",
+      walletNameDesc: "Un nombre amigable para identificar esta billetera",
+      privateKey: "Clave privada",
+      privateKeyDesc: "64 caracteres hexadecimales (con o sin prefijo 0x)",
+      setup: "Configurar billetera",
+      cancel: "Cancelar",
+      
+      // Messages
+      enterMasterPassword: "Por favor, ingrese una contraseña maestra",
+      passwordTooShort: "La contraseña debe tener al menos 6 caracteres",
+      enterWalletName: "Por favor, ingrese un nombre de billetera",
+      enterPrivateKey: "Por favor, ingrese su clave privada",
+      invalidPrivateKey: "Formato de clave privada inválido. Debe ser de 64 caracteres hexadecimales.",
+      setting: "Configurando...",
+      setupSuccess: "Configuración de billetera exitosa!",
+      setupFailed: "Configuración de billetera fallida",
+      setupError: "Error al configurar la billetera",
+      authFailed: "Autenticación fallida",
+      recommendedReason: "Recomendado: Operaciones sin firmar frecuentemente",
+
         // wallet types
         metamask: {
           name: "MetaMask",
@@ -336,7 +370,8 @@
           pendingRewards: "Recompensas pendientes",
           actions: "Acciones",
           noHistory: "No hay historial stake",
-          cycle: "Ciclo",
+          cycle: "Ciclo {cycle}",
+          notClaimed: "No reclamado",
         },
         notification: {
           noRewards: "No hay recompensas disponibles",
@@ -365,6 +400,7 @@
           approving: "Aprobando...",
           approveSuccess: "Aprobación exitosa",
           approveFailed: "Aprobación fallida",
+          claimConfirmation: "Confirmación de reclamación",
         }
       },
       // pets related
@@ -576,6 +612,8 @@
           purchaseFailed: "Compra fallida",
           purchaseEggsSuccess: "¡Felicitaciones! ¡Compraste {count} {eggName} con éxito!",
           purchaseFoodSuccess: "¡Felicitaciones! ¡Compraste {quantity} comida para mascotas con éxito!",
+        purchaseFoodSuccessModal: "¡Compraste {quantity} comida para mascotas con éxito!",
+        purchaseFoodTip: "La comida para mascotas se ha añadido a tu inventario. ¡Úsala para alimentar a tus mascotas y mantenerlas felices!",
           purchaseNoLotteryResult: "¡Compraste huevos con éxito, por favor, verifica tu colección para obtener nuevas mascotas.",
           purchaseNoLotteryDisplay: "¡Compraste huevos con éxito, pero no se puede mostrar el resultado de la lotería",
           
@@ -585,6 +623,8 @@
           claimingEggs: "Reclamando mascotas no reclamadas...",
           claimNFTSuccess: "¡Reclamaste la mascota gratis con éxito! Por favor, verifica tu nueva mascota en el juego",
           claimFoodSuccess: "¡Reclamaste la comida para mascotas gratis con éxito! Obtén {count} comida para mascotas",
+        claimFreeFoodSuccessModal: "¡Reclamaste {count} comida para mascotas gratis con éxito!",
+        claimFreeFoodTip: "¡Vuelve mañana para reclamar más comida para mascotas gratis. Alimenta a tus mascotas regularmente para mantenerlas saludables!",
           claimEggsSuccess: "¡Reclamaste {count} mascotas con éxito! Por favor, verifícalas en el juego",
           
           // Validation errors

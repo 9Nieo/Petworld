@@ -1,4 +1,3 @@
-
 // WhiteLionManager class to handle all white lion-related functionality
 class WhiteLionManager {
     constructor() {
@@ -313,7 +312,7 @@ class WhiteLionManager {
     }
     
 
-    setupPeriodicCatCheck() {
+    setupPeriodicWhiteLionCheck() {
         if (window.location.href.includes('home.html')) {
             setInterval(() => {
                 this.checkForWhiteLions(false); // Pass false to indicate not to auto-apply shadows
@@ -569,31 +568,60 @@ class WhiteLionManager {
             return;
         }
         
-        // Check element dimensions, delay processing if zero
-        if (element.offsetWidth === 0 || element.offsetHeight === 0) {
-            this.log('[WhiteLionManager] Element has zero dimensions, delaying animation:', element);
-            
-            // Use setTimeout to delay applying animation, wait for element to render
-            setTimeout(() => {
-                // Recheck dimensions
-                if (element.isConnected && element.offsetWidth > 0 && element.offsetHeight > 0) {
-                    this.log('[WhiteLionManager] Element now has dimensions, applying animation');
-                    this.doApplyWhiteLionAnimation(element);
-                } else {
-                    this.error('[WhiteLionManager] Element still has zero dimensions after delay, using default size');
-                    // set minimum size, then let PetSizeManager control
-                    element.style.width = element.style.width || '50px';
-                    element.style.height = element.style.height || '50px';
-                    // Try to apply animation
-                    this.doApplyWhiteLionAnimation(element);
+        // Use PetSizeHelper for intelligent size checking and animation application
+        if (window.PetSizeHelper) {
+            window.PetSizeHelper.applyAnimationWithSizeCheck(
+                element,
+                'white lion',
+                (el) => this.doApplyWhiteLionAnimation(el),
+                {
+                    maxWaitAttempts: 8,
+                    fallbackSize: { width: '60px', height: '60px' }
                 }
-            }, 500); // Delay 500ms
+            );
+        } else {
+            // Fallback to original logic if PetSizeHelper is not available
+            this.log('[WhiteLionManager] PetSizeHelper not available, using fallback logic');
             
-            return;
+            // Check element dimensions, delay processing if zero
+            if (element.offsetWidth === 0 || element.offsetHeight === 0) {
+                this.log('[WhiteLionManager] Element has zero dimensions, delaying animation:', element);
+                
+                // Use setTimeout to delay applying animation, wait for element to render
+                setTimeout(() => {
+                    // Recheck dimensions
+                    if (element.isConnected && element.offsetWidth > 0 && element.offsetHeight > 0) {
+                        this.log('[WhiteLionManager] Element now has dimensions, applying animation');
+                        this.doApplyWhiteLionAnimation(element);
+                    } else {
+                        this.error('[WhiteLionManager] Element still has zero dimensions after delay, applying PetSizeManager or default size');
+                        
+                        // First try to apply PetSizeManager if available
+                        if (window.PetSizeManager) {
+                            const petType = window.PetSizeManager.detectPetType(element);
+                            window.PetSizeManager.setSize(element, petType);
+                            this.log('[WhiteLionManager] Applied PetSizeManager sizing');
+                        }
+                        
+                        // Check if PetSizeManager worked
+                        if (element.offsetWidth === 0 || element.offsetHeight === 0) {
+                            // Fallback to minimum size
+                            element.style.setProperty('width', '60px', 'important');
+                            element.style.setProperty('height', '60px', 'important');
+                            this.log('[WhiteLionManager] Applied fallback size as last resort');
+                        }
+                        
+                        // Try to apply animation
+                        this.doApplyWhiteLionAnimation(element);
+                    }
+                }, 500); // Delay 500ms
+                
+                return;
+            }
+            
+            // If dimensions are normal, apply animation directly
+            this.doApplyWhiteLionAnimation(element);
         }
-        
-        // If dimensions are normal, apply animation directly
-        this.doApplyWhiteLionAnimation(element);
     }
     
     /**
@@ -838,23 +866,38 @@ class WhiteLionManager {
             this.error('[WhiteLionManager] Cannot prepare element - element is not connected to DOM');
             return false;
         }
+        // Check element dimensions using multiple methods
+        const offsetWidth = element.offsetWidth;
+        const offsetHeight = element.offsetHeight;
+        const computedStyle = window.getComputedStyle(element);
+        const cssWidth = parseFloat(computedStyle.width) || 0;
+        const cssHeight = parseFloat(computedStyle.height) || 0;
         
-        // Set a minimum size if dimensions are zero, but let PetSizeManager handle final sizing
-        if (element.offsetWidth === 0 || element.offsetHeight === 0) {
-            this.error('[WhiteLionManager] Cannot prepare element - element has zero dimensions');
-            // Set minimum size
-            element.style.width = element.style.width || '50px';
-            element.style.height = element.style.height || '50px';
-        }
+        this.log(`[White LionManager] Element dimension check: offset(${offsetWidth}x${offsetHeight}), css(${cssWidth}x${cssHeight})`);
         
-        // Apply size using PetSizeManager
+        // Use CSS dimensions if offset dimensions are zero but CSS dimensions exist
+        let effectiveWidth = offsetWidth || cssWidth;
+        let effectiveHeight = offsetHeight || cssHeight;
+        
+        // Apply size using PetSizeManager first if available
         if (window.PetSizeManager) {
             window.PetSizeManager.setSize(element, 'white lion');
-            this.log('[WhiteLionManager] Applied size using PetSizeManager');
-        } else {
-            this.error('[WhiteLionManager] PetSizeManager not available, using default sizing');
-            element.style.width = '50px';
-            element.style.height = '50px';
+            this.log('[White LionManager] Applied size using PetSizeManager');
+            
+            // Re-check dimensions after PetSizeManager
+            effectiveWidth = element.offsetWidth || parseInt(element.style.width) || 0;
+            effectiveHeight = element.offsetHeight || parseInt(element.style.height) || 0;
+        }
+        
+        if (effectiveWidth === 0 || effectiveHeight === 0) {
+            this.error('[White LionManager] Element still has zero effective dimensions after PetSizeManager, applying fallback size');
+            // Force set minimum size with important flag as last resort
+            element.style.setProperty('width', '50px', 'important');
+            element.style.setProperty('height', '50px', 'important');
+            element.style.setProperty('min-width', '50px', 'important');
+            element.style.setProperty('min-height', '50px', 'important');
+            effectiveWidth = 50;
+            effectiveHeight = 50;
         }
         
         element.style.position = element.style.position || 'relative';

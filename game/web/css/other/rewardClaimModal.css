@@ -9,7 +9,7 @@
     display: flex;
     justify-content: center;
     align-items: center;
-    z-index: 1000;
+    z-index: 9999;
     opacity: 1;
     transition: opacity 0.3s ease;
 }
@@ -28,6 +28,8 @@
     transform: scale(1);
     transition: transform 0.3s ease;
     overflow: hidden;
+    position: relative;
+    z-index: 10000;
 }
 
 .reward-claim-modal.hidden {

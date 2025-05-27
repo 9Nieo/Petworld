@@ -560,3 +560,208 @@ input:checked + .toggle-slider:before {
         gap: 5px;
     }
 } 
+
+/* Multi-key management styles */
+.stored-keys-list {
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    background-color: #f8f9fa;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.stored-key-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px;
+    border-bottom: 1px solid #dee2e6;
+    transition: background-color 0.2s;
+}
+
+.stored-key-item:last-child {
+    border-bottom: none;
+}
+
+.stored-key-item:hover {
+    background-color: #e9ecef;
+}
+
+.stored-key-item.active {
+    background-color: #d4edda;
+    border-left: 4px solid #28a745;
+}
+
+.key-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex: 1;
+}
+
+.key-name {
+    font-weight: 500;
+    color: #333;
+    font-size: 0.9rem;
+}
+
+.key-address {
+    font-family: monospace;
+    font-size: 0.8rem;
+    color: #6c757d;
+}
+
+.key-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.key-action-btn {
+    padding: 4px 8px;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 0.75rem;
+    transition: background-color 0.2s;
+}
+
+.key-action-btn.edit {
+    background-color: #007bff;
+    color: white;
+}
+
+.key-action-btn.edit:hover {
+    background-color: #0056b3;
+}
+
+.key-action-btn.delete {
+    background-color: #dc3545;
+    color: white;
+}
+
+.key-action-btn.delete:hover {
+    background-color: #c82333;
+}
+
+.key-action-btn.switch {
+    background-color: #28a745;
+    color: white;
+}
+
+.key-action-btn.switch:hover {
+    background-color: #1e7e34;
+}
+
+.key-action-btn:disabled {
+    background-color: #e9ecef;
+    color: #6c757d;
+    cursor: not-allowed;
+}
+
+.auth-section {
+    text-align: center;
+    padding: 20px;
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    border: 2px dashed #dee2e6;
+}
+
+.setup-section {
+    background-color: #e7f3ff;
+    border: 1px solid #b3d9ff;
+    border-radius: 8px;
+    padding: 20px;
+}
+
+.key-count-badge {
+    display: inline-block;
+    background-color: #007bff;
+    color: white;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    margin-left: 8px;
+}
+
+.active-key-indicator {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    background-color: #28a745;
+    border-radius: 50%;
+    margin-right: 8px;
+}
+
+.inactive-key-indicator {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    background-color: #6c757d;
+    border-radius: 50%;
+    margin-right: 8px;
+}
+
+/* Edit key name modal styles */
+.edit-key-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.edit-key-modal-content {
+    background-color: white;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    min-width: 300px;
+}
+
+.edit-key-modal h3 {
+    margin-top: 0;
+    margin-bottom: 15px;
+    color: #333;
+}
+
+.edit-key-modal input {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    margin-bottom: 15px;
+    box-sizing: border-box;
+}
+
+.edit-key-modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+.modal-btn {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9rem;
+}
+
+.modal-btn.primary {
+    background-color: #007bff;
+    color: white;
+}
+
+.modal-btn.secondary {
+    background-color: #6c757d;
+    color: white;
+}
+
+.modal-btn:hover {
+    opacity: 0.9;
+} 

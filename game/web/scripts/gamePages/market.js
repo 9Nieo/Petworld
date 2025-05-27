@@ -18,6 +18,22 @@ document.addEventListener('DOMContentLoaded', () => {
     let searchTerm = '';
     let isInitialized = false;
     
+    // WalletNetworkManager instance
+    let walletNetworkManager = null;
+    
+    // Debug object for game market
+    const debug = {
+        log: function(message, ...args) {
+            console.log('[Game Market Debug]', message, ...args);
+        },
+        error: function(message, ...args) {
+            console.error('[Game Market Debug]', message, ...args);
+        },
+        warn: function(message, ...args) {
+            console.warn('[Game Market Debug]', message, ...args);
+        }
+    };
+    
     // DOM elements
     const qualityTabs = document.querySelectorAll('.quality-tab');
     const marketItemsContainer = document.querySelector('.market-items');
@@ -50,8 +66,8 @@ document.addEventListener('DOMContentLoaded', () => {
             // bind events
             bindEvents();
             
-            // request wallet status in the beginning of initialization
-            requestWalletData();
+            // Initialize WalletNetworkManager first
+            await initializeWalletNetworkManager();
             
             // try to initialize marketplace
             try {
@@ -101,7 +117,246 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     /**
-     * request wallet data
+     * Initialize WalletNetworkManager
+     */
+    async function initializeWalletNetworkManager() {
+        debug.log('Initializing WalletNetworkManager for market page...');
+        
+        try {
+            // Wait for WalletNetworkManager to be available
+            let attempts = 0;
+            const maxAttempts = 50;
+            
+            while (!window.WalletNetworkManager && attempts < maxAttempts) {
+                debug.log(`Waiting for WalletNetworkManager... (${attempts + 1}/${maxAttempts})`);
+                await new Promise(resolve => setTimeout(resolve, 100));
+                attempts++;
+            }
+            
+            if (!window.WalletNetworkManager) {
+                throw new Error('WalletNetworkManager not available after timeout');
+            }
+            
+            // Create WalletNetworkManager instance
+            walletNetworkManager = new window.WalletNetworkManager();
+            
+            // Set up event listeners
+            setupWalletNetworkManagerEventListeners();
+            
+            // Initialize WalletNetworkManager
+            const initResult = await walletNetworkManager.init();
+            
+            debug.log('WalletNetworkManager initialization result:', initResult);
+            
+            if (initResult.success) {
+                // Update local state from manager
+                updateLocalStateFromManager(initResult);
+                
+                // Initialize contracts if wallet is connected
+                if (initResult.isConnected && initResult.walletType) {
+                    await initializeContractsWithManager();
+                }
+            } else {
+                debug.warn('WalletNetworkManager initialization failed:', initResult.error);
+                // Fall back to original wallet detection
+                await fallbackWalletDetection();
+            }
+        } catch (error) {
+            debug.error('Failed to initialize WalletNetworkManager:', error);
+            // Fall back to original wallet detection
+            await fallbackWalletDetection();
+        }
+    }
+    
+    /**
+     * Set up WalletNetworkManager event listeners
+     */
+    function setupWalletNetworkManagerEventListeners() {
+        if (!walletNetworkManager) return;
+        
+        // Listen for wallet ready events
+        walletNetworkManager.on('onWalletReady', (data) => {
+            debug.log('Wallet ready event received:', data);
+            updateLocalStateFromManager(data);
+            
+            // Initialize contracts when wallet becomes ready
+            initializeContractsWithManager().then(() => {
+                debug.log('Contracts initialized after wallet ready');
+                loadMarketplaceData(true);
+            }).catch(error => {
+                debug.error('Failed to initialize contracts after wallet ready:', error);
+            });
+        });
+        
+        // Listen for network change events
+        walletNetworkManager.on('onNetworkChanged', (data) => {
+            debug.log('Network changed event received:', data);
+            // Reinitialize contracts for new network
+            initializeContractsWithManager().then(() => {
+                debug.log('Contracts reinitialized after network change');
+                loadMarketplaceData(true);
+            }).catch(error => {
+                debug.error('Failed to reinitialize contracts after network change:', error);
+            });
+        });
+        
+        // Listen for connection status changes
+        walletNetworkManager.on('onConnectionStatusChanged', (data) => {
+            debug.log('Connection status changed:', data);
+            updateLocalStateFromManager(data);
+        });
+    }
+    
+    /**
+     * Update local state from WalletNetworkManager
+     */
+    function updateLocalStateFromManager(managerData) {
+        const wasConnected = !!currentAccount;
+        const oldAddress = currentAccount;
+        
+        // Update local state
+        const isConnected = managerData.isConnected || false;
+        currentAccount = walletNetworkManager.getCurrentAddress();
+        
+        // Get Web3 instance from manager
+        const managerWeb3 = walletNetworkManager.getWeb3();
+        if (managerWeb3) {
+            web3 = managerWeb3;
+            window.web3 = managerWeb3;
+            window.gameWeb3 = managerWeb3;
+            debug.log('Web3 instance updated from WalletNetworkManager');
+        } else {
+            // Fallback: try to get Web3 from private key wallet
+            if (window.SecureWalletManager && window.SecureWalletManager.isWalletReady()) {
+                const privateKeyWeb3 = window.SecureWalletManager.getWeb3();
+                if (privateKeyWeb3) {
+                    web3 = privateKeyWeb3;
+                    window.web3 = privateKeyWeb3;
+                    window.gameWeb3 = privateKeyWeb3;
+                    debug.log('Web3 instance updated from private key wallet (fallback)');
+                }
+            }
+        }
+        
+        debug.log('Local state updated from WalletNetworkManager:', {
+            isConnected: isConnected,
+            address: currentAccount,
+            walletType: managerData.walletType,
+            hasWeb3: !!web3
+        });
+        
+        // Update UI
+        updateWalletUI(isConnected, currentAccount);
+        
+        // If wallet status changed, refresh marketplace data
+        if (wasConnected !== isConnected || oldAddress !== currentAccount) {
+            setTimeout(() => {
+                loadMarketplaceData(true);
+            }, 500);
+        }
+    }
+    
+    /**
+     * Initialize contracts using WalletNetworkManager
+     */
+    async function initializeContractsWithManager() {
+        try {
+            debug.log('Initializing contracts with WalletNetworkManager...');
+            
+            if (!walletNetworkManager || !walletNetworkManager.isReadyForContracts()) {
+                throw new Error('WalletNetworkManager not ready for contract operations');
+            }
+            
+            // Initialize main contracts through WalletNetworkManager
+            const contractResult = await walletNetworkManager.initializeContracts({
+                contracts: ['NFTMarketplace', 'PwNFT', 'NFTManager']
+            });
+            
+            debug.log('WalletNetworkManager contract initialization result:', contractResult);
+            
+            if (contractResult.success) {
+                // Get contract instances from global variables set by WalletNetworkManager
+                if (window.nftMarketplaceContract) {
+                    nftMarketplaceContract = window.nftMarketplaceContract;
+                }
+                if (window.pwNFTContract) {
+                    pwNFTContract = window.pwNFTContract;
+                }
+                if (window.nftManagerContract) {
+                    nftManagerContract = window.nftManagerContract;
+                }
+                
+                debug.log('Contracts initialized successfully via WalletNetworkManager');
+                
+                // Verify contracts are working by testing a simple call
+                if (nftMarketplaceContract) {
+                    try {
+                        // Test contract connectivity with a more robust approach
+                        const contractAddress = nftMarketplaceContract.options.address;
+                        if (!contractAddress) {
+                            throw new Error('Contract address not set');
+                        }
+                        
+                        // Test if contract exists at the address
+                        const web3Instance = walletNetworkManager.getWeb3();
+                        if (web3Instance) {
+                            const code = await web3Instance.eth.getCode(contractAddress);
+                            if (code === '0x' || code === '0x0') {
+                                throw new Error('No contract code at address');
+                            }
+                            debug.log('Contract connectivity test passed - contract exists at address');
+                        }
+                    } catch (testError) {
+                        debug.warn('Contract connectivity test failed, but continuing with WalletNetworkManager contracts:', testError);
+                        // Don't throw error here - the contracts might still work
+                    }
+                }
+                
+                return true;
+            } else {
+                throw new Error('Contract initialization failed');
+            }
+        } catch (error) {
+            debug.error('Failed to initialize contracts with manager:', error);
+            
+            // Fallback to original contract initialization with proper Web3 instance
+            debug.log('Falling back to original contract initialization...');
+            
+            // Ensure we have a valid Web3 instance
+            let web3Instance = web3;
+            
+            // If using private key wallet, get Web3 from SecureWalletManager
+            if (window.SecureWalletManager && window.SecureWalletManager.isWalletReady()) {
+                const privateKeyWeb3 = window.SecureWalletManager.getWeb3();
+                if (privateKeyWeb3) {
+                    web3Instance = privateKeyWeb3;
+                    web3 = privateKeyWeb3;
+                    window.web3 = privateKeyWeb3;
+                    window.gameWeb3 = privateKeyWeb3;
+                    debug.log('Using private key wallet Web3 for contract initialization');
+                }
+            }
+            
+            if (!web3Instance) {
+                throw new Error('No valid Web3 instance available for contract initialization');
+            }
+            
+            return await initContracts(web3Instance, false);
+        }
+    }
+    
+    /**
+     * Fallback wallet detection for when WalletNetworkManager is not available
+     */
+    async function fallbackWalletDetection() {
+        debug.log('Using fallback wallet detection...');
+        
+        // request wallet status in the beginning of initialization
+        requestWalletData();
+    }
+    
+    /**
+     * request wallet data (fallback method)
      */
     function requestWalletData() {
         console.log('requesting wallet data');
@@ -185,16 +440,24 @@ document.addEventListener('DOMContentLoaded', () => {
         
         try {
             const message = event.data;
-            console.log('Received message:', message);
+            debug.log('Received message:', message);
         
             // handle wallet connection message
             if (message.type === 'walletConnected') {
+                // Check if private key wallet is already active
+                if (shouldUsePrivateKeyWallet()) {
+                    debug.log('Private key wallet is active, ignoring external wallet connection');
+                    return;
+                }
                 handleWalletConnected(message.data);
             }
         
             // handle wallet disconnected message
             if (message.type === 'walletDisconnected') {
-                handleWalletDisconnected();
+                // Only handle if not using private key wallet
+                if (!shouldUsePrivateKeyWallet()) {
+                    handleWalletDisconnected();
+                }
             }
         
             // handle i18n data
@@ -209,13 +472,20 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // handle wallet status response
             if (message.type === 'walletStatus') {
-                console.log('Received wallet status message:', message);
+                debug.log('Received wallet status message:', message);
+                
+                // Check if private key wallet is already active
+                if (shouldUsePrivateKeyWallet()) {
+                    debug.log('Private key wallet is active, ignoring external wallet status');
+                    return;
+                }
+                
                 if (message.connected && message.address) {
                     currentAccount = message.address;
                     updateWalletUI(true, currentAccount);
                     if (web3) {
                         initContracts(web3, false).catch(err => 
-                            console.error('Failed to initialize contracts from status message:', err)
+                            debug.error('Failed to initialize contracts from status message:', err)
                         );
                     }
                 } else {
@@ -226,21 +496,46 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // handle wallet info
             if (message.type === 'walletInfo') {
-                console.log('Received wallet info:', message);
+                debug.log('Received wallet info:', message);
+                
+                // Check if private key wallet is already active
+                if (shouldUsePrivateKeyWallet()) {
+                    debug.log('Private key wallet is active, ignoring external wallet info');
+                    return;
+                }
+                
                 if (message.data && message.data.connected && message.data.address) {
                     currentAccount = message.data.address;
                     updateWalletUI(true, currentAccount);
                     if (web3) {
                         initContracts(web3, false).catch(err => 
-                            console.error('Failed to initialize contracts from wallet info:', err)
+                            debug.error('Failed to initialize contracts from wallet info:', err)
                         );
                     }
                 } else if (!currentAccount) {
                     updateWalletUI(false);
                 }
             }
+            
+            // handle Web3 instance
+            if (message.type === 'web3Instance' || message.type === 'web3Ready') {
+                // Check if private key wallet is already active
+                if (shouldUsePrivateKeyWallet()) {
+                    debug.log('Private key wallet is active, ignoring external Web3 instance');
+                    return;
+                }
+                
+                if (message.web3) {
+                    debug.log('Received Web3 instance from external wallet');
+                    web3 = message.web3;
+                    window.web3 = message.web3;
+                    initContracts(message.web3, false).catch(err => 
+                        debug.error('Failed to initialize contracts from Web3 instance:', err)
+                    );
+                }
+            }
         } catch (err) {
-            console.error('Error handling iframe message:', err);
+            debug.error('Error handling iframe message:', err);
         }
     }
     
@@ -666,6 +961,15 @@ document.addEventListener('DOMContentLoaded', () => {
      * Handle list NFT button click
      */
     function handleListNFTBtnClick() {
+        // Check if private key wallet is available
+        if (shouldUsePrivateKeyWallet()) {
+            const walletStatus = getPrivateKeyWalletStatus();
+            if (walletStatus.hasWallet && walletStatus.activeAddress) {
+                currentAccount = walletStatus.activeAddress;
+                debug.log('Using private key wallet for listing:', currentAccount);
+            }
+        }
+        
         if (!currentAccount) {
             // If wallet not connected, request connection and show prompt
             showTransactionStatus('Please connect your wallet first', 'warning');
@@ -688,6 +992,15 @@ document.addEventListener('DOMContentLoaded', () => {
      * Handle manage listings button click
      */
     function handleManageListingsBtnClick() {
+        // Check if private key wallet is available
+        if (shouldUsePrivateKeyWallet()) {
+            const walletStatus = getPrivateKeyWalletStatus();
+            if (walletStatus.hasWallet && walletStatus.activeAddress) {
+                currentAccount = walletStatus.activeAddress;
+                debug.log('Using private key wallet for managing listings:', currentAccount);
+            }
+        }
+        
         if (!currentAccount) {
             // If wallet not connected, request connection and show prompt
             showTransactionStatus('Please connect your wallet first', 'warning');
@@ -765,11 +1078,167 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     /**
+     * Verify contract connectivity
+     */
+    async function verifyContractConnectivity() {
+        try {
+            debug.log('Verifying contract connectivity...');
+            
+            if (!nftMarketplaceContract) {
+                throw new Error('NFT Marketplace contract not initialized');
+            }
+            
+            if (!pwNFTContract) {
+                throw new Error('PwNFT contract not initialized');
+            }
+            
+            if (!web3) {
+                throw new Error('Web3 instance not available');
+            }
+            
+            // Ensure we're using the correct Web3 instance
+            let testWeb3 = web3;
+            
+            // Priority: Use private key wallet Web3 if available
+            if (window.SecureWalletManager && window.SecureWalletManager.isWalletReady()) {
+                const privateKeyWeb3 = window.SecureWalletManager.getWeb3();
+                if (privateKeyWeb3) {
+                    testWeb3 = privateKeyWeb3;
+                    debug.log('Using private key wallet Web3 for connectivity test');
+                }
+            }
+            // Fallback: Use WalletNetworkManager Web3 if available
+            else if (walletNetworkManager && walletNetworkManager.isReadyForContracts()) {
+                const managerWeb3 = walletNetworkManager.getWeb3();
+                if (managerWeb3) {
+                    testWeb3 = managerWeb3;
+                    debug.log('Using WalletNetworkManager Web3 for connectivity test');
+                }
+            }
+            
+            // Test network connectivity
+            try {
+                const networkId = await testWeb3.eth.net.getId();
+                const blockNumber = await testWeb3.eth.getBlockNumber();
+                debug.log('Network connectivity test passed:', { networkId, blockNumber });
+            } catch (networkError) {
+                throw new Error('Network connectivity test failed: ' + networkError.message);
+            }
+            
+            // Test contract connectivity with a simple call
+            try {
+                // First verify contract address is properly set
+                const contractAddress = nftMarketplaceContract.options.address;
+                if (!contractAddress || contractAddress === '0x0000000000000000000000000000000000000000') {
+                    throw new Error('Contract address is not set or is zero address');
+                }
+                
+                // Test contract connectivity by checking if the contract exists at the address
+                try {
+                    const code = await testWeb3.eth.getCode(contractAddress);
+                    if (!code || code === '0x' || code === '0x0') {
+                        throw new Error('No contract found at address: ' + contractAddress);
+                    }
+                    debug.log('Contract connectivity test passed - contract exists at address');
+                    return true;
+                } catch (codeError) {
+                    debug.error('Failed to get contract code:', codeError);
+                    
+                    // Fallback: try a simple contract call
+                    try {
+                        // Try to call qualityListings but handle all possible errors gracefully
+                        await nftMarketplaceContract.methods.qualityListings(1, 0).call();
+                        debug.log('Contract connectivity test passed via method call');
+                        return true;
+                    } catch (callError) {
+                        // Any error from the contract call (including execution reverted) means the contract is accessible
+                        if (callError.message && (
+                            callError.message.includes('execution reverted') ||
+                            callError.message.includes('Returned values aren\'t valid') ||
+                            callError.message.includes('revert')
+                        )) {
+                            debug.log('Contract connectivity test passed (contract responded with expected error)');
+                            return true;
+                        } else {
+                            throw callError;
+                        }
+                    }
+                }
+            } catch (contractError) {
+                debug.error('Contract connectivity test failed:', contractError);
+                throw new Error('Contract connectivity test failed: ' + contractError.message);
+            }
+            
+        } catch (error) {
+            debug.error('Contract connectivity verification failed:', error);
+            return false;
+        }
+    }
+    
+    /**
      * Load marketplace data
      */
     async function loadMarketplaceData(forceRefresh = false) {
         try {
             showLoading(true);
+            
+            // Add a small delay to ensure contracts are fully initialized
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            // Additional check: ensure all required contracts are initialized
+            if (!nftMarketplaceContract || !pwNFTContract || !web3) {
+                debug.warn('Required contracts not initialized, attempting initialization...');
+                
+                if (walletNetworkManager && walletNetworkManager.isReadyForContracts()) {
+                    await initializeContractsWithManager();
+                } else if (web3) {
+                    await initContracts(web3, false);
+                } else {
+                    throw new Error('Unable to initialize contracts: no valid Web3 instance');
+                }
+                
+                // Add delay after initialization
+                await new Promise(resolve => setTimeout(resolve, 500));
+            }
+            
+            // Verify contract connectivity before loading data
+            let isConnected = false;
+            try {
+                isConnected = await verifyContractConnectivity();
+            } catch (connectivityError) {
+                debug.warn('Initial connectivity test failed:', connectivityError.message);
+            }
+            
+            if (!isConnected) {
+                debug.warn('Contract connectivity verification failed, attempting to reinitialize contracts...');
+                
+                try {
+                    // Try to reinitialize contracts
+                    if (walletNetworkManager && walletNetworkManager.isReadyForContracts()) {
+                        await initializeContractsWithManager();
+                    } else if (web3) {
+                        await initContracts(web3, false);
+                    } else {
+                        throw new Error('Unable to reinitialize contracts: no valid Web3 instance');
+                    }
+                    
+                    // Add a delay after reinitialization
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                    
+                    // Verify again after reinitialization
+                    try {
+                        isConnected = await verifyContractConnectivity();
+                    } catch (retestError) {
+                        debug.warn('Connectivity retest failed, but continuing with data loading:', retestError.message);
+                        // Don't throw error, continue with loading attempt
+                        isConnected = true; // Assume it might work
+                    }
+                } catch (reinitError) {
+                    debug.error('Contract reinitialization failed:', reinitError.message);
+                    // Don't throw error, try to load data anyway
+                    debug.warn('Continuing with data loading despite reinitialization failure');
+                }
+            }
             
             // Load marketplace listings
             await loadMarketListings(forceRefresh);
@@ -781,7 +1250,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (error) {
             console.error('Error loading marketplace data:', error);
             // Show error message
-            showTransactionStatus('Error loading marketplace data, but you can still view already loaded content', 'warning');
+            showTransactionStatus('Error loading marketplace data: ' + error.message, 'error');
             // Try to render existing data
             applyFiltersAndRender();
             showLoading(false);
@@ -832,6 +1301,9 @@ document.addEventListener('DOMContentLoaded', () => {
             // Even if all qualities failed to load, don't throw an error, just show a friendly prompt
             if (successCount === 0 && allListings.length === 0) {
                 showTransactionStatus('Unable to load marketplace listings, please try again later', 'warning');
+            } else if (allListings.length > 0) {
+                // Clear any previous error messages if we have data
+                showTransactionStatus('', 'success');
             }
         } catch (error) {
             console.error('Error loading marketplace listings:', error);
@@ -890,6 +1362,61 @@ document.addEventListener('DOMContentLoaded', () => {
                 return await loadNFTsByAlternativeMethods(quality, items, forceRefresh);
             }
             
+            // Check if Web3 instance is available and ensure we're using the correct one
+            if (!web3) {
+                console.error('Web3 instance not available');
+                return await loadNFTsByAlternativeMethods(quality, items, forceRefresh);
+            }
+            
+            // Ensure we're using the correct Web3 instance for contract calls
+            let correctWeb3Instance = web3;
+            let needsReinitialization = false;
+            
+            // Priority 1: Use WalletNetworkManager Web3 if available
+            if (walletNetworkManager && walletNetworkManager.isReadyForContracts()) {
+                const managerWeb3 = walletNetworkManager.getWeb3();
+                if (managerWeb3) {
+                    correctWeb3Instance = managerWeb3;
+                    console.log('Using WalletNetworkManager Web3 instance');
+                    
+                    // Check if contract needs reinitialization
+                    if (nftMarketplaceContract.currentProvider !== managerWeb3.currentProvider) {
+                        needsReinitialization = true;
+                    }
+                }
+            }
+            
+            // Priority 2: Use private key wallet Web3 if available
+            if (window.SecureWalletManager && window.SecureWalletManager.isWalletReady()) {
+                const privateKeyWeb3 = window.SecureWalletManager.getWeb3();
+                if (privateKeyWeb3) {
+                    correctWeb3Instance = privateKeyWeb3;
+                    console.log('Using private key wallet Web3 instance for contract calls');
+                    
+                    // Ensure global Web3 instances are updated
+                    web3 = privateKeyWeb3;
+                    window.web3 = privateKeyWeb3;
+                    window.gameWeb3 = privateKeyWeb3;
+                    
+                    // Check if contract needs reinitialization
+                    if (nftMarketplaceContract.currentProvider !== privateKeyWeb3.currentProvider) {
+                        needsReinitialization = true;
+                    }
+                }
+            }
+            
+            // Reinitialize contracts if needed
+            if (needsReinitialization) {
+                console.warn('Contract using different Web3 instance, reinitializing...');
+                try {
+                    await initContracts(correctWeb3Instance, false);
+                    console.log('Contracts reinitialized with correct Web3 instance');
+                } catch (error) {
+                    console.error('Failed to reinitialize contracts:', error);
+                    return await loadNFTsByAlternativeMethods(quality, items, forceRefresh);
+                }
+            }
+            
             // Temporary array to store NFTs of this quality
             const qualityItems = [];
             
@@ -907,22 +1434,75 @@ document.addEventListener('DOMContentLoaded', () => {
             }
                 
                 console.log(`Starting to get NFT list for quality ${quality}...`);
-                while (index < maxItems) {
-                    // Try calling qualityListings method to get NFT ID for specific quality and index
-                    try {
-                        const tokenId = await nftMarketplaceContract.methods.qualityListings(quality, index).call();
-                        console.log(`Got tokenId: ${tokenId}, index: ${index}`);
+                
+                let hasMoreListings = true;
+                const MAX_RETRIES = 3;
+                
+                while (hasMoreListings && index < maxItems) {
+                    let retryCount = 0;
+                    let success = false;
+                    
+                    while (retryCount < MAX_RETRIES && !success) {
+                        try {
+                            console.log(`Getting quality ${quality} listing at index ${index} (attempt ${retryCount + 1})`);
+                            
+                            // Add timeout to contract call to prevent hanging
+                            const tokenId = await Promise.race([
+                                nftMarketplaceContract.methods.qualityListings(quality, index).call(),
+                                new Promise((_, reject) => 
+                                    setTimeout(() => reject(new Error('Contract call timeout')), 15000)
+                                )
+                            ]);
+                            
+                            console.log(`Quality ${quality} index ${index} returned tokenId:`, tokenId);
                         
-                        // Modified: accept tokenId=0 as valid token ID
+                            // Accept any valid tokenId (including 0)
                         if (tokenId !== undefined && tokenId !== null) {
                             tokenIds.push(parseInt(tokenId));
                             index++;
+                                success = true;
+                                console.log(`Successfully added tokenId ${tokenId} to quality ${quality} list`);
                         } else {
-                            break; // If undefined or null is returned, we've got all the data
-                        }
-                    } catch (err) {
-                        console.warn(`Failed to get NFT at index ${index}:`, err);
+                                console.log(`No more listings for quality ${quality} at index ${index}`);
+                                hasMoreListings = false;
+                                success = true;
+                            }
+                        } catch (error) {
+                            console.log(`Contract call attempt ${retryCount + 1} failed for quality ${quality}, index ${index}:`, error.message);
+                            
+                            // If it's a "Returned values aren't valid" error and this is the first index, 
+                            // it likely means there are no listings for this quality
+                            if ((error.message.includes("Returned values aren't valid") || 
+                                 error.message.includes("execution reverted") ||
+                                 error.message.includes("revert")) && index === 0) {
+                                console.log(`No listings found for quality ${quality} (this is normal)`);
+                                hasMoreListings = false;
+                                success = true;
                         break;
+                            }
+                            
+                            // If it's any of these errors at index > 0, we've reached the end
+                            if (error.message.includes("Returned values aren't valid") || 
+                                error.message.includes("execution reverted") ||
+                                error.message.includes("revert") ||
+                                error.message.includes("invalid opcode")) {
+                                console.log(`Reached end of quality ${quality} listings at index ${index}`);
+                                hasMoreListings = false;
+                                success = true;
+                                break;
+                            }
+                            
+                            retryCount++;
+                            
+                            if (retryCount < MAX_RETRIES) {
+                                console.log(`Retrying contract call (${retryCount + 1}/${MAX_RETRIES})...`);
+                                await new Promise(resolve => setTimeout(resolve, 2000));
+                            } else {
+                                console.log(`Reached end of quality ${quality} listings or error occurred after ${MAX_RETRIES} retries:`, error.message);
+                                hasMoreListings = false;
+                                success = true;
+                            }
+                        }
                     }
                 }
                 
@@ -971,88 +1551,73 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             console.log(`Using alternative methods to load quality ${quality} NFTs...`);
             
-            // Method 1: Use NFT marketplace contract's getAllListings method
-            if (nftMarketplaceContract && nftMarketplaceContract.methods.getAllListings) {
-                try {
-                    console.log('Trying to get all listed NFTs using getAllListings method...');
-                    const allListings = await nftMarketplaceContract.methods.getAllListings().call();
+            // Method 1: Try to load from cache first
+            console.log('Trying to load from cache...');
+            const cacheKey = `${getCacheKey()}_quality_${quality}`;
+            try {
+                const cachedString = localStorage.getItem(cacheKey);
+                if (cachedString) {
+                    const cachedData = JSON.parse(cachedString);
                     
-                    if (allListings && allListings.length > 0) {
-                        console.log(`Got ${allListings.length} listed NFTs`);
+                    // Check if cache is not too old (extend to 24 hours for fallback)
+                    const now = Date.now();
+                    if (cachedData.timestamp && (now - cachedData.timestamp < 86400000)) { // 24 hours
+                        console.log(`Loading quality ${quality} NFTs from extended cache`);
                         
-                        // Process each listing
-                        const processPromises = [];
-                        for (const listing of allListings) {
-                            if (listing && listing.seller !== '0x0000000000000000000000000000000000000000') {
-                                processPromises.push(processListing(items, listing.tokenId, listing));
+                        if (cachedData.listings && Array.isArray(cachedData.listings)) {
+                            for (const listing of cachedData.listings) {
+                                if (!items.some(item => item.tokenId === listing.tokenId)) {
+                                    items.push(listing);
                             }
                         }
                         
-                        // Wait for all processing to complete
-                        await Promise.allSettled(processPromises);
+                            if (cachedData.listings.length > 0) {
+                                console.log(`Loaded ${cachedData.listings.length} NFTs from extended cache`);
                         return;
                     }
-                } catch (error) {
-                    console.warn('Error getting listed NFTs using getAllListings method:', error);
+                        }
+                    }
                 }
+                } catch (error) {
+                console.warn('Error reading extended cache:', error);
             }
             
-            // Method 2: Try getting known NFT token IDs
+            // Method 2: Check known tokenIds that were previously listed
             try {
-                console.log('Trying to get known NFT token IDs...');
+                console.log('Checking known tokenIds that might be listed...');
                 
-                // Check if PwNFT contract is available
-                if (!pwNFTContract) {
-                    throw new Error('PwNFT contract not initialized');
+                // Check some known tokenIds that were previously listed
+                const knownTokenIds = [21, 24]; // Add more as needed
+                
+                // Also check a range of possible tokenIds
+                for (let tokenId = 1; tokenId <= 50; tokenId++) {
+                    knownTokenIds.push(tokenId);
                 }
                 
-                // Try different methods to get total NFT token count
-                let totalNFTs = 0;
+                console.log(`Checking ${knownTokenIds.length} possible tokenIds for quality ${quality}...`);
                 
-                try {
-                    // Try method 1: tokenCount
-                    if (typeof pwNFTContract.methods.tokenCount === 'function') {
-                        totalNFTs = await pwNFTContract.methods.tokenCount().call();
-                        console.log(`Got NFT total count using tokenCount method: ${totalNFTs}`);
+                const checkPromises = knownTokenIds.map(tokenId => 
+                    processTokenById(tokenId, items, quality)
+                );
+                
+                const results = await Promise.allSettled(checkPromises);
+                
+                // Count successful results
+                let foundCount = 0;
+                results.forEach((result, index) => {
+                    if (result.status === 'fulfilled' && result.value) {
+                        foundCount++;
                     }
-                } catch (err) {
-                    console.warn('Failed to get NFT total count using tokenCount method:', err);
+                });
+                
+                console.log(`Found ${foundCount} NFTs of quality ${quality} from known tokenIds`);
+                
+                if (foundCount > 0) {
+                    return; // Found some NFTs, return
                 }
                 
-                if (!totalNFTs) {
-                    try {
-                        // Try method 2: totalTokens
-                        if (typeof pwNFTContract.methods.totalTokens === 'function') {
-                            totalNFTs = await pwNFTContract.methods.totalTokens().call();
-                            console.log(`Got NFT total count using totalTokens method: ${totalNFTs}`);
-                        }
-                    } catch (err) {
-                        console.warn('Failed to get NFT total count using totalTokens method:', err);
-                    }
-                }
-                
-                // If unable to get exact total, assume a reasonable number to check
-                if (!totalNFTs) {
-                    console.log('Unable to determine NFT total count, will check the first 100 possible tokenIds');
-                    totalNFTs = 100;
-                }
-                
-                // Limit the number to process to avoid too many requests
-                const batchSize = 20;
-                const maxToProcess = Math.min(totalNFTs, 100); // Process at most the first 100 tokens
-                
-                // Get possible listings from marketplace contract
-                for (let i = 1; i <= maxToProcess; i += batchSize) {
-                    const batch = [];
-                    for (let j = i; j < Math.min(i + batchSize, maxToProcess + 1); j++) {
-                        batch.push(processTokenById(j, items, quality));
-                    }
-                    await Promise.allSettled(batch);
-                }
-                
-                return;
             } catch (error) {
-                console.warn('Error getting NFT total supply:', error);
+                console.warn('Error checking known tokenIds:', error);
             }
             
             // Method 3: Directly check some possible tokenIds
@@ -1254,50 +1819,50 @@ document.addEventListener('DOMContentLoaded', () => {
      */
     async function fetchTokenListing(tokenId, items, forceRefresh = false) {
         try {
-            // first check cache
+            // If force refresh, skip cache
             if (!forceRefresh) {
+                // Try to get listing from cache
                 const cachedListing = getListingFromCache(tokenId);
+
+                // If cache exists and is not expired, use cached data
                 if (cachedListing) {
-                    items.push(cachedListing);
+                    console.log(`Using cached Token ${tokenId} listing:`, cachedListing);
+                    console.log(`Cache level: ${cachedListing.level}, accumulated food: ${cachedListing.accumulatedFood}`);
+                    
+                    // Check if listing is valid
+                    if (cachedListing && cachedListing.active) {
+                        // Add to result array
+                        await processListing(items, tokenId, cachedListing);
+                    }
                     return;
                 }
+            } else {
+                console.log(`Force reload from chain for Token ${tokenId} listing`);
             }
             
-            // check if contract is properly initialized
-            if (!nftMarketplaceContract || !nftMarketplaceContract.options || !nftMarketplaceContract.options.address) {
-                console.error(`Contract not properly initialized, cannot get listing info for tokenId ${tokenId}`);
-                return;
-            }
-            
-            // get listing information for this token
+            // No cache or force refresh, get listing from contract
+            console.log(`Getting Token ${tokenId} listing from contract`);
             const listing = await nftMarketplaceContract.methods.listings(tokenId).call();
             
-            // check if the token is listed
-            if (listing.seller === '0x0000000000000000000000000000000000000000') {
-                return; // not listed
+            console.log(`Contract returned listing:`, listing);
+            console.log(`Contract level: ${listing.level}, accumulated food: ${listing.accumulatedFood}`);
+            
+            // Ensure level and accumulatedFood are valid numbers
+            if (listing) {
+                listing.level = parseInt(listing.level || 1);
+                listing.accumulatedFood = parseInt(listing.accumulatedFood || 0);
             }
             
-            // get NFT data
-            const nftData = await fetchNFTData(tokenId, listing.seller);
+            // Save listing to cache
+            saveListingToCache(tokenId, listing);
             
-            // combine into a complete listing
-            const fullListing = {
-                tokenId: tokenId,
-                seller: listing.seller,
-                price: listing.price,
-                paymentToken: listing.paymentToken,
-                listTime: new Date(listing.listTime * 1000),
-                ...nftData
-            };
-            
-            // save to cache
-            saveListingToCache(tokenId, fullListing);
-            
-            // add to items array
-            items.push(fullListing);
+            // Check if listing is valid
+            if (listing && listing.active) {
+                // Add to result array
+                await processListing(items, tokenId, listing);
+            }
         } catch (error) {
-            console.error(`Error getting listing information for token ${tokenId}:`, error);
-            // continue processing other tokens, do not throw an exception
+            console.warn(`Failed to get Token ${tokenId} listing:`, error);
         }
     }
     
@@ -1648,21 +2213,53 @@ document.addEventListener('DOMContentLoaded', () => {
      * Check wallet status
      */
     function checkWalletStatus() {
-        console.log('Checking wallet status...');
+        debug.log('Checking wallet status...');
         
-        // Request wallet status from parent page
-        notifyParentPage({
-            type: 'getWalletStatus'
-        });
+        if (walletNetworkManager) {
+            const status = walletNetworkManager.getStatus();
+            debug.log('Wallet status from WalletNetworkManager:', status);
+            updateLocalStateFromManager(status);
+        } else {
+            debug.warn('WalletNetworkManager not available, falling back to basic check');
+            // Basic fallback check
+            const connectedWallet = sessionStorage.getItem('walletConnected') === 'true' || 
+                                   localStorage.getItem('walletConnected') === 'true';
+            const storedAddress = sessionStorage.getItem('walletAddress') || 
+                                 localStorage.getItem('walletAddress');
         
-        // Request complete wallet information again
-        requestWalletData();
+            if (connectedWallet && storedAddress) {
+                currentAccount = storedAddress;
+                updateWalletUI(true, currentAccount);
+            } else {
+                currentAccount = null;
+                updateWalletUI(false);
+            }
+        }
     }
     
     /**
      * Handle wallet connection
      */
     async function handleWalletConnected(data) {
+        // Check if WalletNetworkManager is managing wallets
+        if (walletNetworkManager) {
+            debug.log('WalletNetworkManager is active, refreshing manager status');
+            
+            // Refresh WalletNetworkManager to detect the new connection
+            walletNetworkManager.refresh().then(result => {
+                debug.log('WalletNetworkManager refresh result after external wallet connection:', result);
+                
+                if (result.success && result.isConnected) {
+                    updateLocalStateFromManager(result);
+                }
+            }).catch(error => {
+                debug.error('Failed to refresh WalletNetworkManager after external wallet connection:', error);
+            });
+            
+            return;
+        }
+        
+        // Fallback handling for when WalletNetworkManager is not available
         currentAccount = data.address;
         
         // If already initialized, just update current account
@@ -1692,6 +2289,16 @@ document.addEventListener('DOMContentLoaded', () => {
      * Update wallet UI
      */
     function updateWalletUI(connected, address = null) {
+        // Check if WalletNetworkManager is active and get current status
+        if (walletNetworkManager) {
+            const managerAddress = walletNetworkManager.getCurrentAddress();
+            if (managerAddress) {
+                connected = true;
+                address = managerAddress;
+                debug.log('UI updated with WalletNetworkManager status:', address);
+            }
+        }
+        
         // Notify parent page to update wallet UI
         notifyParentPage({
             type: 'updateWalletUI',
@@ -1868,33 +2475,201 @@ document.addEventListener('DOMContentLoaded', () => {
     
     /**
      * Buy NFT from marketplace
+     * @param {object} nft - NFT object to buy
      */
     async function buyNFTFromMarketplace(nft) {
-        if (!nftMarketplaceContract || !currentAccount) {
-            throw new Error('Contract not initialized or wallet not connected');
-        }
-        
         try {
-            const tokenId = nft.tokenId;
-            const price = nft.price;
-            const paymentToken = nft.paymentToken;
+            showLoading(true);
+            showTransactionStatus('Preparing to buy NFT...', 'info');
             
-            // Get ERC20 token contract
-            const tokenContract = await getERC20Contract(paymentToken);
+            // Get the current user address using WalletNetworkManager
+            let userAddress;
+            let usingWalletManager = false;
             
-            // Set up approvals
-            await setupApprovals(tokenContract, price);
+            if (walletNetworkManager && walletNetworkManager.getCurrentAddress()) {
+                userAddress = walletNetworkManager.getCurrentAddress();
+                usingWalletManager = true;
+                console.log('Using WalletNetworkManager for NFT purchase:', userAddress);
+                
+                // Ensure we're using the correct Web3 instance
+                web3 = walletNetworkManager.getWeb3();
+                if (!web3) {
+                    throw new Error('Failed to get Web3 instance from WalletNetworkManager');
+                }
+            } else {
+                // Fallback: Get user address from parent window
+                userAddress = await new Promise((resolve) => {
+                    window.parent.postMessage({ type: 'GET_WALLET_ADDRESS' }, '*');
+                    
+                    const handleMessage = (event) => {
+                        if (event.data.type === 'WALLET_ADDRESS_RESPONSE') {
+                            window.removeEventListener('message', handleMessage);
+                            resolve(event.data.address);
+                        }
+                    };
+                    
+                    window.addEventListener('message', handleMessage);
+                    
+                    // Timeout after 5 seconds
+                    setTimeout(() => {
+                        window.removeEventListener('message', handleMessage);
+                        resolve(null);
+                    }, 5000);
+                });
+                
+                if (!userAddress) {
+                    throw new Error('Wallet not connected');
+                }
+                console.log('Using fallback method for NFT purchase:', userAddress);
+            }
             
-            // Buy NFT
-            const result = await nftMarketplaceContract.methods.buyNFT(tokenId).send({
-                from: currentAccount
-            });
+            console.log('Buying NFT for user address:', userAddress);
             
-            console.log('NFT purchase transaction result:', result);
-            return result;
+            // Get payment token contract
+            const tokenContract = await getERC20Contract(nft.paymentToken);
+            
+            // Check and setup approvals
+            await setupApprovals(tokenContract, nft.price);
+            
+            showTransactionStatus('Purchasing NFT...', 'info');
+            
+            // Execute purchase transaction
+            let transaction;
+            if (usingWalletManager && walletNetworkManager) {
+                // Use WalletNetworkManager for transaction
+                try {
+                    // Check if it's a private key wallet managed by WalletNetworkManager
+                    const status = walletNetworkManager.getStatus();
+                    if (status.walletType === 'private_key' && window.SecureWalletManager) {
+                        // Use SecureWalletManager for private key transactions
+                transaction = await window.SecureWalletManager.sendContractTransaction(
+                    nftMarketplaceContract,
+                    'buyNFT',
+                    [nft.tokenId],
+                    {
+                        gas: 500000 // Higher gas limit for purchase
+                    }
+                );
+                    } else {
+                        // Use standard Web3 transaction for external wallets
+                        transaction = await nftMarketplaceContract.methods.buyNFT(nft.tokenId).send({
+                            from: userAddress,
+                            gas: 500000
+                        });
+                    }
+                } catch (error) {
+                    debug.error('WalletNetworkManager transaction failed, trying fallback:', error);
+                    throw error;
+                }
+            } else {
+                // For game pages, send transaction request to parent window
+                transaction = await new Promise((resolve, reject) => {
+                    window.parent.postMessage({
+                        type: 'SEND_TRANSACTION',
+                        data: {
+                            to: nftMarketplaceContract.options.address,
+                            data: nftMarketplaceContract.methods.buyNFT(nft.tokenId).encodeABI(),
+                            gas: 500000
+                        }
+                    }, '*');
+                    
+                    const handleMessage = (event) => {
+                        if (event.data.type === 'TRANSACTION_RESPONSE') {
+                            window.removeEventListener('message', handleMessage);
+                            if (event.data.success) {
+                                resolve(event.data.result);
+                            } else {
+                                reject(new Error(event.data.error));
+                            }
+                        }
+                    };
+                    
+                    window.addEventListener('message', handleMessage);
+                    
+                    // Timeout after 60 seconds
+                    setTimeout(() => {
+                        window.removeEventListener('message', handleMessage);
+                        reject(new Error('Transaction timeout'));
+                    }, 60000);
+                });
+            }
+            
+            console.log('NFT purchase successful:', transaction.transactionHash || transaction);
+            
+            // Close modal first
+            closeNftModal();
+            
+            // Show success modal dialog immediately using ModalDialog
+            if (window.ModalDialog) {
+                const transactionHash = transaction.transactionHash || transaction;
+                const successMessage = `
+                    <div style="text-align: center; padding: 10px;">
+                        <div style="color: #28a745; font-size: 1.2em; margin-bottom: 15px;">
+                            🎉 NFT Purchase Successful!
+                        </div>
+                        <div style="margin-bottom: 10px;">
+                            <strong>NFT ID:</strong> #${nft.tokenId}
+                        </div>
+                        <div style="margin-bottom: 15px;">
+                            <strong>Transaction Hash:</strong>
+                        </div>
+                        <div style="background: #f8f9fa; padding: 10px; border-radius: 5px; word-break: break-all; font-family: monospace; font-size: 0.9em; border: 1px solid #dee2e6;">
+                            ${transactionHash}
+                        </div>
+                        <div style="margin-top: 10px; font-size: 0.9em; color: #6c757d;">
+                            Your NFT has been successfully purchased and transferred to your wallet.
+                        </div>
+                    </div>
+                `;
+                
+                window.ModalDialog.alert(successMessage, {
+                    title: 'Purchase Successful',
+                    confirmText: 'OK'
+                });
+            }
+            
+            // Show success status (but don't let refresh errors override it)
+            showTransactionStatus('NFT purchased successfully!', 'success');
+            
+            // Clear cache and refresh data silently (don't show errors to user)
+            clearExpiredListingsCache();
+            
+            // Wait a moment before refreshing to ensure transaction is processed
+            setTimeout(async () => {
+                try {
+                    await loadMarketplaceData(true);
+                    console.log('Marketplace data refreshed after purchase');
+                } catch (refreshError) {
+                    console.error('Failed to refresh marketplace data (silent):', refreshError);
+                    // Don't show error to user since purchase was successful
+                }
+            }, 2000);
+            
+            // Return success
+            return true;
+            
         } catch (error) {
-            console.error('Error buying NFT:', error);
-            throw error;
+            console.error('Failed to buy NFT:', error);
+            
+            let errorMessage = error.message;
+            if (errorMessage.includes('execution reverted')) {
+                if (errorMessage.includes('insufficient allowance') || errorMessage.includes('transfer amount exceeds allowance')) {
+                    errorMessage = 'Insufficient token allowance. Please approve more tokens.';
+                } else if (errorMessage.includes('insufficient balance') || errorMessage.includes('transfer amount exceeds balance')) {
+                    errorMessage = 'Insufficient token balance to complete purchase.';
+                } else if (errorMessage.includes('NFT not for sale') || errorMessage.includes('not listed')) {
+                    errorMessage = 'This NFT is no longer available for sale.';
+                } else if (errorMessage.includes('cannot buy own NFT')) {
+                    errorMessage = 'You cannot buy your own NFT.';
+                }
+            }
+            
+            showTransactionStatus('Purchase failed: ' + errorMessage, 'error');
+            
+            // Return failure
+            return false;
+        } finally {
+            showLoading(false);
         }
     }
     
@@ -1926,14 +2701,31 @@ document.addEventListener('DOMContentLoaded', () => {
      * Set up approvals
      */
     async function setupApprovals(tokenContract, amount) {
-        if (!tokenContract || !nftMarketplaceContract || !currentAccount) {
-            throw new Error('Contract not initialized or wallet not connected');
-        }
-        
         try {
+            // Get the current user address using WalletNetworkManager
+            let userAddress;
+            let usingWalletManager = false;
+            
+            if (walletNetworkManager && walletNetworkManager.getCurrentAddress()) {
+                userAddress = walletNetworkManager.getCurrentAddress();
+                usingWalletManager = true;
+            } else {
+                userAddress = currentAccount;
+                
+                if (!userAddress) {
+                    throw new Error('Wallet not connected');
+                }
+            }
+            
+            if (!tokenContract || !nftMarketplaceContract) {
+                throw new Error('Contract not initialized');
+            }
+            
+            console.log('Setting up approvals for user address:', userAddress);
+            
             // Check allowance
             const allowance = await tokenContract.methods.allowance(
-                currentAccount,
+                userAddress,
                 nftMarketplaceContract.options.address
             ).call();
             
@@ -1946,12 +2738,72 @@ document.addEventListener('DOMContentLoaded', () => {
                 const maxUint256 = new web3.utils.BN(2).pow(new web3.utils.BN(256)).sub(new web3.utils.BN(1));
                 
                 // Send approval transaction
-                const result = await tokenContract.methods.approve(
-                    nftMarketplaceContract.options.address,
-                    maxUint256.toString()
-                ).send({
-                    from: currentAccount
-                });
+                let result;
+                if (usingWalletManager && walletNetworkManager) {
+                    // Use WalletNetworkManager for approval transaction
+                    try {
+                        // Check if it's a private key wallet managed by WalletNetworkManager
+                        const status = walletNetworkManager.getStatus();
+                        if (status.walletType === 'private_key' && window.SecureWalletManager) {
+                            // Use SecureWalletManager for private key transactions
+                            console.log('Executing approval with private key wallet via WalletNetworkManager...');
+                    result = await window.SecureWalletManager.sendContractTransaction(
+                        tokenContract,
+                        'approve',
+                        [nftMarketplaceContract.options.address, maxUint256.toString()],
+                        {
+                            gas: 100000
+                        }
+                    );
+                        } else {
+                            // Use standard Web3 transaction for external wallets
+                            result = await tokenContract.methods.approve(
+                                nftMarketplaceContract.options.address,
+                                maxUint256.toString()
+                            ).send({
+                                from: userAddress,
+                                gas: 100000
+                            });
+                        }
+                    } catch (error) {
+                        debug.error('WalletNetworkManager approval failed, trying fallback:', error);
+                        throw error;
+                    }
+                } else {
+                    // For game pages, send approval request to parent window
+                    result = await new Promise((resolve, reject) => {
+                        window.parent.postMessage({
+                            type: 'SEND_TRANSACTION',
+                            data: {
+                                to: tokenContract.options.address,
+                                data: tokenContract.methods.approve(
+                                    nftMarketplaceContract.options.address,
+                                    maxUint256.toString()
+                                ).encodeABI(),
+                                gas: 100000
+                            }
+                        }, '*');
+                        
+                        const handleMessage = (event) => {
+                            if (event.data.type === 'TRANSACTION_RESPONSE') {
+                                window.removeEventListener('message', handleMessage);
+                                if (event.data.success) {
+                                    resolve(event.data.result);
+                                } else {
+                                    reject(new Error(event.data.error));
+                                }
+                            }
+                        };
+                        
+                        window.addEventListener('message', handleMessage);
+                        
+                        // Timeout after 60 seconds
+                        setTimeout(() => {
+                            window.removeEventListener('message', handleMessage);
+                            reject(new Error('Approval timeout'));
+                        }, 60000);
+                    });
+                }
                 
                 console.log('Approval result:', result);
             }
@@ -2240,13 +3092,27 @@ document.addEventListener('DOMContentLoaded', () => {
             // check if the token is listed on the market
             if (owner.toLowerCase() === nftMarketplaceContract.options.address.toLowerCase()) {
                 // get the listing information
-                await checkAndProcessListing(tokenId, items);
+                const listing = await nftMarketplaceContract.methods.listings(tokenId).call();
+                
+                // check if the listing is active and matches the target quality
+                if (listing && listing.active && listing.seller !== '0x0000000000000000000000000000000000000000') {
+                    const listingQuality = parseInt(listing.quality);
+                    
+                    // only process if quality matches
+                    if (listingQuality === targetQuality) {
+                        console.log(`Found matching NFT: tokenId ${tokenId}, quality ${listingQuality}`);
+                        await processListing(items, tokenId, listing);
+                        return true; // indicate success
+                    }
+                }
             }
+            return false; // indicate no match found
         } catch (error) {
             // ignore nonexistent token error
-            if (!error.message.includes('nonexistent token')) {
+            if (!error.message.includes('nonexistent token') && !error.message.includes('ERC721: invalid token ID')) {
                 console.warn(`Error processing token ID ${tokenId}:`, error);
             }
+            return false;
         }
     }
     
@@ -2298,6 +3164,51 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (error) {
             // ignore error, continue processing other tokens
             console.debug(`error checking token ID ${tokenId}, maybe not listed:`, error);
+        }
+    }
+    
+    /**
+     * Check if private key wallet should be used
+     * @returns {boolean} - Whether private key wallet should be used
+     */
+    function shouldUsePrivateKeyWallet() {
+        if (!window.SecureWalletManager) {
+            return false;
+        }
+        
+        try {
+            return window.SecureWalletManager.isWalletReady() && 
+                   window.SecureWalletManager.getWeb3() && 
+                   window.SecureWalletManager.getAddress();
+        } catch (error) {
+            debug.error('Error checking private key wallet status:', error);
+            return false;
+        }
+    }
+    
+    /**
+     * Get private key wallet status
+     * @returns {object} - Private key wallet status
+     */
+    function getPrivateKeyWalletStatus() {
+        if (!window.SecureWalletManager) {
+            return { hasWallet: false, activeAddress: null, isReady: false };
+        }
+        
+        try {
+            const isReady = window.SecureWalletManager.isWalletReady();
+            const address = window.SecureWalletManager.getAddress();
+            const web3Instance = window.SecureWalletManager.getWeb3();
+            
+            return {
+                hasWallet: isReady && !!address && !!web3Instance,
+                activeAddress: address,
+                isReady: isReady,
+                web3Available: !!web3Instance
+            };
+        } catch (error) {
+            debug.error('Error getting private key wallet status:', error);
+            return { hasWallet: false, activeAddress: null, isReady: false };
         }
     }
 }); 

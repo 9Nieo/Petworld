@@ -280,6 +280,10 @@
     <!-- Add Web3.js reference -->
     <script src="https://cdn.jsdelivr.net/npm/web3@1.8.2/dist/web3.min.js"></script>
     
+    <!-- Include Secure Wallet Manager -->
+    <script src="../../resources/wallets/sessionManager.js"></script>
+    <script src="../../resources/wallets/walletManager.js"></script>
+    
     <!-- Add contract address script -->
     <script src="../../scripts/contracts/contractAddresses.js"></script>
     
@@ -314,6 +318,9 @@
     <!-- Add network detection tool -->
     <script src="../../scripts/other/networkDetector.js"></script>
     
+    <!-- Add WalletNetworkManager -->
+    <script src="../../scripts/other/walletNetworkManager.js"></script>
+    
     <!-- Add PetNFTService -->
     <script src="../../scripts/other/petNFTService.js"></script>
     
@@ -337,6 +344,9 @@
     
     <!-- Add sprite atlas helper -->
     <script src="../../scripts/functionPackages/spriteAtlasHelper.js"></script>
+    
+    <!-- Add pet size helper (must load before animation managers) -->
+    <script src="../../scripts/functionPackages/PetSizeHelper.js"></script>
     
     <!-- Add general pet animation and logic -->
     <script src="../../scripts/functionPackages/directionControl.js"></script>
@@ -363,7 +373,12 @@
     <script src="../../scripts/pets/black panther.js"></script>
     <script src="../../scripts/pets/moonlit wolf.js"></script>
     <script src="../../scripts/pets/white lion.js"></script>
-    
+
+    <!-- Include function packages -->
+    <script src="../../scripts/functionPackages/lotteryAndEgg.js"></script>
+    <script src="../../scripts/functionPackages/purchaseFood.js"></script>
+    <script src="../../scripts/functionPackages/shopPayment.js"></script>
+
     <!-- Add loading page script -->
     <script src="../../scripts/gamePages/loading.js"></script>
     <!-- Home script must be included after loading scripts -->

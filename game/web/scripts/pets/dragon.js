@@ -1,4 +1,3 @@
-
 // DragonManager class to handle all dragon-related functionality
 class DragonManager {
     constructor() {
@@ -313,7 +312,7 @@ class DragonManager {
     }
     
 
-    setupPeriodicCatCheck() {
+    setupPeriodicDragonCheck() {
         if (window.location.href.includes('home.html')) {
             setInterval(() => {
                 this.checkForDragons(false); // Pass false to indicate not to auto-apply shadows
@@ -568,32 +567,85 @@ class DragonManager {
             this.error('[DragonManager] Element is not connected to DOM, cannot animate:', element);
             return;
         }
-        
-        // Check element dimensions, delay processing if zero
-        if (element.offsetWidth === 0 || element.offsetHeight === 0) {
-            this.log('[DragonManager] Element has zero dimensions, delaying animation:', element);
-            
-            // Use setTimeout to delay applying animation, wait for element to render
-            setTimeout(() => {
-                // Recheck dimensions
-                if (element.isConnected && element.offsetWidth > 0 && element.offsetHeight > 0) {
-                    this.log('[DragonManager] Element now has dimensions, applying animation');
-                    this.doApplyDragonAnimation(element);
-                } else {
-                    this.error('[DragonManager] Element still has zero dimensions after delay, using default size');
-                    // set minimum size, then let PetSizeManager control
-                    element.style.width = element.style.width || '50px';
-                    element.style.height = element.style.height || '50px';
-                    // Try to apply animation
-                    this.doApplyDragonAnimation(element);
+        // Use PetSizeHelper for intelligent size checking and animation application
+        if (window.PetSizeHelper) {
+            window.PetSizeHelper.applyAnimationWithSizeCheck(
+                element,
+                'dragon',
+                (el) => this.doApplyDragonAnimation(el),
+                {
+                    maxWaitAttempts: 8,
+                    fallbackSize: { width: '50px', height: '50px' }
                 }
-            }, 500); // Delay 500ms
+            );
+        } else {
+            // Fallback to original logic if PetSizeHelper is not available
+            this.log('[DragonManager] PetSizeHelper not available, using fallback logic');
             
-            return;
+            // Check element dimensions using multiple methods
+            const offsetWidth = element.offsetWidth;
+            const offsetHeight = element.offsetHeight;
+            const computedStyle = window.getComputedStyle(element);
+            const cssWidth = parseFloat(computedStyle.width) || 0;
+            const cssHeight = parseFloat(computedStyle.height) || 0;
+            
+            // Use CSS dimensions if offset dimensions are zero
+            const effectiveWidth = offsetWidth || cssWidth;
+            const effectiveHeight = offsetHeight || cssHeight;
+            
+            if (effectiveWidth === 0 || effectiveHeight === 0) {
+                this.log('[DragonManager] Element has zero effective dimensions, delaying animation:', element);
+                
+                // Use setTimeout to delay applying animation, wait for element to render
+                setTimeout(() => {
+                    // Recheck dimensions using multiple methods
+                    const newOffsetWidth = element.offsetWidth;
+                    const newOffsetHeight = element.offsetHeight;
+                    const newComputedStyle = window.getComputedStyle(element);
+                    const newCssWidth = parseFloat(newComputedStyle.width) || 0;
+                    const newCssHeight = parseFloat(newComputedStyle.height) || 0;
+                    
+                    const newEffectiveWidth = newOffsetWidth || newCssWidth;
+                    const newEffectiveHeight = newOffsetHeight || newCssHeight;
+                    
+                    if (element.isConnected && (newEffectiveWidth > 0 && newEffectiveHeight > 0)) {
+                        this.log('[DragonManager] Element now has dimensions, applying animation');
+                        this.doApplyDragonAnimation(element);
+                    } else {
+                        this.error('[DragonManager] Element still has zero dimensions after delay, applying PetSizeManager or default size');
+                        
+                        // First try to apply PetSizeManager if available
+                        if (window.PetSizeManager) {
+                            try {
+                                const petType = window.PetSizeManager.detectPetType(element);
+                                window.PetSizeManager.setSize(element, petType);
+                                this.log('[DragonManager] Applied PetSizeManager sizing');
+                            } catch (error) {
+                                this.error('[DragonManager] Failed to apply PetSizeManager:', error);
+                            }
+                        }
+                        
+                        // Check if PetSizeManager worked
+                        if (element.offsetWidth === 0 || element.offsetHeight === 0) {
+                            // Fallback to minimum size
+                            element.style.setProperty('width', '50px', 'important');
+                            element.style.setProperty('height', '50px', 'important');
+                            element.style.setProperty('min-width', '50px', 'important');
+                            element.style.setProperty('min-height', '50px', 'important');
+                            this.log('[DragonManager] Applied fallback size as last resort');
+                        }
+                        
+                        // Try to apply animation
+                        this.doApplyDragonAnimation(element);
+                    }
+                }, 500); // Delay 500ms
+                
+                return;
+            }
+            
+            // If dimensions are normal, apply animation directly
+            this.doApplyDragonAnimation(element);
         }
-        
-        // If dimensions are normal, apply animation directly
-        this.doApplyDragonAnimation(element);
     }
     
     /**
@@ -838,23 +890,40 @@ class DragonManager {
             this.error('[DragonManager] Cannot prepare element - element is not connected to DOM');
             return false;
         }
+        // Check element dimensions using multiple methods
+        const offsetWidth = element.offsetWidth;
+        const offsetHeight = element.offsetHeight;
+        const computedStyle = window.getComputedStyle(element);
+        const cssWidth = parseFloat(computedStyle.width) || 0;
+        const cssHeight = parseFloat(computedStyle.height) || 0;
         
-        // Set a minimum size if dimensions are zero, but let PetSizeManager handle final sizing
-        if (element.offsetWidth === 0 || element.offsetHeight === 0) {
-            this.error('[DragonManager] Cannot prepare element - element has zero dimensions');
-            // Set minimum size
-            element.style.width = element.style.width || '50px';
-            element.style.height = element.style.height || '50px';
-        }
+        this.log(`[DragonManager] Element dimension check: offset(${offsetWidth}x${offsetHeight}), css(${cssWidth}x${cssHeight})`);
         
-        // Apply size using PetSizeManager
+        // Apply size using PetSizeManager first if available
         if (window.PetSizeManager) {
             window.PetSizeManager.setSize(element, 'dragon');
             this.log('[DragonManager] Applied size using PetSizeManager');
-        } else {
-            this.error('[DragonManager] PetSizeManager not available, using default sizing');
-            element.style.width = '50px';
-            element.style.height = '50px';
+        }
+        
+        // Use CSS dimensions if offset dimensions are zero but CSS dimensions exist
+        let effectiveWidth = offsetWidth || cssWidth;
+        let effectiveHeight = offsetHeight || cssHeight;
+        
+        // Check again after PetSizeManager
+        const newOffsetWidth = element.offsetWidth;
+        const newOffsetHeight = element.offsetHeight;
+        effectiveWidth = newOffsetWidth || effectiveWidth;
+        effectiveHeight = newOffsetHeight || effectiveHeight;
+        
+        if (effectiveWidth === 0 || effectiveHeight === 0) {
+            this.error('[DragonManager] Element still has zero effective dimensions after PetSizeManager, applying fallback size');
+            // Force set minimum size with important flag
+            element.style.setProperty('width', '50px', 'important');
+            element.style.setProperty('height', '50px', 'important');
+            element.style.setProperty('min-width', '50px', 'important');
+            element.style.setProperty('min-height', '50px', 'important');
+            effectiveWidth = 50;
+            effectiveHeight = 50;
         }
         
         element.style.position = element.style.position || 'relative';

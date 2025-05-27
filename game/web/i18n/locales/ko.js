@@ -137,7 +137,41 @@
       emptyWallet: "지갑이 연결되지 않음",
       connectUsingMetamask: "MetaMask 브라우저 확장 프로그램 사용",
       connectUsingWalletConnect: "WalletConnect 사용",
-      connectUsingOKX: "OKX 지갑 확장 프로그램 사용"
+      connectUsingOKX: "OKX 지갑 확장 프로그램 사용",
+
+
+       // Wallet choice modal
+       choiceTitle: "연결 방법 선택",
+       choiceDescription: "모든 기능에 접근하려면 지갑을 연결하거나 사용하세요",
+       connectWalletDesc: "MetaMask, OKX 또는 지원되는 지갑에 연결",
+       usePrivateKey: "사용하세요 (추천)",
+       usePrivateKeyDesc: "안전하게 지갑을 저장하고 사용하세요",
+       skipForNow: "지금은 건너뛰기",
+       
+       // Private key setup
+       setupPrivateKey: "비밀 키 지갑 설정",
+       securityWarning: "지갑을 암호화하고 로컬에 저장합니다. 누구에게도 공유하지 마세요!",
+       masterPassword: "마스터 비밀번호",
+       masterPasswordDesc: "이 비밀번호는 저장된 지갑을 보호합니다",
+       walletName: "지갑 이름",
+       walletNameDesc: "이 지갑을 식별하기 위한 친숙한 이름",
+       privateKey: "비밀 키",
+       privateKeyDesc: "64 16진수 문자 (0x 접두사 없음)",
+       setup: "지갑 설정",
+       cancel: "취소",
+       
+       // Messages
+       enterMasterPassword: "마스터 비밀번호를 입력하세요",
+       passwordTooShort: "비밀번호는 최소 6자 이상이어야 합니다",
+       enterWalletName: "지갑 이름을 입력하세요",
+       enterPrivateKey: "비밀 키를 입력하세요",
+       invalidPrivateKey: "비밀 키 형식이 잘못되었습니다. 64 16진수 문자여야 합니다.",
+       setting: "설정 중...",
+       setupSuccess: "지갑 설정 성공!",
+       setupFailed: "지갑 설정 실패",
+       setupError: "지갑 설정 오류",
+       authFailed: "인증 실패",
+       recommendedReason: "추천: 비밀 키를 사용하여 손쉽게 작업할 수 있습니다"
     },
 
     // Application-specific terms
@@ -359,7 +393,8 @@
         pendingRewards: "보류 보상",
         actions: "작업",
         noHistory: "스테이킹 기록 없음",
-        cycle: "주기",
+        cycle: "주기 {cycle}",
+        notClaimed: "클레임 안함",
       },
       notification: {
         noRewards: "보상 없음",
@@ -388,6 +423,7 @@
         approving: "승인 중...",
         approveSuccess: "승인 성공",
         approveFailed: "승인 실패",
+        claimConfirmation: "클레임 확인",
       }
     },
     // Market-related terms
@@ -583,6 +619,8 @@
         purchaseFailed: "구매 실패",
         purchaseEggsSuccess: "축하합니다! 성공적으로 {count} {eggName}을 구매했습니다",
         purchaseFoodSuccess: "축하합니다! 성공적으로 {quantity} 펫 음식을 구매했습니다",
+        purchaseFoodSuccessModal: "성공적으로 {quantity} 펫 음식을 구매했습니다!",
+        purchaseFoodTip: "펫 음식이 인벤토리에 추가되었습니다. 펫을 키우고 행복하게 하세요!",
         purchaseNoLotteryResult: "성공적으로 구매했습니다, 새로운 펫을 확인하세요.",
         purchaseNoLotteryDisplay: "성공적으로 구매했습니다, 하지만 결과를 표시할 수 없습니다",
         
@@ -592,6 +630,8 @@
         claimingEggs: "보류 펫 클레임...",
         claimNFTSuccess: "무료 펫 클레임 성공! 게임에서 새로운 펫을 확인하세요",
         claimFoodSuccess: "무료 펫 음식 클레임 성공! {count} 펫 음식을 얻으세요",
+        claimFreeFoodSuccessModal: "성공적으로 {count} 무료 펫 음식을 클레임했습니다!",
+        claimFreeFoodTip: "내일 다시 시도하세요. 펫을 정기적으로 급식하여 건강하게 유지하세요!",
         claimEggsSuccess: "성공적으로 {count} 펫을 클레임했습니다! 게임에서 확인하세요",
         
         // Validation errors

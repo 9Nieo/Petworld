@@ -61,6 +61,7 @@
                 <div class="tabs">
                     <button class="tab-btn active" data-tab="stake" data-i18n="stableStaking.tabs.stake">Stake</button>
                     <button class="tab-btn" data-tab="withdraw" data-i18n="stableStaking.tabs.withdraw">Withdraw</button>
+                    <button class="tab-btn" data-tab="rewards" data-i18n="stableStaking.tabs.rewards">Rewards</button>
                 </div>
                 
                 <div class="tab-content">
@@ -202,6 +203,11 @@
     <script src="../../scripts/other/ContractApprovalManager.js"></script>
     <script src="../../scripts/other/supportedStableCoins.js"></script>
     
+    <!-- Wallet management scripts -->
+    <script src="../../resources/wallets/sessionManager.js"></script>
+    <script src="../../resources/wallets/walletManager.js"></script>
+    <script src="../../scripts/other/walletNetworkManager.js"></script>
+    
     <!-- Wallet header script -->
     <script src="../../scripts/common/walletHeader.js"></script>
     
@@ -230,45 +236,9 @@
                 console.log('Common footer initialized');
             }
             
-            // Listen for wallet connection event
-            window.addEventListener('wallet.walletConnected', function(event) {
-                console.log('Wallet connected:', event.detail);
-                // Initialize contracts and update page
-                if (typeof initStakingPage === 'function') {
-                    setTimeout(function() {
-                        console.log('Delayed call to initStakingPage...');
-                        initStakingPage();
-                    }, 500); // Allow time for contract initialization
-                }
-            });
-            
-            // Listen for wallet disconnection event
-            window.addEventListener('wallet.walletDisconnected', function(event) {
-                console.log('Wallet disconnected');
-                // Reset page state
-                if (typeof resetStakingPage === 'function') {
-                    resetStakingPage();
-                }
-            });
-            
-            // Listen for Web3 ready event
-            window.addEventListener('wallet.web3Ready', function(event) {
-                console.log('Web3 ready:', event.detail);
-                // Initialize contracts
-                if (typeof initializeContracts === 'function') {
-                    initializeContracts();
-                }
-            });
-            
-            // If wallet is already connected, try to initialize the page
-            setTimeout(function() {
-                if (window.WalletHeader && window.WalletHeader.isWalletConnected) {
-                    console.log('Wallet is connected on page load, trying to initialize...');
-                    if (typeof initializeContracts === 'function') {
-                        initializeContracts();
-                    }
-                }
-            }, 1000); // Allow time for script loading
+            // The stableStaking.js will handle all wallet events and initialization
+            // No need for additional event listeners here since the new implementation
+            // uses walletNetworkManager.js for unified wallet management
         });
     </script>
 </body>

@@ -111,7 +111,7 @@ class PetZIndexManager {
             
             // If pets were added, update z-indexes
             if (petsAdded) {
-                this.log('New pets detected, updating z-indexes');
+                // this.log('New pets detected, updating z-indexes');
                 this.updateAllPetZIndexes();
             }
         });
@@ -249,7 +249,7 @@ class PetZIndexManager {
                 pet.element.style.zIndex = zIndex;
                 
                 if (this.config.debug && index < 3) {
-                    this.log(`Pet ${pet.type} at foot position ${Math.round(pet.footPosition)} gets z-index ${zIndex}`);
+                    // this.log(`Pet ${pet.type} at foot position ${Math.round(pet.footPosition)} gets z-index ${zIndex}`);
                 }
                 
                 // Make sure the animation container has higher z-index
@@ -261,7 +261,7 @@ class PetZIndexManager {
         });
         
         if (this.config.debug) {
-            this.log(`Updated z-indexes for ${petsWithPositions.length} pets based on foot positions`);
+            // this.log(`Updated z-indexes for ${petsWithPositions.length} pets based on foot positions`);
         }
     }
 
@@ -343,7 +343,7 @@ class PetZIndexManager {
      */
     log(...args) {
         if (this.config.debug) {
-            console.log('[PetZIndex]', ...args);
+            // console.log('[PetZIndex]', ...args);
         }
     }
 

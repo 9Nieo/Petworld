@@ -82,6 +82,78 @@
     <!-- Wallet connection iframe -->
     <iframe id="walletFrame" src="webPages/wallets/wallets.html" style="display: none;"></iframe>
     
+    <!-- Wallet Connection Choice Modal -->
+    <div id="walletChoiceModal" class="wallet-choice-modal">
+        <div class="wallet-choice-content">
+            <div class="wallet-choice-header">
+                <h3 data-i18n="wallet.choiceTitle">Choose Connection Method</h3>
+                <p data-i18n="wallet.choiceDescription">To access all features, please connect your wallet or use a private key</p>
+            </div>
+            
+            <div class="wallet-choice-options">
+                <div class="wallet-choice-option" id="choosePrivateKeyOption">
+                    <div class="wallet-choice-option-icon">🔑</div>
+                    <div class="wallet-choice-option-content">
+                        <div class="wallet-choice-option-title" data-i18n="wallet.usePrivateKey">Use Private Key (Recommended)</div>
+                        <div class="wallet-choice-option-desc" data-i18n="wallet.usePrivateKeyDesc">Securely store and use your private key locally</div>
+                        <span class="wallet-choice-option-recommended" data-i18n="wallet.recommendedReason">Recommended: Seamless operations without frequent signing</span>
+                    </div>
+                </div>
+                
+                <div class="wallet-choice-option" id="chooseWalletOption">
+                    <div class="wallet-choice-option-icon">🔗</div>
+                    <div class="wallet-choice-option-content">
+                        <div class="wallet-choice-option-title" data-i18n="wallet.connectWallet">Connect Wallet</div>
+                        <div class="wallet-choice-option-desc" data-i18n="wallet.connectWalletDesc">Connect MetaMask, OKX or other supported wallets</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="wallet-choice-actions">
+                <button class="wallet-choice-btn secondary" id="skipWalletChoice" data-i18n="wallet.skipForNow">Skip for now</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Private Key Setup Modal -->
+    <div id="privateKeyModal" class="private-key-modal">
+        <div class="private-key-content">
+            <div class="private-key-header">
+                <h3 data-i18n="wallet.setupPrivateKey">Setup Private Key Wallet</h3>
+            </div>
+            
+            <div class="security-warning">
+                <span class="security-warning-icon">⚠️</span>
+                <span data-i18n="wallet.securityWarning">Your private key will be encrypted and stored locally. Never share it with anyone!</span>
+            </div>
+            
+            <form class="private-key-form" id="privateKeyForm">
+                <div class="private-key-input-group">
+                    <label for="masterPasswordInput" data-i18n="wallet.masterPassword">Master Password</label>
+                    <input type="password" id="masterPasswordInput" placeholder="Create a master password..." required>
+                    <small data-i18n="wallet.masterPasswordDesc">This password will protect your stored private key</small>
+                </div>
+                
+                <div class="private-key-input-group">
+                    <label for="walletNameInput" data-i18n="wallet.walletName">Wallet Name</label>
+                    <input type="text" id="walletNameInput" placeholder="Enter a name for your wallet..." required>
+                    <small data-i18n="wallet.walletNameDesc">A friendly name to identify this wallet</small>
+                </div>
+                
+                <div class="private-key-input-group">
+                    <label for="privateKeyInput" data-i18n="wallet.privateKey">Private Key</label>
+                    <input type="password" id="privateKeyInput" placeholder="Enter your private key..." maxlength="66" required>
+                    <small data-i18n="wallet.privateKeyDesc">64 hex characters (with or without 0x prefix)</small>
+                </div>
+                
+                <div class="private-key-actions">
+                    <button type="button" class="private-key-btn secondary" id="cancelPrivateKey" data-i18n="wallet.cancel">Cancel</button>
+                    <button type="submit" class="private-key-btn primary" id="setupPrivateKey" data-i18n="wallet.setup">Setup Wallet</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
     <!-- Include i18n internationalization support -->
     <script src="i18n/i18n.js"></script>
     <script src="i18n/locales/zh_tw.js"></script>
@@ -91,6 +163,10 @@
     <script src="i18n/locales/ja.js"></script>
     <!-- Include Web3.js library -->
     <script src="https://cdn.jsdelivr.net/npm/web3@1.8.2/dist/web3.min.js"></script>
+    
+    <!-- Include Secure Wallet Manager -->
+    <script src="resources/wallets/sessionManager.js"></script>
+    <script src="resources/wallets/walletManager.js"></script>
     
     <!-- Include GSAP animation library -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>

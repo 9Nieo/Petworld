@@ -160,6 +160,20 @@
     <!-- Include Web3.js -->
     <script src="https://cdn.jsdelivr.net/npm/web3@1.8.2/dist/web3.min.js"></script>
     
+    <!-- Include Secure Wallet Manager -->
+    <script src="../../resources/wallets/sessionManager.js"></script>
+    <script src="../../resources/wallets/walletManager.js"></script>
+
+    <!-- Include Network Detector and Wallet Network Manager -->
+    <script src="../../scripts/other/networkDetector.js"></script>
+    <script src="../../scripts/other/walletNetworkManager.js"></script>
+
+    <!-- Include function packages -->
+    <script src="../../scripts/functionPackages/shopPayment.js"></script>
+    <script src="../../scripts/functionPackages/lotteryAndEgg.js"></script>
+    <script src="../../scripts/functionPackages/purchaseFood.js"></script>
+    <script src="../../scripts/functionPackages/PetRewards.js"></script>
+    
     <!-- Include i18n -->
     <script src="../../i18n/i18n.js"></script>
     <script src="../../i18n/locales/zh_tw.js"></script>
@@ -177,8 +191,7 @@
     <script src="../../scripts/contracts/PaymentManager.js"></script>
     <script src="../../scripts/contracts/ABI/GENERIC_ERC20_ABI.js"></script>
     
-    <!-- Include TokenBalanceManager -->
-    <script src="../../scripts/wallets/tokenBalanceManager.js"></script>
+    <!-- TokenBalanceManager removed - functionality integrated into modules -->
     
     <!-- Include payment token configuration -->
     <script src="../../scripts/other/supportedTokens.js"></script>
@@ -200,8 +213,8 @@
     
     <!-- Include lottery transaction processing script -->
     <script src="../../scripts/contracts/processLotteryTransaction.js"></script>
-    
-    <!-- Include shop page script -->
+
+    <!-- Shop page script (loads function packages dynamically) -->
     <script src="../../scripts/gamePages/shop.js"></script>
 </body>
 </html> 

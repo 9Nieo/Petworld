@@ -30,7 +30,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let nextCycleUpdateInterval = null;
     let contractsInitialized = false;
     let isInitializingContracts = false;
-    
+
     // Constants
     const MAX_RETRIES = 5;
     let initRetryCount = 0;
@@ -83,7 +83,7 @@ document.addEventListener('DOMContentLoaded', () => {
         tryInitializeStaking();
 
         // Update UI texts
-            updateUITexts();
+        updateUITexts();
     }
 
     /**
@@ -126,11 +126,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (stableCoinSelect) {
             stableCoinSelect.addEventListener('change', handleStableCoinSelect);
         }
-        
+
         if (withdrawStableCoinSelect) {
             withdrawStableCoinSelect.addEventListener('change', handleWithdrawCoinSelect);
         }
-        
+
         // Listen for locale changes
         window.addEventListener('localeChanged', handleLocaleChanged);
 
@@ -184,21 +184,21 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (success) {
                             debug.log('Contracts initialized successfully');
                             loadStakingData();
-                            } else {
+                        } else {
                             debug.error('Failed to initialize contracts');
                             setPageStatus('Failed to initialize contracts');
-                            }
+                        }
                     });
-                        } else {
+                } else {
                     debug.warn('No Web3 instance available');
                     setPageStatus('No Web3 connection available');
-                    }
-                } else {
+                }
+            } else {
                 debug.error('WalletNetworkManager initialization failed:', result.error);
                 
                 if (result.requiresUserAction) {
                     setPageStatus(result.message || 'Please connect your wallet');
-                        } else {
+                } else {
                     // Try read-only mode
                     tryReadOnlyMode();
                 }
@@ -233,7 +233,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         debug.log('Contracts initialized in read-only mode');
                         loadContractInfo(); // Load basic contract info only
                         setPageStatus('Read-only mode - Connect wallet to interact');
-                        } else {
+                    } else {
                         setPageStatus('Failed to initialize contracts');
                     }
                 });
@@ -272,7 +272,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const getContractAddress = window.getContractAddress;
 
             // Initialize PwUSD Staking contract
-                if (window.initPwUSDStakingContract) {
+            if (window.initPwUSDStakingContract) {
                 pwusdStakingContract = window.initPwUSDStakingContract(web3Instance, getContractAddress);
                 if (!pwusdStakingContract) {
                     throw new Error('Failed to initialize PwUSD Staking contract');
@@ -281,7 +281,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             // Initialize PwPoint Manager contract
-                if (window.initPwPointManagerContract) {
+            if (window.initPwPointManagerContract) {
                 pwPointManagerContract = window.initPwPointManagerContract(web3Instance, getContractAddress);
                 if (!pwPointManagerContract) {
                     throw new Error('Failed to initialize PwPoint Manager contract');
@@ -302,13 +302,13 @@ document.addEventListener('DOMContentLoaded', () => {
             debug.log('All contracts initialized successfully');
 
             return true;
-            } catch (error) {
+        } catch (error) {
             debug.error('Failed to initialize contracts:', error);
             contractsInitialized = false;
             return false;
-            } finally {
-                isInitializingContracts = false;
-            }
+        } finally {
+            isInitializingContracts = false;
+        }
     }
 
     /**
@@ -338,67 +338,6 @@ document.addEventListener('DOMContentLoaded', () => {
             setPageStatus('Failed to load staking data');
         }
     }
-    
-    /**
-     * Calculate the actual current cycle based on time
-     * @param {number} contractCycle - Current cycle from contract
-     * @param {number} lastUpdateTimestamp - Last update timestamp from contract
-     * @returns {number} - Actual current cycle
-     */
-    function calculateActualCurrentCycle(contractCycle, lastUpdateTimestamp) {
-        if (!lastUpdateTimestamp || lastUpdateTimestamp === 0) {
-            return contractCycle;
-        }
-        
-        const now = Math.floor(Date.now() / 1000);
-        const elapsedTime = now - lastUpdateTimestamp;
-        const cycleDuration = 86400; // 24 hours in seconds
-        const elapsedCycles = Math.floor(elapsedTime / cycleDuration);
-        
-        const actualCurrentCycle = contractCycle + elapsedCycles;
-        
-        debug.log('Cycle calculation:', {
-            contractCycle,
-            lastUpdateTimestamp,
-            now,
-            elapsedTime,
-            elapsedCycles,
-            actualCurrentCycle
-        });
-        
-        return actualCurrentCycle;
-    }
-
-    /**
-     * Start dynamic cycle update timer
-     */
-    function startDynamicCycleTimer() {
-        // Clear existing timer
-        if (window.dynamicCycleTimer) {
-            clearInterval(window.dynamicCycleTimer);
-        }
-        
-        // Update immediately
-        updateDynamicCycleDisplay();
-        
-        // Update every second
-        window.dynamicCycleTimer = setInterval(updateDynamicCycleDisplay, 1000);
-    }
-
-    /**
-     * Update dynamic cycle display
-     */
-    function updateDynamicCycleDisplay() {
-        if (!window.lastUpdateTimestamp || !currentCycleDisplay) {
-            return;
-        }
-        
-        const actualCurrentCycle = calculateActualCurrentCycle(currentCycleValue, window.lastUpdateTimestamp);
-        currentCycleDisplay.textContent = actualCurrentCycle.toString();
-        
-        // Update global variable for other calculations
-        window.actualCurrentCycle = actualCurrentCycle;
-    }
 
     /**
      * Load basic contract information
@@ -409,68 +348,38 @@ document.addEventListener('DOMContentLoaded', () => {
 
             debug.log('Loading contract info...');
 
-            // Load current cycle (using correct ABI method name)
-            const currentCycle = await pwusdStakingContract.methods.currentCycle().call();
+            // Load current cycle
+            const currentCycle = await pwusdStakingContract.methods.getCurrentCycle().call();
             currentCycleValue = parseInt(currentCycle);
-            
-            // Store the contract cycle value for reference
-            window.contractCurrentCycle = currentCycleValue;
+            if (currentCycleDisplay) {
+                currentCycleDisplay.textContent = currentCycleValue.toString();
+            }
 
-            // Load reward rate (use fixed display like game mode)
+            // Load reward rate (24h)
+            const rewardRate = await pwusdStakingContract.methods.getRewardRate().call();
+            rewardRateValue = parseFloat(web3.utils.fromWei(rewardRate, 'ether'));
             if (rewardRateDisplay) {
-                // Fixed display the reward rate as "2 PWP + 2 PWB / $10 / day", same as game mode
-                rewardRateDisplay.textContent = "2 PWP + 2 PWB / $10 / day";
-            }
-            
-            // Also try to get lastUpdateTimestamp for reward calculations
-            try {
-                if (pwusdStakingContract.methods.lastUpdateTimestamp) {
-                    const lastUpdateTimestampResult = await pwusdStakingContract.methods.lastUpdateTimestamp().call();
-                    window.lastUpdateTimestamp = parseInt(lastUpdateTimestampResult);
-                    debug.log('Got last update timestamp:', window.lastUpdateTimestamp);
-                    
-                    // Start dynamic cycle timer after getting timestamp
-                    startDynamicCycleTimer();
-                } else {
-                    // If no timestamp available, just display the contract cycle
-                    if (currentCycleDisplay) {
-                        currentCycleDisplay.textContent = currentCycleValue.toString();
-                    }
-                }
-            } catch (timestampError) {
-                debug.warn('Failed to load last update timestamp:', timestampError);
-                window.lastUpdateTimestamp = 0;
-                // If no timestamp available, just display the contract cycle
-                if (currentCycleDisplay) {
-                    currentCycleDisplay.textContent = currentCycleValue.toString();
-                }
+                rewardRateDisplay.textContent = rewardRateValue.toFixed(4) + ' PWP/24h';
             }
 
-            // Load total staked amount (calculate from cycle stats or use a different approach)
-            try {
-                // Try to get total staked from current cycle stats
-                const cycleStats = await pwusdStakingContract.methods.cycleStats(currentCycleValue).call();
-                const totalStakedFormatted = parseFloat(web3.utils.fromWei(cycleStats.totalStakedTokens, 'ether'));
-                if (totalStakedAmountDisplay) {
-                    totalStakedAmountDisplay.textContent = totalStakedFormatted.toFixed(2) + ' PwUSD';
-                }
-            } catch (totalStakedError) {
-                debug.warn('Failed to load total staked amount:', totalStakedError);
-                if (totalStakedAmountDisplay) {
-                    totalStakedAmountDisplay.textContent = '0.00 PwUSD';
-                }
+            // Load total staked amount
+            const totalStaked = await pwusdStakingContract.methods.getTotalStaked().call();
+            const totalStakedFormatted = parseFloat(web3.utils.fromWei(totalStaked, 'ether'));
+            if (totalStakedAmountDisplay) {
+                totalStakedAmountDisplay.textContent = totalStakedFormatted.toFixed(2) + ' PwUSD';
             }
 
             debug.log('Contract info loaded:', {
                 currentCycle: currentCycleValue,
-                lastUpdateTimestamp: window.lastUpdateTimestamp
+                rewardRate: rewardRateValue,
+                totalStaked: totalStakedFormatted
             });
         } catch (error) {
             debug.error('Failed to load contract info:', error);
         }
     }
 
-        /**
+    /**
      * Load supported stable coins
      */
     async function loadSupportedStableCoins() {
@@ -480,39 +389,11 @@ document.addEventListener('DOMContentLoaded', () => {
             debug.log('Loading supported stable coins...');
 
             // Get supported stable coins from contract or config
-            if (window.supportedStableCoins && Array.isArray(window.supportedStableCoins)) {
+            if (window.supportedStableCoins) {
                 supportedStableCoins = window.supportedStableCoins;
             } else {
-                // Fallback: try to get from contract using supportedStableCoinList
-                supportedStableCoins = [];
-                try {
-                    // Try to get supported stable coins by iterating through the list
-                    // Since we don't have a direct method to get all, we'll try indices 0-10
-                    for (let i = 0; i < 10; i++) {
-                        try {
-                            const coinAddress = await pwusdStakingContract.methods.supportedStableCoinList(i).call();
-                            if (coinAddress && coinAddress !== '0x0000000000000000000000000000000000000000') {
-                                // Get token symbol if possible (this would require ERC20 contract)
-                                supportedStableCoins.push({
-                                    address: coinAddress,
-                                    symbol: `Token${i + 1}` // Fallback symbol
-                                });
-                            } else {
-                                break; // No more tokens
-                            }
-                        } catch (indexError) {
-                            break; // No more tokens at this index
-                        }
-                    }
-                } catch (contractError) {
-                    debug.warn('Failed to load from contract, using fallback:', contractError);
-                    // Use hardcoded fallback for common stable coins
-                    supportedStableCoins = [
-                        { address: '0x...', symbol: 'USDT' },
-                        { address: '0x...', symbol: 'USDC' },
-                        { address: '0x...', symbol: 'BUSD' }
-                    ];
-                }
+                // Fallback: try to get from contract
+                supportedStableCoins = await pwusdStakingContract.methods.getSupportedStableCoins().call();
             }
 
             // Populate stable coin select
@@ -526,13 +407,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     stableCoinSelect.appendChild(option);
                 });
             }
-            
+
             debug.log('Supported stable coins loaded:', supportedStableCoins);
         } catch (error) {
             debug.error('Failed to load supported stable coins:', error);
         }
     }
-    
+
     /**
      * Load user staking information
      */
@@ -542,39 +423,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
             debug.log('Loading user staking info...');
 
-            // Load user staking records using correct ABI methods
-            userStakingInfo = [];
-            
-            try {
-                // Get the number of staking records for the user
-                const recordCount = await pwusdStakingContract.methods.userStakingRecordCount(currentUserAddress).call();
-                const count = parseInt(recordCount);
-                
-                debug.log('User has', count, 'staking records');
-                
-                // Load each staking record
-                for (let i = 0; i < count; i++) {
-                    try {
-                        const stakingInfo = await pwusdStakingContract.methods.userStakingInfo(currentUserAddress, i).call();
-                        
-                        // Convert the staking info to a more usable format
-                        const record = {
-                            id: stakingInfo.recordId || i,
-                            stableCoinAddress: stakingInfo.stableCoin,
-                            amount: stakingInfo.stakedAmount,
-                            lastClaimedCycle: parseInt(stakingInfo.lastClaimedCycle),
-                            pendingRewards: stakingInfo.pendingRewards || '0',
-                            lastClaimedTime: Date.now() / 1000 // Fallback timestamp
-                        };
-                        
-                        userStakingInfo.push(record);
-                    } catch (recordError) {
-                        debug.warn(`Failed to load staking record ${i}:`, recordError);
-                    }
-                }
-            } catch (countError) {
-                debug.warn('Failed to get user staking record count:', countError);
-            }
+            // Load user staking records
+            const stakingRecords = await pwusdStakingContract.methods.getUserStakingRecords(currentUserAddress).call();
+            userStakingInfo = stakingRecords;
 
             // Update staking history display
             updateStakingHistoryDisplay();
@@ -582,31 +433,22 @@ document.addEventListener('DOMContentLoaded', () => {
             // Update rewards display
             updateRewardsDisplay();
 
-            // Load total claimed rewards (if available)
-            try {
-                // This method might not exist in the ABI, so we'll calculate it differently
-                let totalClaimedFormatted = 0;
-                
-                // Try to calculate from individual records or use a fallback
-                if (totalClaimedPwPointsDisplay) {
-                    totalClaimedPwPointsDisplay.textContent = totalClaimedFormatted.toFixed(2) + ' PWP';
-                }
-            } catch (claimedError) {
-                debug.warn('Failed to load total claimed rewards:', claimedError);
-                if (totalClaimedPwPointsDisplay) {
-                    totalClaimedPwPointsDisplay.textContent = '0.00 PWP';
-                }
+            // Load total claimed rewards
+            const totalClaimed = await pwusdStakingContract.methods.getUserTotalClaimed(currentUserAddress).call();
+            const totalClaimedFormatted = parseFloat(web3.utils.fromWei(totalClaimed, 'ether'));
+            if (totalClaimedPwPointsDisplay) {
+                totalClaimedPwPointsDisplay.textContent = totalClaimedFormatted.toFixed(2) + ' PWP';
             }
 
             debug.log('User staking info loaded:', {
                 records: userStakingInfo.length,
-                userStakingInfo: userStakingInfo
+                totalClaimed: totalClaimedFormatted
             });
         } catch (error) {
             debug.error('Failed to load user staking info:', error);
         }
     }
-    
+
     /**
      * Update staking history display
      */
@@ -639,29 +481,20 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const stableCoinSymbol = getStableCoinSymbol(record.stableCoinAddress);
         const amount = parseFloat(web3.utils.fromWei(record.amount, 'ether'));
-        
-        // Display last claimed cycle instead of time (same as game mode)
-        const lastClaimedText = record.lastClaimedCycle === 0 ? 
-            (window.i18n && window.i18n.t ? window.i18n.t('stableStaking.history.notClaimed') : 'Not Claimed') : 
-            (window.i18n && window.i18n.t ? window.i18n.t('stableStaking.history.cycle', {cycle: record.lastClaimedCycle}) : `Cycle ${record.lastClaimedCycle}`);
-        
-        // Calculate pending rewards using the same logic as game mode
-        // Use actual current cycle if available, otherwise use contract cycle
-        const actualCycle = window.actualCurrentCycle || calculateActualCurrentCycle(currentCycleValue, window.lastUpdateTimestamp || 0);
-        const pendingRewardsStr = calculatePendingRewards(record, actualCycle, window.lastUpdateTimestamp || 0);
-        const pendingRewards = parseFloat(pendingRewardsStr);
+        const lastClaimed = new Date(record.lastClaimedTime * 1000).toLocaleDateString();
+        const pendingRewards = calculatePendingRewards(record);
 
         item.innerHTML = `
             <div class="history-cell">${stableCoinSymbol}</div>
             <div class="history-cell">${amount.toFixed(2)}</div>
-            <div class="history-cell">${lastClaimedText}</div>
+            <div class="history-cell">${lastClaimed}</div>
             <div class="history-cell">${pendingRewards.toFixed(4)} PWP</div>
-                <div class="history-cell">
+            <div class="history-cell">
                 <button class="action-btn claim-btn" onclick="claimRewards('${record.id}')">Claim</button>
                 <button class="action-btn withdraw-btn" onclick="showWithdrawModal('${record.id}')">Withdraw</button>
-                </div>
-            `;
-            
+            </div>
+        `;
+
         return item;
     }
 
@@ -678,9 +511,9 @@ document.addEventListener('DOMContentLoaded', () => {
             if (noRewardsMessage) {
                 noRewardsMessage.style.display = 'block';
             }
-                return;
-            }
-            
+            return;
+        }
+
         // Hide no rewards message
         if (noRewardsMessage) {
             noRewardsMessage.style.display = 'none';
@@ -688,12 +521,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Add reward items
         userStakingInfo.forEach((record, index) => {
-            // Use actual current cycle if available, otherwise use contract cycle
-            const actualCycle = window.actualCurrentCycle || calculateActualCurrentCycle(currentCycleValue, window.lastUpdateTimestamp || 0);
-            const pendingRewardsStr = calculatePendingRewards(record, actualCycle, window.lastUpdateTimestamp || 0);
-            const pendingRewards = parseFloat(pendingRewardsStr);
+            const pendingRewards = calculatePendingRewards(record);
             if (pendingRewards > 0) {
-                const rewardElement = createRewardItem(record, index);
+                const rewardElement = createRewardItem(record, index, pendingRewards);
                 rewardsList.appendChild(rewardElement);
             }
         });
@@ -702,25 +532,19 @@ document.addEventListener('DOMContentLoaded', () => {
     /**
      * Create reward item element
      */
-    function createRewardItem(record, index) {
+    function createRewardItem(record, index, pendingRewards) {
         const item = document.createElement('div');
         item.className = 'reward-item';
         
         const stableCoinSymbol = getStableCoinSymbol(record.stableCoinAddress);
         const amount = parseFloat(web3.utils.fromWei(record.amount, 'ether'));
-        
-        // Calculate pending rewards using the same logic as game mode
-        // Use actual current cycle if available, otherwise use contract cycle
-        const actualCycle = window.actualCurrentCycle || calculateActualCurrentCycle(currentCycleValue, window.lastUpdateTimestamp || 0);
-        const pendingRewardsStr = calculatePendingRewards(record, actualCycle, window.lastUpdateTimestamp || 0);
-        const pendingRewards = parseFloat(pendingRewardsStr);
 
         item.innerHTML = `
-                <div class="reward-info">
+            <div class="reward-info">
                 <div class="reward-title">${stableCoinSymbol} Staking Rewards</div>
                 <div class="reward-details">Staked: ${amount.toFixed(2)} ${stableCoinSymbol}</div>
                 <div class="reward-amount">${pendingRewards.toFixed(4)} PWP</div>
-                </div>
+            </div>
             <button class="claim-reward-btn" onclick="claimRewards('${record.id}')">Claim</button>
         `;
 
@@ -728,86 +552,23 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     /**
-     * Calculate pending rewards for a staking record (same logic as game mode)
+     * Calculate pending rewards for a staking record
      */
-    function calculatePendingRewards(stakingInfo, currentCycle, lastUpdateTime) {
+    function calculatePendingRewards(record) {
         try {
-            // Ensure the stakingInfo exists
-            if (!stakingInfo) {
-                debug.log('Failed to calculate pending rewards: stakingInfo does not exist');
-                return '0';
-            }
+            const currentTime = Math.floor(Date.now() / 1000);
+            const timeSinceLastClaim = currentTime - record.lastClaimedTime;
+            const dailyRewardRate = rewardRateValue; // PWP per day
+            const secondsPerDay = 24 * 60 * 60;
             
-            // Try to use the directly stored pendingRewards value first
-            if (stakingInfo.pendingRewards && stakingInfo.pendingRewards !== '0') {
-                debug.log(`Using stored pendingRewards value: ${stakingInfo.pendingRewards}`);
-                return stakingInfo.pendingRewards;
-            }
-            
-            // Compatibility for different data structures (game mode uses amount, normal mode uses stakedAmount)
-            const amount = stakingInfo.amount || stakingInfo.stakedAmount;
-            if (!amount || amount === '0') {
-                debug.log('Failed to calculate pending rewards: stake amount is 0');
-                return '0';
-            }
-            
-            // Convert stake amount from 18 decimal places to normal unit (equivalent to dividing by 10^18)
-            const stakedAmountBigInt = BigInt(amount);
-            const stakedAmountUint = Number(stakedAmountBigInt / BigInt(1e18));
-            
-            debug.log(`Stake amount for calculating pending rewards: ${stakedAmountUint} (converted to normal unit)`);
-            
-            // Number of cycles from last claimed cycle to current cycle
-            let cyclesPassed = currentCycle - stakingInfo.lastClaimedCycle;
-            debug.log(`Cycle difference: current cycle ${currentCycle} - last claimed cycle ${stakingInfo.lastClaimedCycle} = ${cyclesPassed}`);
-            
-            // Consider the case where chain data is not updated, calculate additional cycles
-            const now = Math.floor(Date.now() / 1000); // Current timestamp (seconds)
-            // Check if there is a saved last update time
-            if (lastUpdateTime > 0) {
-                const timeSinceLastUpdate = now - lastUpdateTime;
-                const cycleDuration = 86400; // One cycle per day, unit: seconds
-                
-                // Calculate number of complete cycles since last update
-                if (timeSinceLastUpdate > 0) {
-                    const additionalCycles = Math.floor(timeSinceLastUpdate / cycleDuration);
-                    cyclesPassed += additionalCycles;
-                    debug.log(`Considering time factor: ${cyclesPassed}, additional cycles: ${additionalCycles}`);
-                }
-            }
-            
-            // If no valid cycles passed, try to return original pending rewards
-            if (cyclesPassed <= 0) {
-                debug.log(`No valid cycles passed, returning original pending rewards: ${stakingInfo.pendingRewards || '0'}`);
-                return stakingInfo.pendingRewards || '0';
-            }
-            
-            // Use normal unit to calculate, no longer use BigInt
-            // Calculate reward rate: 1 PWP per 10 USD
-            // Assume each stable coin unit is 1 USD, each stable coin unit gets 0.2 PWP
-            const rewardRatePerToken = 0.2; 
-            
-            // Convert pending rewards from contract to normal unit
-            const contractPendingRewards = parseInt(stakingInfo.pendingRewards || '0');
-            
-            // Calculate additional rewards: stake amount * reward rate * cycle number
-            const additionalRewards = stakedAmountUint * rewardRatePerToken * cyclesPassed;
-            
-            // Merge existing rewards and additional rewards
-            const totalPendingRewards = contractPendingRewards + Math.floor(additionalRewards);
-            
-            debug.log(`Reward calculation details (optimized version):
-            - original rewards = ${contractPendingRewards}
-            - additional rewards calculation = (${stakedAmountUint} * ${rewardRatePerToken} * ${cyclesPassed}) = ${additionalRewards}
-            - total rewards = ${contractPendingRewards} + ${Math.floor(additionalRewards)} = ${totalPendingRewards}`);
-            
-            return totalPendingRewards.toString();
+            const pendingRewards = (timeSinceLastClaim / secondsPerDay) * dailyRewardRate;
+            return Math.max(0, pendingRewards);
         } catch (error) {
-            debug.error('Failed to calculate pending rewards:', error);
-            return stakingInfo.pendingRewards || '0';
+            debug.error('Error calculating pending rewards:', error);
+            return 0;
         }
     }
-    
+
     /**
      * Get stable coin symbol from address
      */
@@ -830,7 +591,7 @@ document.addEventListener('DOMContentLoaded', () => {
             showWalletModal();
         }
     }
-    
+
     /**
      * Show wallet modal
      */
@@ -848,7 +609,7 @@ document.addEventListener('DOMContentLoaded', () => {
             walletFrame.style.display = 'none';
         }
     }
-    
+
     /**
      * Disconnect wallet
      */
@@ -862,12 +623,6 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Clear user data
         userStakingInfo = [];
-        
-        // Clear dynamic cycle timer
-        if (window.dynamicCycleTimer) {
-            clearInterval(window.dynamicCycleTimer);
-            window.dynamicCycleTimer = null;
-        }
         
         // Update UI
         updateWalletUI(false);
@@ -897,15 +652,15 @@ document.addEventListener('DOMContentLoaded', () => {
         if (stakedBalanceDisplay) stakedBalanceDisplay.textContent = '0';
         
         // Clear lists
-            if (stakingHistoryList) {
-                stakingHistoryList.innerHTML = '';
+        if (stakingHistoryList) {
+            stakingHistoryList.innerHTML = '';
             if (noHistoryMessage) {
                 stakingHistoryList.appendChild(noHistoryMessage.cloneNode(true));
             }
         }
         
-            if (rewardsList) {
-                rewardsList.innerHTML = '';
+        if (rewardsList) {
+            rewardsList.innerHTML = '';
             if (noRewardsMessage) {
                 noRewardsMessage.style.display = 'block';
             }
@@ -968,7 +723,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (isInitialized) {
             await loadStakingData();
             showNotification('Data refreshed successfully', 'success');
-            } else {
+        } else {
             tryInitializeStaking();
         }
     }
@@ -1077,29 +832,29 @@ document.addEventListener('DOMContentLoaded', () => {
             showNotification('Staking failed: ' + error.message, 'error');
         }
     }
-    
+
     /**
      * Handle withdraw button click
      */
     async function handleWithdrawClick() {
         if (!currentUserAddress || !web3 || !pwusdStakingContract) {
             showNotification('Please connect your wallet first', 'error');
-                return;
-            }
-            
+            return;
+        }
+        
         const selectedRecordId = withdrawStableCoinSelect.value;
         const amount = parseFloat(withdrawAmountInput.value);
         
         if (!selectedRecordId) {
             showNotification('Please select a staking record', 'error');
-                return;
-            }
-            
+            return;
+        }
+        
         if (!amount || amount < 10 || amount % 10 !== 0) {
             showNotification('Amount must be at least 10 and a multiple of 10', 'error');
-                return;
-            }
-            
+            return;
+        }
+        
         try {
             await withdraw(selectedRecordId, amount);
         } catch (error) {
@@ -1154,7 +909,7 @@ document.addEventListener('DOMContentLoaded', () => {
             setPageStatus('');
         }
     }
-    
+
     /**
      * Approve staking contract to spend tokens
      */
@@ -1173,8 +928,8 @@ document.addEventListener('DOMContentLoaded', () => {
             // Use private key wallet
             await window.SecureWalletManager.sendContractTransaction(
                 tokenContract, 'approve', [stakingContractAddress, amount]
-                );
-            } else {
+            );
+        } else {
             // Use external wallet
             await approveMethod.send({ from: currentUserAddress });
         }
@@ -1230,9 +985,9 @@ document.addEventListener('DOMContentLoaded', () => {
     window.claimRewards = async function(recordId) {
         if (!currentUserAddress || !web3 || !pwusdStakingContract) {
             showNotification('Please connect your wallet first', 'error');
-                    return;
-                }
-                
+            return;
+        }
+        
         debug.log('Claiming rewards for record:', recordId);
         
         setPageStatus('Processing claim...');
@@ -1247,7 +1002,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     pwusdStakingContract, 'claimRewards', [recordId]
                 );
                 txHash = receipt.transactionHash;
-                    } else {
+            } else {
                 // Use external wallet
                 const receipt = await claimMethod.send({ from: currentUserAddress });
                 txHash = receipt.transactionHash;
@@ -1344,17 +1099,17 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         
         // Set background color based on type
-                switch (type) {
-                    case 'success':
+        switch (type) {
+            case 'success':
                 notification.style.backgroundColor = '#4CAF50';
-                        break;
-                    case 'error':
+                break;
+            case 'error':
                 notification.style.backgroundColor = '#f44336';
-                        break;
-                    case 'warning':
+                break;
+            case 'warning':
                 notification.style.backgroundColor = '#ff9800';
-                        break;
-                    default:
+                break;
+            default:
                 notification.style.backgroundColor = '#2196F3';
         }
         

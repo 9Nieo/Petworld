@@ -31,6 +31,29 @@ async function approvePWFOOD(pwfoodContract, spenderAddress, amount, userAddress
     // Process the token amount, set to the maximum value for future feeding
     const amountToApprove = "115792089237316195423570985008687907853269984665640564039457584007913129639935"; // 2^256 - 1
     
+    // Check if using private key wallet
+    const shouldUsePrivateKey = window.SecureWalletManager && 
+                               window.SecureWalletManager.shouldUsePrivateKeyForTransactions &&
+                               window.SecureWalletManager.shouldUsePrivateKeyForTransactions();
+    
+    if (shouldUsePrivateKey) {
+      console.log('Using private key wallet for PWFOOD approval');
+      
+      // Use SecureWalletManager for private key transactions
+      const receipt = await window.SecureWalletManager.sendContractTransaction(
+        pwfoodContract,
+        'approve',
+        [spenderAddress, amountToApprove]
+      );
+      
+      console.log('Private key authorization PWFOOD transaction submitted:', receipt.transactionHash);
+      return { 
+        success: true, 
+        transaction: receipt
+      };
+    } else {
+      console.log('Using connected wallet for PWFOOD approval');
+      
     // Send the authorization transaction
     const gasEstimate = await pwfoodContract.methods.approve(spenderAddress, amountToApprove).estimateGas({ from: userAddress });
     const transaction = await pwfoodContract.methods.approve(spenderAddress, amountToApprove).send({
@@ -38,11 +61,12 @@ async function approvePWFOOD(pwfoodContract, spenderAddress, amount, userAddress
       gas: Math.floor(gasEstimate * 1.5) // Add 50% gas as a buffer
     });
     
-    console.log('Authorization PWFOOD transaction submitted:', transaction);
+      console.log('Connected wallet authorization PWFOOD transaction submitted:', transaction);
     return { 
       success: true, 
       transaction: transaction
     };
+    }
   } catch (error) {
     console.error('Failed to authorize PWFOOD:', error);
     return { success: false, error: error.message || 'Failed to authorize PWFOOD' };
@@ -174,18 +198,42 @@ async function approveERC20Token(tokenContract, spenderAddress, amount, userAddr
     
     console.log('Preparing to authorize amount:', amountToApprove);
     
-    // Send the authorization transaction
+    // Check if using private key wallet
+    const shouldUsePrivateKey = window.SecureWalletManager && 
+                               window.SecureWalletManager.shouldUsePrivateKeyForTransactions &&
+                               window.SecureWalletManager.shouldUsePrivateKeyForTransactions();
+    
+    if (shouldUsePrivateKey) {
+      console.log('Using private key wallet for token approval');
+      
+      // Use SecureWalletManager for private key transactions
+      const receipt = await window.SecureWalletManager.sendContractTransaction(
+        tokenContract,
+        'approve',
+        [spenderAddress, amountToApprove]
+      );
+      
+      console.log('Private key authorization token transaction submitted:', receipt.transactionHash);
+      return { 
+        success: true, 
+        transaction: receipt
+      };
+    } else {
+      console.log('Using connected wallet for token approval');
+      
+      // Use traditional connected wallet method
     const gasEstimate = await tokenContract.methods.approve(spenderAddress, amountToApprove).estimateGas({ from: userAddress });
     const transaction = await tokenContract.methods.approve(spenderAddress, amountToApprove).send({
       from: userAddress,
       gas: Math.floor(gasEstimate * 1.5) // Add 50% gas as a buffer
     });
     
-    console.log('Authorization token transaction submitted:', transaction);
+      console.log('Connected wallet authorization token transaction submitted:', transaction);
     return { 
       success: true, 
       transaction: transaction
     };
+    }
   } catch (error) {
     console.error('Failed to authorize token:', error);
     return { success: false, error: error.message || 'Failed to authorize token' };
@@ -206,6 +254,29 @@ async function revokeERC20Approval(tokenContract, spenderAddress, userAddress) {
   }
   
   try {
+    // Check if using private key wallet
+    const shouldUsePrivateKey = window.SecureWalletManager && 
+                               window.SecureWalletManager.shouldUsePrivateKeyForTransactions &&
+                               window.SecureWalletManager.shouldUsePrivateKeyForTransactions();
+    
+    if (shouldUsePrivateKey) {
+      console.log('Using private key wallet for token revocation');
+      
+      // Use SecureWalletManager for private key transactions
+      const receipt = await window.SecureWalletManager.sendContractTransaction(
+        tokenContract,
+        'approve',
+        [spenderAddress, '0']
+      );
+      
+      console.log('Private key revocation token authorization transaction submitted:', receipt.transactionHash);
+      return { 
+        success: true, 
+        transaction: receipt
+      };
+    } else {
+      console.log('Using connected wallet for token revocation');
+      
     // Revoking authorization actually sets the authorization amount to 0
     const gasEstimate = await tokenContract.methods.approve(spenderAddress, '0').estimateGas({ from: userAddress });
     const transaction = await tokenContract.methods.approve(spenderAddress, '0').send({
@@ -213,11 +284,12 @@ async function revokeERC20Approval(tokenContract, spenderAddress, userAddress) {
       gas: Math.floor(gasEstimate * 1.5)
     });
     
-    console.log('Revocation token authorization transaction submitted:', transaction);
+      console.log('Connected wallet revocation token authorization transaction submitted:', transaction);
     return { 
       success: true, 
       transaction: transaction
     };
+    }
   } catch (error) {
     console.error('Failed to revoke token authorization:', error);
     return { success: false, error: error.message || 'Failed to revoke token authorization' };
@@ -641,9 +713,29 @@ async function batchApproveTokensForContracts(web3, tokenContract, contracts, us
         
         // Send authorization transaction
         try {
-          const receipt = await tokenContract.methods
+          // Check if using private key wallet
+          const shouldUsePrivateKey = window.SecureWalletManager && 
+                                     window.SecureWalletManager.shouldUsePrivateKeyForTransactions &&
+                                     window.SecureWalletManager.shouldUsePrivateKeyForTransactions();
+          
+          let receipt;
+          if (shouldUsePrivateKey) {
+            console.log(`Using private key wallet for ${contract.name} token approval`);
+            
+            // Use SecureWalletManager for private key transactions
+            receipt = await window.SecureWalletManager.sendContractTransaction(
+              tokenContract,
+              'approve',
+              [contract.address, largeAmount]
+            );
+          } else {
+            console.log(`Using connected wallet for ${contract.name} token approval`);
+            
+            // Use traditional connected wallet method
+            receipt = await tokenContract.methods
             .approve(contract.address, largeAmount)
             .send({ from: userAddress });
+          }
           
           console.log(`${contract.name} token approval successful:`, receipt.transactionHash);
           
@@ -747,9 +839,30 @@ async function setupNFTMarketplaceApprovals(web3, userAddress, pwNFTContract, er
       
       if (!isApprovedForAll) {
         console.log('Need to set NFT authorization for NFTMarketplace');
-        const receipt = await pwNFTContract.methods
+        
+        // Check if using private key wallet
+        const shouldUsePrivateKey = window.SecureWalletManager && 
+                                   window.SecureWalletManager.shouldUsePrivateKeyForTransactions &&
+                                   window.SecureWalletManager.shouldUsePrivateKeyForTransactions();
+        
+        let receipt;
+        if (shouldUsePrivateKey) {
+          console.log('Using private key wallet for NFT authorization');
+          
+          // Use SecureWalletManager for private key transactions
+          receipt = await window.SecureWalletManager.sendContractTransaction(
+            pwNFTContract,
+            'setApprovalForAll',
+            [nftMarketplaceAddress, true]
+          );
+        } else {
+          console.log('Using connected wallet for NFT authorization');
+          
+          // Use traditional connected wallet method
+          receipt = await pwNFTContract.methods
           .setApprovalForAll(nftMarketplaceAddress, true)
           .send({ from: userAddress });
+        }
         
         console.log('NFT authorization for NFTMarketplace successful:', receipt.transactionHash);
       } else {
@@ -771,9 +884,30 @@ async function setupNFTMarketplaceApprovals(web3, userAddress, pwNFTContract, er
         
         if (web3.utils.toBN(allowance).lt(web3.utils.toBN(largeAmount))) {
           console.log('Need to set ERC20 token authorization for PaymentManager');
-          const receipt = await erc20TokenContract.methods
+          
+          // Check if using private key wallet
+          const shouldUsePrivateKey = window.SecureWalletManager && 
+                                     window.SecureWalletManager.shouldUsePrivateKeyForTransactions &&
+                                     window.SecureWalletManager.shouldUsePrivateKeyForTransactions();
+          
+          let receipt;
+          if (shouldUsePrivateKey) {
+            console.log('Using private key wallet for ERC20 authorization');
+            
+            // Use SecureWalletManager for private key transactions
+            receipt = await window.SecureWalletManager.sendContractTransaction(
+              erc20TokenContract,
+              'approve',
+              [paymentManagerAddress, largeAmount]
+            );
+          } else {
+            console.log('Using connected wallet for ERC20 authorization');
+            
+            // Use traditional connected wallet method
+            receipt = await erc20TokenContract.methods
             .approve(paymentManagerAddress, largeAmount)
             .send({ from: userAddress });
+          }
           
           console.log('ERC20 token authorization for PaymentManager successful:', receipt.transactionHash);
         } else {
@@ -794,9 +928,30 @@ async function setupNFTMarketplaceApprovals(web3, userAddress, pwNFTContract, er
         
         if (web3.utils.toBN(allowance).lt(web3.utils.toBN(largeAmount))) {
           console.log('Need to set ERC20 token authorization for NFTMarketplace');
-          const receipt = await erc20TokenContract.methods
+          
+          // Check if using private key wallet
+          const shouldUsePrivateKey = window.SecureWalletManager && 
+                                     window.SecureWalletManager.shouldUsePrivateKeyForTransactions &&
+                                     window.SecureWalletManager.shouldUsePrivateKeyForTransactions();
+          
+          let receipt;
+          if (shouldUsePrivateKey) {
+            console.log('Using private key wallet for ERC20 authorization');
+            
+            // Use SecureWalletManager for private key transactions
+            receipt = await window.SecureWalletManager.sendContractTransaction(
+              erc20TokenContract,
+              'approve',
+              [nftMarketplaceAddress, largeAmount]
+            );
+          } else {
+            console.log('Using connected wallet for ERC20 authorization');
+            
+            // Use traditional connected wallet method
+            receipt = await erc20TokenContract.methods
             .approve(nftMarketplaceAddress, largeAmount)
             .send({ from: userAddress });
+          }
           
           console.log('ERC20 token authorization for NFTMarketplace successful:', receipt.transactionHash);
         } else {
@@ -996,10 +1151,29 @@ async function setupPetWorldStakingApprovals(web3, userAddress, petWorldContract
     
     console.log('Need to approve PetWorld tokens for PetWorldStaking');
     
+    // Check if using private key wallet
+    const shouldUsePrivateKey = window.SecureWalletManager && 
+                               window.SecureWalletManager.shouldUsePrivateKeyForTransactions &&
+                               window.SecureWalletManager.shouldUsePrivateKeyForTransactions();
+    
+    let receipt;
+    if (shouldUsePrivateKey) {
+      console.log('Using private key wallet for PetWorld authorization');
+      
+      // Use SecureWalletManager for private key transactions
+      receipt = await window.SecureWalletManager.sendContractTransaction(
+        petWorldContract,
+        'approve',
+        [petWorldStakingAddress, approvalAmount]
+      );
+    } else {
+      console.log('Using connected wallet for PetWorld authorization');
+    
     // Send the authorization transaction
-    const receipt = await petWorldContract.methods
+      receipt = await petWorldContract.methods
       .approve(petWorldStakingAddress, approvalAmount)
       .send({ from: userAddress });
+    }
     
     console.log('PetWorld token authorization for PetWorldStaking successful:', receipt.transactionHash);
     return true;
@@ -1156,6 +1330,26 @@ async function approveNFTForMarketplace(pwNFTContract, marketplaceAddress, userA
         
         console.log('Need to authorize NFT for marketplace');
         
+        // Check if using private key wallet
+        const shouldUsePrivateKey = window.SecureWalletManager && 
+                                   window.SecureWalletManager.shouldUsePrivateKeyForTransactions &&
+                                   window.SecureWalletManager.shouldUsePrivateKeyForTransactions();
+        
+        if (shouldUsePrivateKey) {
+            console.log('Using private key wallet for NFT approval');
+            
+            // Use SecureWalletManager for private key transactions
+            const receipt = await window.SecureWalletManager.sendContractTransaction(
+                pwNFTContract,
+                'setApprovalForAll',
+                [marketplaceAddress, true]
+            );
+            
+            console.log('Private key NFT authorization successful:', receipt.transactionHash);
+            return true;
+        } else {
+            console.log('Using connected wallet for NFT approval');
+        
         // Estimate Gas
         const gasEstimate = await pwNFTContract.methods.setApprovalForAll(marketplaceAddress, true).estimateGas({
             from: userAddress
@@ -1170,8 +1364,9 @@ async function approveNFTForMarketplace(pwNFTContract, marketplaceAddress, userA
             gas: gas
         });
         
-        console.log('NFT authorization successful:', receipt.transactionHash);
+            console.log('Connected wallet NFT authorization successful:', receipt.transactionHash);
         return true;
+        }
     } catch (error) {
         console.error('Failed to authorize NFT:', error);
         return false;
@@ -1272,6 +1467,25 @@ async function diagnoseAndFixNFTApproval(pwNFTContract, marketplaceContract, use
         result.diagnostics.fixAttempted = true;
 
         try {
+            // Check if using private key wallet
+            const shouldUsePrivateKey = window.SecureWalletManager && 
+                                       window.SecureWalletManager.shouldUsePrivateKeyForTransactions &&
+                                       window.SecureWalletManager.shouldUsePrivateKeyForTransactions();
+            
+            if (shouldUsePrivateKey) {
+                console.log('Using private key wallet for NFT approval repair');
+                
+                // Use SecureWalletManager for private key transactions
+                const approveReceipt = await window.SecureWalletManager.sendContractTransaction(
+                    pwNFTContract,
+                    'setApprovalForAll',
+                    [marketplaceAddress, true]
+                );
+                
+                console.log('Private key NFT authorization transaction submitted:', approveReceipt.transactionHash);
+            } else {
+                console.log('Using connected wallet for NFT approval repair');
+                
             // Estimate Gas
             const gasEstimate = await pwNFTContract.methods.setApprovalForAll(marketplaceAddress, true).estimateGas({
                 from: userAddress
@@ -1286,7 +1500,8 @@ async function diagnoseAndFixNFTApproval(pwNFTContract, marketplaceContract, use
                 gas: gas
             });
             
-            console.log('NFT authorization transaction submitted:', approveReceipt.transactionHash);
+                console.log('Connected wallet NFT authorization transaction submitted:', approveReceipt.transactionHash);
+            }
             
             // Wait for a moment to ensure authorization takes effect
             await new Promise(resolve => setTimeout(resolve, 2000));

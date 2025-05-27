@@ -31,22 +31,41 @@ const PetFeeding = (function() {
 
         debug.log('Starting to initialize feeding contract...');
         
-        // Check if Web3 is initialized
-        if (!window.web3) {
+        // Check if Web3 is initialized, prioritize private key wallet's Web3 instance
+        let web3Instance = null;
+        
+        // Priority 1: Use private key wallet's Web3 instance if available
+        if (window.SecureWalletManager && window.SecureWalletManager.shouldUsePrivateKeyForTransactions()) {
+            web3Instance = window.SecureWalletManager.getWeb3();
+            if (web3Instance) {
+                debug.log('Using private key wallet Web3 instance');
+            }
+        }
+        
+        // Priority 2: Use existing window.web3
+        if (!web3Instance && window.web3) {
+            web3Instance = window.web3;
+            debug.log('Using existing window.web3 instance');
+        }
+        
+        // Priority 3: Create new Web3 instance
+        if (!web3Instance) {
             if (window.ethereum) {
-                window.web3 = new Web3(window.ethereum);
+                web3Instance = new Web3(window.ethereum);
+                window.web3 = web3Instance; // Set as global for compatibility
                 debug.log('Successfully created temporary Web3 instance');
             } else if (typeof window.sharedWeb3 !== 'undefined') {
-                window.web3 = window.sharedWeb3;
+                web3Instance = window.sharedWeb3;
+                window.web3 = web3Instance; // Set as global for compatibility
                 debug.log('Using sharedWeb3 instance');
             } else {
                 throw new Error('Web3 not loaded, please refresh the page and try again');
             }
         }
         
-        // Check if NFTFeedingManagerContract is available
-        if (!window.NFTFeedingManagerContract) {
-            debug.log('NFTFeedingManagerContract is not available, trying to load');
+        // Check if we need to create a wrapper for the feeding contract
+        if (!window.feedingManagerContract) {
+            debug.log('Feeding contract not available, trying to initialize');
             
             // Attempt to load from initNFTFeedingManager.js
             try {
@@ -57,19 +76,21 @@ const PetFeeding = (function() {
                 await loadContractScript('../../scripts/contracts/NFTFeedingManager.js');
             }
             
-            // If NFTFeedingManagerContract class is now available, use it directly
-            if (!window.NFTFeedingManagerContract && (window.nftFeedingManagerContract || window.initNFTFeedingManagerContract)) {
+            // Create a wrapper class if we have contract instances available
+            if (window.nftFeedingManagerContract || window.initNFTFeedingManagerContract) {
                 debug.log('Creating NFTFeedingManagerContract wrapper class');
                 
                 // Create a wrapper class
-                window.NFTFeedingManagerContract = createFeedingManagerWrapper();
+                const NFTFeedingManagerWrapper = createFeedingManagerWrapper();
+                window.feedingManagerContract = new NFTFeedingManagerWrapper(web3Instance);
+                debug.log('Feeding contract initialized successfully with Web3 instance');
+                return window.feedingManagerContract;
+            } else {
+                throw new Error('No feeding contract instances available (nftFeedingManagerContract or initNFTFeedingManagerContract not found)');
             }
-        }
-        
-        // Create contract instance
-        if (window.NFTFeedingManagerContract) {
-            window.feedingManagerContract = new window.NFTFeedingManagerContract(window.web3);
-            debug.log('Feeding contract initialized successfully');
+        } else {
+            // Return existing contract instance
+            debug.log('Using existing feeding contract instance');
             return window.feedingManagerContract;
         }
         
@@ -103,6 +124,273 @@ const PetFeeding = (function() {
                 };
                 
                 this.contractAddress = getAddress('NFTFeedingManager');
+            }
+            
+            /**
+             * Get PWFOOD contract instance
+             * @param {Function} getContractAddress - get contract address function
+             * @returns {Promise<Object>} PWFOOD contract instance
+             */
+            async getPWFOODContract(getContractAddress) {
+                if (!this.web3) {
+                    debug.error('get PWFOOD contract failed: Web3 not initialized');
+                    return null;
+                }
+                
+                try {
+                    // get PWFOOD contract address
+                    let pwfoodAddress;
+                    
+                    if (typeof getContractAddress === 'function') {
+                        pwfoodAddress = getContractAddress('PwFood');
+                    } else if (window.contractAddresses && window.contractAddresses[window.currentNetwork || 'TEST']) {
+                        pwfoodAddress = window.contractAddresses[window.currentNetwork || 'TEST'].PwFood;
+                    } else {
+                        debug.error('cannot get PWFOOD contract address');
+                        return null;
+                    }
+                    
+                    if (!pwfoodAddress) {
+                        debug.error('PWFOOD contract address is empty');
+                        return null;
+                    }
+                    
+                    // create ERC20 contract instance
+                    const erc20ABI = window.GENERIC_ERC20_ABI || window.ERC20ABI || window.PWFoodABI || [
+                        {
+                            "constant": true,
+                            "inputs": [{"name": "owner", "type": "address"}],
+                            "name": "balanceOf",
+                            "outputs": [{"name": "", "type": "uint256"}],
+                            "type": "function"
+                        },
+                        {
+                            "constant": false,
+                            "inputs": [{"name": "spender", "type": "address"}, {"name": "value", "type": "uint256"}],
+                            "name": "approve",
+                            "outputs": [{"name": "", "type": "bool"}],
+                            "type": "function"
+                        },
+                        {
+                            "constant": true,
+                            "inputs": [{"name": "owner", "type": "address"}, {"name": "spender", "type": "address"}],
+                            "name": "allowance",
+                            "outputs": [{"name": "", "type": "uint256"}],
+                            "type": "function"
+                        }
+                    ];
+                    
+                    const pwfoodContract = new this.web3.eth.Contract(erc20ABI, pwfoodAddress);
+                    
+                    return pwfoodContract;
+                } catch (error) {
+                    debug.error('get PWFOOD contract failed:', error);
+                    return null;
+                }
+            }
+            
+            /**
+             * Calculate claimable rewards for a single NFT
+             * @param {number} tokenId - NFT's token ID
+             * @returns {Promise<Object>} - claimable rewards information
+             */
+            async calculateClaimableRewards(tokenId) {
+                try {
+                    debug.log(`[PetFeeding] Calculating claimable rewards for NFT #${tokenId} using local calculation only`);
+                    
+                    // Skip all contract method calls and use local calculation only
+                    debug.log(`[PetFeeding] Using local calculation for NFT #${tokenId}`);
+                    
+                    // Get NFT feeding data
+                    let feedingData;
+                    try {
+                        feedingData = await this.contract.methods.nftFeeding(tokenId).call();
+                        
+                        if (!feedingData || !feedingData.isActive) {
+                            return {
+                                tokenId: tokenId,
+                                pwpot: 0,
+                                pwbot: 0,
+                                cycles: 0
+                            };
+                        }
+                    } catch (error) {
+                        debug.error(`Failed to get feeding data for NFT #${tokenId}:`, error);
+                        return {
+                            tokenId: tokenId,
+                            error: 'Failed to get feeding data',
+                            pwpot: 0,
+                            pwbot: 0,
+                            cycles: 0
+                        };
+                    }
+                    
+                    // Get current time and last claim time
+                    const currentTime = Math.floor(Date.now() / 1000);
+                    const lastClaimTime = parseInt(feedingData.lastClaimTime || 0);
+                    const feedingHours = parseInt(feedingData.feedingHours || 0);
+                    const quality = parseInt(feedingData.quality || 0);
+                    const accumulatedCycles = parseInt(feedingData.accumulatedCycles || 0);
+                    const lastFeedTime = parseInt(feedingData.lastFeedTime || 0);
+                    
+                    debug.log(`NFT #${tokenId} data:`, {
+                        lastClaimTime,
+                        feedingHours,
+                        quality,
+                        accumulatedCycles,
+                        lastFeedTime,
+                        currentTime
+                    });
+                    
+                    // Initialize total cycles as the accumulated cycles
+                    let totalValidCycles = accumulatedCycles;
+                    
+                    // If current time is greater than the last claim time, calculate the new cycles
+                    if (currentTime > lastClaimTime) {
+                        // Calculate the time since the last claim (in seconds)
+                        const timeSinceLastClaim = currentTime - lastClaimTime;
+                        
+                        // Get the seconds per cycle (default 3600 seconds = 1 hour)
+                        const secondsPerCycle = 3600;
+                        
+                        // If the time since the last claim is less than or equal to the seconds corresponding to the feeding time, calculate the claimable cycles directly
+                        if (feedingHours * 3600 >= timeSinceLastClaim) {
+                            const newCycles = Math.floor(timeSinceLastClaim / secondsPerCycle);
+                            totalValidCycles += newCycles;
+                        } else {
+                            // Calculate the valid cycles before the starvation period
+                            const hoursBeforeStarvation = feedingHours;
+                            const cyclesBeforeStarvation = hoursBeforeStarvation; // because 1 hour = 1 cycle
+                            
+                            totalValidCycles += cyclesBeforeStarvation;
+                            
+                            // Check if there is a feeding after the starvation period
+                            if (lastFeedTime > lastClaimTime + (feedingHours * 3600)) {
+                                const timeFromLastFeed = currentTime > lastFeedTime ? 
+                                                       currentTime - lastFeedTime : 0;
+                                
+                                if (timeFromLastFeed > 0) {
+                                    const cyclesFromLastFeed = Math.floor(timeFromLastFeed / secondsPerCycle);
+                                    
+                                    // The new cycles are only limited by the current remaining feeding time
+                                    const currentPeriodCycles = Math.min(cyclesFromLastFeed, feedingHours);
+                                    
+                                    totalValidCycles += currentPeriodCycles;
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Use default reward configuration - skip contract call
+                    const rewardConfigs = {
+                        0: { pwpotReward: 1, pwbotReward: 0 }, // COMMON
+                        1: { pwpotReward: 2, pwbotReward: 0 }, // GOOD
+                        2: { pwpotReward: 3, pwbotReward: 1 }, // EXCELLENT
+                        3: { pwpotReward: 5, pwbotReward: 2 }, // RARE
+                        4: { pwpotReward: 10, pwbotReward: 5 } // LEGENDARY
+                    };
+                    
+                    const rewardConfig = rewardConfigs[quality] || rewardConfigs[0];
+                    const pwpotReward = rewardConfig.pwpotReward;
+                    const pwbotReward = rewardConfig.pwbotReward;
+                    debug.log(`[PetFeeding] Using default reward config for quality ${quality}: pwpot=${pwpotReward}, pwbot=${pwbotReward}`);
+                    
+                    // Calculate rewards
+                    const totalPwpot = pwpotReward * totalValidCycles;
+                    const totalPwbot = pwbotReward * totalValidCycles;
+                    
+                    debug.log(`Calculation result for NFT #${tokenId}: Total Cycles=${totalValidCycles}, Accumulated Cycles=${accumulatedCycles}, Rewards: ${totalPwpot} PWPOT, ${totalPwbot} PWBOT`);
+                    
+                    return {
+                        tokenId: tokenId,
+                        pwpot: totalPwpot,
+                        pwbot: totalPwbot,
+                        cycles: totalValidCycles,
+                        accumulatedCycles: accumulatedCycles
+                    };
+                } catch (error) {
+                    debug.error(`Failed to calculate claimable rewards for NFT #${tokenId}:`, error);
+                    return {
+                        tokenId: tokenId,
+                        error: error.message || 'Failed to calculate rewards',
+                        pwpot: 0,
+                        pwbot: 0,
+                        cycles: 0
+                    };
+                }
+            }
+            
+            /**
+             * Get NFT feeding information
+             * @param {number} tokenId - NFT's token ID
+             * @returns {Promise<Object>} - NFT feeding information
+             */
+            async getNFTFeedingInfo(tokenId) {
+                if (!this.contract) {
+                    debug.error('get feeding info failed: contract instance is empty');
+                    return null;
+                }
+                
+                try {
+                    // ensure tokenId is an integer
+                    tokenId = parseInt(tokenId);
+                    if (isNaN(tokenId)) {
+                        debug.error('get feeding info failed: invalid tokenId');
+                        return null;
+                    }
+                    
+                    debug.log(`start getting feeding info for NFT #${tokenId}...`);
+                    
+                    // check if contract method exists
+                    if (!this.contract.methods || typeof this.contract.methods.nftFeeding !== 'function') {
+                        debug.error('contract method nftFeeding does not exist');
+                        debug.log('available contract methods:', Object.keys(this.contract.methods || {}).join(', '));
+                        return null;
+                    }
+                    
+                    debug.log(`contract address: ${this.contract.options.address}`);
+                    debug.log(`call nftFeeding(${tokenId})`);
+                    
+                    const feedingInfo = await this.contract.methods.nftFeeding(tokenId).call();
+                    debug.log('original contract feeding info:', JSON.stringify(feedingInfo, null, 2));
+                    
+                    // convert data type
+                    const result = {
+                        feedingHours: parseInt(feedingInfo.feedingHours) || 0,
+                        lastClaimTime: parseInt(feedingInfo.lastClaimTime) || 0,
+                        lastFeedTime: parseInt(feedingInfo.lastFeedTime) || 0,
+                        quality: parseInt(feedingInfo.quality) || 0,
+                        isActive: Boolean(feedingInfo.isActive),
+                        level: parseInt(feedingInfo.level) || 1,
+                        accumulatedFood: parseInt(feedingInfo.accumulatedFood) || 0,
+                        accumulatedCycles: parseInt(feedingInfo.accumulatedCycles) || 0
+                    };
+                    
+                    // calculate the difference between current time and lastFeedTime
+                    const now = Math.floor(Date.now() / 1000);
+                    const elapsedSeconds = now - result.lastFeedTime;
+                    const elapsedHours = Math.floor(elapsedSeconds / 3600);
+                    
+                    debug.log(`NFT #${tokenId} feeding info processing result:`, {
+                        feedingHours: `${result.feedingHours} hours`,
+                        lastClaimTime: new Date(result.lastClaimTime * 1000).toLocaleString(),
+                        lastFeedTime: new Date(result.lastFeedTime * 1000).toLocaleString(),
+                        quality: result.quality,
+                        isActive: result.isActive,
+                        level: result.level,
+                        accumulatedFood: result.accumulatedFood,
+                        accumulatedCycles: result.accumulatedCycles,
+                        currentTime: new Date(now * 1000).toLocaleString(),
+                        timeSinceLastFeed: `${elapsedHours}小时${Math.floor((elapsedSeconds % 3600) / 60)}分钟`
+                    });
+                    
+                    return result;
+                } catch (error) {
+                    debug.error(`get NFT #${tokenId} feeding info failed:`, error);
+                    // print stack trace
+                    debug.error('error stack:', error.stack);
+                    return null;
+                }
             }
             
             // Single NFT feeding method
@@ -212,10 +500,33 @@ const PetFeeding = (function() {
                     
                     // Call contract feeding method
                     debug.log('Starting to call contract feeding method');
-                    const result = await this.contract.methods.feedNFT(
+                    
+                    let result;
+                    
+                    // Check if using private key wallet
+                    const shouldUsePrivateKey = window.SecureWalletManager && 
+                                               window.SecureWalletManager.shouldUsePrivateKeyForTransactions &&
+                                               window.SecureWalletManager.shouldUsePrivateKeyForTransactions();
+                    
+                    if (shouldUsePrivateKey) {
+                        debug.log('Using private key wallet for feeding transaction');
+                        
+                        // Use SecureWalletManager for private key transactions
+                        result = await window.SecureWalletManager.sendContractTransaction(
+                            this.contract,
+                            'feedNFT',
+                            [tokenId, hours],
+                            { gas: 300000 } // Set appropriate gas limit
+                        );
+                    } else {
+                        debug.log('Using connected wallet for feeding transaction');
+                        
+                        // Use traditional connected wallet method
+                        result = await this.contract.methods.feedNFT(
                         tokenId, 
                         hours
                     ).send({ from: userAddress });
+                    }
                     
                     debug.log('Feeding successful, result:', result);
                     return {
@@ -348,10 +659,33 @@ const PetFeeding = (function() {
                     
                     // Call contract batch feeding method
                     debug.log('Starting to call contract batch feeding method');
-                    const result = await this.contract.methods.feedMultipleNFTs(
+                    
+                    let result;
+                    
+                    // Check if using private key wallet
+                    const shouldUsePrivateKey = window.SecureWalletManager && 
+                                               window.SecureWalletManager.shouldUsePrivateKeyForTransactions &&
+                                               window.SecureWalletManager.shouldUsePrivateKeyForTransactions();
+                    
+                    if (shouldUsePrivateKey) {
+                        debug.log('Using private key wallet for batch feeding transaction');
+                        
+                        // Use SecureWalletManager for private key transactions
+                        result = await window.SecureWalletManager.sendContractTransaction(
+                            this.contract,
+                            'feedMultipleNFTs',
+                            [tokenIds, totalFood],
+                            { gas: 500000 } // Set appropriate gas limit for batch operation
+                        );
+                    } else {
+                        debug.log('Using connected wallet for batch feeding transaction');
+                        
+                        // Use traditional connected wallet method
+                        result = await this.contract.methods.feedMultipleNFTs(
                         tokenIds, 
                         totalFood
                     ).send({ from: userAddress });
+                    }
                     
                     debug.log('Batch feeding successful, result:', result);
                     return {
@@ -370,34 +704,27 @@ const PetFeeding = (function() {
             // Batch calculate claimable rewards method
             async batchCalculateClaimableRewards(tokenIds) {
                 try {
-                    // If the contract has this method, call it directly
-                    if (this.contract.methods.batchCalculateClaimableRewards) {
-                        const result = await this.contract.methods.batchCalculateClaimableRewards(tokenIds).call();
-                        return {
-                            success: true,
-                            nftRewards: result.nftRewards,
-                            totalRewards: result.totalRewards
-                        };
-                    }
-                    
-                    // If there is no batch method, calculate one by one
+                    // Skip all contract methods and use local calculation only
+                    debug.log('[PetFeeding] Using local calculation only for batch rewards');
                     const rewards = [];
                     let totalPwpot = 0;
                     let totalPwbot = 0;
                     
                     for (const tokenId of tokenIds) {
                         try {
-                            const result = await this.contract.methods.calculateClaimableRewards(tokenId).call();
+                            // Use local calculation instead of contract method
+                            const result = await this.calculateClaimableRewards(tokenId);
                             rewards.push({
                                 tokenId,
-                                pwpot: parseInt(result.pwpot),
-                                pwbot: parseInt(result.pwbot),
-                                cycles: parseInt(result.cycles)
+                                pwpot: parseInt(result.pwpot || 0),
+                                pwbot: parseInt(result.pwbot || 0),
+                                cycles: parseInt(result.cycles || 0)
                             });
                             
-                            totalPwpot += parseInt(result.pwpot);
-                            totalPwbot += parseInt(result.pwbot);
+                            totalPwpot += parseInt(result.pwpot || 0);
+                            totalPwbot += parseInt(result.pwbot || 0);
                         } catch (err) {
+                            debug.error(`[PetFeeding] Error calculating rewards for NFT #${tokenId}:`, err);
                             rewards.push({
                                 tokenId,
                                 error: err.message,
@@ -430,11 +757,32 @@ const PetFeeding = (function() {
                 try {
                     debug.log(`Starting to claim rewards for ${tokenIds.length} NFTs`);
                     
-                    // Call contract batch claim rewards method
-                    const result = await this.contract.methods.claimRewards(tokenIds).send({ 
+                    let result;
+                    
+                    // Check if using private key wallet
+                    const shouldUsePrivateKey = window.SecureWalletManager && 
+                                               window.SecureWalletManager.shouldUsePrivateKeyForTransactions &&
+                                               window.SecureWalletManager.shouldUsePrivateKeyForTransactions();
+                    
+                    if (shouldUsePrivateKey) {
+                        debug.log('Using private key wallet for claim rewards transaction');
+                        
+                        // Use SecureWalletManager for private key transactions
+                        result = await window.SecureWalletManager.sendContractTransaction(
+                            this.contract,
+                            'claimRewards',
+                            [tokenIds],
+                            { gas: 500000 } // Set appropriate gas limit for batch operation
+                        );
+                    } else {
+                        debug.log('Using connected wallet for claim rewards transaction');
+                        
+                        // Use traditional connected wallet method
+                        result = await this.contract.methods.claimRewards(tokenIds).send({ 
                         from: userAddress,
                         gas: 500000 // Estimated gas usage
                     });
+                    }
                     
                     debug.log('Claiming rewards successful, result:', result);
                     return {
@@ -522,13 +870,25 @@ const PetFeeding = (function() {
             const { tokenId, feedHours, element } = feedData;
             debug.log(`Handling single pet feeding: TokenID=${tokenId}, Feed Time=${feedHours} hours`);
             
-            // Check if wallet is connected
+            // Check wallet connection and get user address
+            let userAddress = null;
+            
+            // Priority 1: Check private key wallet
+            if (window.SecureWalletManager && 
+                typeof window.SecureWalletManager.shouldUsePrivateKeyForTransactions === 'function' &&
+                window.SecureWalletManager.shouldUsePrivateKeyForTransactions()) {
+                userAddress = window.SecureWalletManager.getAddress();
+                debug.log('Using private key wallet for feeding:', userAddress);
+            } else {
+                // Priority 2: Check connected wallet
             if (!window.web3) {
                 throw new Error('Web3 not initialized');
             }
             
             const accounts = await window.web3.eth.getAccounts();
-            const userAddress = accounts[0];
+                userAddress = accounts[0];
+                debug.log('Using connected wallet for feeding:', userAddress);
+            }
             
             if (!userAddress) {
                 return { success: false, error: 'Please connect wallet to feed' };
@@ -543,11 +903,8 @@ const PetFeeding = (function() {
             if (!result.success) {
                 // Check if authorization is needed
                 if (result.needApproval) {
-                    // Request user confirmation for approval
-                    const confirmApproval = window.confirm("Authorization for PWFOOD tokens is required to proceed with feeding. Click OK to approve.");
-                    if (!confirmApproval) {
-                        return { success: false, error: 'User canceled authorization' };
-                    }
+                    // Execute approval automatically without user confirmation
+                    debug.log('Auto-authorizing PWFOOD tokens for single pet feeding');
                     
                     // Execute approval
                     try {
@@ -562,6 +919,7 @@ const PetFeeding = (function() {
                             return { success: false, error: 'Authorization failed: ' + (approvalResult.error || 'Unknown error') };
                         }
                         
+                        debug.log('PWFOOD authorization successful, retrying single pet feeding');
                         // Try feeding again
                         const feedResult = await feedingManager.feedNFT(tokenId, feedHours, userAddress);
                         return feedResult;
@@ -592,13 +950,25 @@ const PetFeeding = (function() {
         try {
             debug.log(`Handling batch pet feeding: ${tokenIds.length} pets, each feeding time=${feedingHours} hours`);
             
-            // Check if wallet is connected
+            // Check wallet connection and get user address
+            let userAddress = null;
+            
+            // Priority 1: Check private key wallet
+            if (window.SecureWalletManager && 
+                typeof window.SecureWalletManager.shouldUsePrivateKeyForTransactions === 'function' &&
+                window.SecureWalletManager.shouldUsePrivateKeyForTransactions()) {
+                userAddress = window.SecureWalletManager.getAddress();
+                debug.log('Using private key wallet for batch feeding:', userAddress);
+            } else {
+                // Priority 2: Check connected wallet
             if (!window.web3) {
                 throw new Error('Web3 not initialized');
             }
             
             const accounts = await window.web3.eth.getAccounts();
-            const userAddress = accounts[0];
+                userAddress = accounts[0];
+                debug.log('Using connected wallet for batch feeding:', userAddress);
+            }
             
             if (!userAddress) {
                 return { success: false, error: 'Please connect wallet to feed' };
@@ -616,11 +986,8 @@ const PetFeeding = (function() {
             if (!result.success) {
                 // Check if authorization is needed
                 if (result.needApproval) {
-                    // Request user confirmation for approval
-                    const confirmApproval = window.confirm(`Authorization for PWFOOD tokens is required to proceed with feeding. At least ${totalRequiredFood} PWFOOD are needed. Click OK to approve.`);
-                    if (!confirmApproval) {
-                        return { success: false, error: 'User canceled authorization' };
-                    }
+                    // Execute approval automatically without user confirmation
+                    debug.log('Auto-authorizing PWFOOD tokens for batch feeding');
                     
                     // Execute approval
                     try {
@@ -635,6 +1002,7 @@ const PetFeeding = (function() {
                             return { success: false, error: 'Authorization failed: ' + (approvalResult.error || 'Unknown error') };
                         }
                         
+                        debug.log('PWFOOD authorization successful, retrying batch feeding');
                         // Try batch feeding again
                         const feedResult = await feedingManager.feedMultipleNFTs(tokenIds, feedingHours, userAddress);
                         return feedResult;
@@ -664,13 +1032,25 @@ const PetFeeding = (function() {
         try {
             debug.log(`Handling batch reward claim: ${tokenIds.length} pets`);
             
-            // Check if wallet is connected
+            // Check wallet connection and get user address
+            let userAddress = null;
+            
+            // Priority 1: Check private key wallet
+            if (window.SecureWalletManager && 
+                typeof window.SecureWalletManager.shouldUsePrivateKeyForTransactions === 'function' &&
+                window.SecureWalletManager.shouldUsePrivateKeyForTransactions()) {
+                userAddress = window.SecureWalletManager.getAddress();
+                debug.log('Using private key wallet for reward claim:', userAddress);
+            } else {
+                // Priority 2: Check connected wallet
             if (!window.web3) {
                 throw new Error('Web3 not initialized');
             }
             
             const accounts = await window.web3.eth.getAccounts();
-            const userAddress = accounts[0];
+                userAddress = accounts[0];
+                debug.log('Using connected wallet for reward claim:', userAddress);
+            }
             
             if (!userAddress) {
                 return { success: false, error: 'Please connect wallet to claim rewards' };
@@ -969,13 +1349,23 @@ const PetFeeding = (function() {
             
             debug.log(`Preparing to batch feed ${tokenIds.length} pets, each feeding ${feedingHoursPerNFT} hours`);
             
-            // Check if wallet is connected
+            // Check wallet connection and get user address
+            let userAddress = null;
+            
+            // Priority 1: Check private key wallet
+            if (window.SecureWalletManager && window.SecureWalletManager.shouldUsePrivateKeyForTransactions()) {
+                userAddress = window.SecureWalletManager.getAddress();
+                debug.log('Using private key wallet for batch feeding:', userAddress);
+            } else {
+                // Priority 2: Check connected wallet
             if (!window.web3) {
                 return { success: false, error: 'Web3 not initialized' };
             }
             
             const accounts = await window.web3.eth.getAccounts();
-            const userAddress = accounts[0];
+                userAddress = accounts[0];
+                debug.log('Using connected wallet for batch feeding:', userAddress);
+            }
             
             if (!userAddress) {
                 return { success: false, error: 'Please connect wallet to feed' };
@@ -1209,6 +1599,574 @@ const PetFeeding = (function() {
         }
     }
     
+    /**
+     * Handle feed friend pet button click
+     */
+    async function handleFeedFriendNFT() {
+        debug.log('Feed friend pet button clicked');
+        
+        // Check wallet connection and get user address
+        let userAddress = null;
+        
+        // Priority 1: Check private key wallet
+        if (shouldUsePrivateKeyWallet()) {
+            userAddress = window.SecureWalletManager.getAddress();
+            console.log('Using private key wallet for feed friend:', userAddress);
+        } else if (window.isWalletConnected && window.currentAddress) {
+            // Priority 2: Check connected wallet
+            userAddress = window.currentAddress;
+            console.log('Using connected wallet for feed friend:', userAddress);
+        }
+        
+        if (!userAddress) {
+            showToast('Please connect your wallet first', 5000);
+            return;
+        }
+        
+        // Load FeedFriendDialog module
+        if (!window.FeedFriendDialog) {
+            try {
+                await loadContractScript('../../scripts/other/feedFriendDialog.js');
+                debug.log('FeedFriendDialog module loaded successfully');
+            } catch (error) {
+                debug.error('FeedFriendDialog module load failed:', error);
+                showToast('Failed to load feed friend dialog', 5000);
+                return;
+            }
+        }
+        
+        // Display feed friend dialog
+        if (window.FeedFriendDialog) {
+            window.FeedFriendDialog.show();
+        } else {
+            showToast('Failed to open feed friend dialog', 5000);
+        }
+    }
+    
+    /**
+     * Enhanced batch feed all pets method
+     */
+    async function handleFeedAllPets() {
+        debug.log('Enhanced batch feed all pets button clicked');
+        
+        // Check wallet connection and get user address
+        let userAddress = null;
+        
+        // Priority 1: Check private key wallet
+        if (shouldUsePrivateKeyWallet()) {
+            userAddress = window.SecureWalletManager.getAddress();
+            console.log('Using private key wallet for enhanced batch feeding:', userAddress);
+        } else if (window.isWalletConnected && window.currentAddress) {
+            // Priority 2: Check connected wallet
+            userAddress = window.currentAddress;
+            console.log('Using connected wallet for enhanced batch feeding:', userAddress);
+        }
+        
+        if (!userAddress) {
+            showToast('Please connect your wallet first', 5000);
+            return;
+        }
+        
+        // Check if there are any NFTs
+        if (!window.userNFTs || window.userNFTs.length === 0) {
+            showToast('You have no pets to feed', 5000);
+            return;
+        }
+        
+        // Check if ModalDialog is available
+        if (!window.ModalDialog) {
+            debug.log('ModalDialog is not available, using legacy method');
+            return handleFeedAllPetsLegacy();
+        }
+        
+        try {
+            // Use ModalDialog to get user input
+            const userInput = await window.ModalDialog.prompt(
+                'Please enter the feeding time for each pet (hours):',
+                {
+                    title: 'Batch Feed All Pets',
+                    defaultValue: '24',
+                    placeholder: 'Enter hours (1-168)',
+                    confirmText: 'Start Feeding',
+                    cancelText: 'Cancel'
+                }
+            );
+            
+            if (!userInput) {
+                showToast('Feeding operation cancelled', 3000);
+                return;
+            }
+            
+            const feedingHoursPerNFT = parseInt(userInput);
+            if (isNaN(feedingHoursPerNFT) || feedingHoursPerNFT <= 0 || feedingHoursPerNFT > 168) {
+                await window.ModalDialog.alert(
+                    'Please enter a valid feeding time (1-168 hours)',
+                    {
+                        title: 'Invalid Input'
+                    }
+                );
+                return handleFeedAllPetsLegacy();
+            }
+            
+            // Show processing message
+            showToast(`Preparing batch feed (${feedingHoursPerNFT} hours/pet)...`, 5000);
+            
+            // Set maximum feeding time limit options
+            const options = {
+                maxFeedingHours: 168 // Default maximum feeding time is 7 days (168 hours)
+            };
+            
+            // Use the feedAllPets function to batch feed
+            const feedingResult = await feedAllPets(window.userNFTs, feedingHoursPerNFT, options);
+            
+            if (!feedingResult.success) {
+                // Check if authorization is needed
+                if (feedingResult.needApproval) {
+                    try {
+                        // Execute authorization automatically without user confirmation
+                        showToast('Authorizing PWFOOD token automatically...', 5000);
+                        debug.log('Auto-authorizing PWFOOD token for enhanced batch feeding');
+                        
+                        // Check if ContractApprovalManager is available
+                        if (!window.ContractApprovalManager) {
+                            debug.log('ContractApprovalManager is not available, trying to load');
+                            try {
+                                await loadContractScript('../../scripts/other/ContractApprovalManager.js');
+                            } catch (error) {
+                                debug.error('Failed to load ContractApprovalManager:', error);
+                                throw new Error('Failed to load authorization manager');
+                            }
+                        }
+                        
+                        const approvalResult = await window.ContractApprovalManager.approveERC20Token(
+                            feedingResult.pwfoodContract,
+                            feedingResult.feedingManagerAddress,
+                            '115792089237316195423570985008687907853269984665640564039457584007913129639935', // Max uint256
+                            userAddress,
+                            true
+                        );
+                        
+                        if (approvalResult.success) {
+                            showToast('Authorization successful, starting batch feed', 3000);
+                            debug.log('PWFOOD authorization successful, retrying enhanced batch feed');
+                            // Try batch feed again
+                            setTimeout(async () => {
+                                await handleFeedAllPets();
+                            }, 1000);
+                        } else {
+                            showToast('Authorization failed: ' + (approvalResult.error || 'Unknown error'), 5000);
+                            debug.error('PWFOOD authorization failed:', approvalResult.error);
+                        }
+                    } catch (approvalError) {
+                        debug.error('Authorization process error:', approvalError);
+                        showToast('Authorization process error: ' + (approvalError.message || 'Unknown error'), 5000);
+                    }
+                    return;
+                }
+                
+                // Insufficient balance
+                if (feedingResult.error && feedingResult.error.includes('Insufficient balance')) {
+                    showToast(`PWFOOD balance is insufficient, you need ${feedingResult.requiredAmount} PWFOOD, current balance ${feedingResult.balance} PWFOOD`, 5000);
+                    
+                    await window.ModalDialog.alert(
+                        `<div style="color: #e53935;">
+                            <strong>PWFOOD balance is insufficient!</strong><br><br>
+                            Required: ${feedingResult.requiredAmount} PWFOOD<br>
+                            Current balance: ${feedingResult.balance} PWFOOD
+                        </div>`,
+                        {
+                            title: 'Insufficient balance'
+                        }
+                    );
+                    return;
+                }
+                
+                // 根据筛选的无效NFT显示信息
+                if (feedingResult.invalidNfts && feedingResult.invalidNfts.length > 0) {
+                    const message = `There are ${feedingResult.invalidNfts.length} pets that have been skipped because the feeding time exceeds the limit`;
+                    showToast(message, 5000);
+                    debug.log('Skipped pets:', feedingResult.invalidNfts);
+                }
+                
+                // Other errors
+                showToast('Batch feed failed: ' + feedingResult.error, 5000);
+                return;
+            }
+            
+            // Display success results
+            if (feedingResult.successCount > 0) {
+                let message = `Successfully fed ${feedingResult.successCount} pets, each ${feedingHoursPerNFT} hours`;
+                
+                if (feedingResult.failCount > 0) {
+                    message += `, failed ${feedingResult.failCount} pets`;
+                }
+                
+                if (feedingResult.skippedCount > 0) {
+                    message += `, skipped ${feedingResult.skippedCount} pets (exceeds limit)`;
+                }
+                
+                showToast(message, 5000);
+                
+                
+                await window.ModalDialog.alert(
+                    `<div style="color: #4caf50;">
+                        <strong>Successfully fed!</strong><br><br>
+                        ✅ Successfully fed: ${feedingResult.successCount} pets<br>
+                        ${feedingResult.failCount > 0 ? `❌ Failed: ${feedingResult.failCount} pets<br>` : ''}
+                        ${feedingResult.skippedCount > 0 ? `⚠️ Skipped: ${feedingResult.skippedCount} pets (exceeds limit)<br>` : ''}
+                        ⏱️ Each pet feeding time: ${feedingHoursPerNFT} hours<br>
+                        💰 Consumed PWFOOD: ${feedingResult.totalFood}
+                    </div>`,
+                    {
+                        title: 'Feeding results'
+                    }
+                );
+                
+                // Refresh NFT display
+                setTimeout(() => {
+                    if (typeof window.loadUserNFTs === 'function') {
+                        window.loadUserNFTs(true);
+                    }
+                }, 1000);
+            } else if (feedingResult.failCount > 0) {
+                showToast(`All feeding attempts failed, please check the PWFOOD balance or network status`, 5000);
+                
+                await window.ModalDialog.alert(
+                    `<div style="color: #e53935;">
+                        <strong>Feeding failed!</strong><br><br>
+                        All ${feedingResult.failCount} pets' feeding attempts failed.<br>
+                        Please check your PWFOOD balance or network status and try again.
+                    </div>`,
+                    {
+                        title: 'Feeding failed'
+                    }
+                );
+            }
+        } catch (error) {
+            debug.error('Batch feed process error:', error);
+            showToast('Batch feed failed: ' + (error.message || 'Unknown error'), 5000);
+            
+            await window.ModalDialog.alert(
+                `<div style="color: #e53935;">
+                    <strong>Feeding process error</strong><br><br>
+                    ${error.message || 'Unknown error'}
+                </div>`,
+                {
+                    title: 'Feeding failed'
+                }
+            );
+        }
+    }
+
+    /**
+     * Original batch feed all pets method (as a fallback)
+     */
+    async function handleFeedAllPetsLegacy() {
+        // Check wallet connection and get user address
+        let userAddress = null;
+        
+        // Priority 1: Check private key wallet
+        if (shouldUsePrivateKeyWallet()) {
+            userAddress = window.SecureWalletManager.getAddress();
+            console.log('Using private key wallet for legacy batch feeding:', userAddress);
+        } else if (window.isWalletConnected && window.currentAddress) {
+            // Priority 2: Check connected wallet
+            userAddress = window.currentAddress;
+            console.log('Using connected wallet for legacy batch feeding:', userAddress);
+        }
+        
+        if (!userAddress) {
+            alert('Please connect your wallet first');
+            return;
+        }
+        
+        // Check if there are any NFTs
+        if (!window.userNFTs || window.userNFTs.length === 0) {
+            alert('You have no pets to feed');
+            return;
+        }
+        
+        // Prompt user to enter the feeding time
+        let feedingHoursPerNFT = 24; // Default feeding time is 24 hours
+        const userInputHours = prompt('Please enter the feeding time for each pet (hours):', '24');
+        
+        if (userInputHours === null) {
+            // User cancelled the operation
+            showToast('Feeding operation cancelled', 3000);
+            return;
+        }
+        
+        const parsedHours = parseInt(userInputHours);
+        if (isNaN(parsedHours) || parsedHours <= 0 || parsedHours > 1000) {
+            showToast('Please enter a valid feeding time (1-1000 hours)', 5000);
+            return;
+        }
+        
+        feedingHoursPerNFT = parsedHours;
+        
+        // Show processing message
+        showToast(`Preparing batch feed (${feedingHoursPerNFT} hours/pet)...`, 5000);
+        
+        try {
+            // Set maximum feeding time limit options
+            const options = {
+                maxFeedingHours: 168 // Default maximum feeding time is 7 days (168 hours)
+            };
+            
+            // Use the feedAllPets function to batch feed
+            const feedingResult = await feedAllPets(window.userNFTs, feedingHoursPerNFT, options);
+            
+            if (!feedingResult.success) {
+                // Check if authorization is needed
+                if (feedingResult.needApproval) {
+                    try {
+                        // Execute authorization automatically without user confirmation
+                        showToast('Authorizing PWFOOD token automatically...', 5000);
+                        debug.log('Auto-authorizing PWFOOD token for legacy batch feeding');
+                        
+                        // Check if ContractApprovalManager is available
+                        if (!window.ContractApprovalManager) {
+                            debug.log('ContractApprovalManager is not available, trying to load');
+                            try {
+                                await loadContractScript('../../scripts/other/ContractApprovalManager.js');
+                            } catch (error) {
+                                debug.error('Failed to load ContractApprovalManager:', error);
+                                throw new Error('Failed to load authorization manager');
+                            }
+                        }
+                        
+                        const approvalResult = await window.ContractApprovalManager.approveERC20Token(
+                            feedingResult.pwfoodContract,
+                            feedingResult.feedingManagerAddress,
+                            '115792089237316195423570985008687907853269984665640564039457584007913129639935', // Max uint256
+                            userAddress,
+                            true
+                        );
+                        
+                        if (approvalResult.success) {
+                            showToast('Authorization successful, starting batch feed', 3000);
+                            debug.log('PWFOOD authorization successful, retrying legacy batch feed');
+                            // Try batch feed again
+                            setTimeout(async () => {
+                                await handleFeedAllPets();
+                            }, 1000);
+                        } else {
+                            showToast('Authorization failed: ' + (approvalResult.error || 'Unknown error'), 5000);
+                            debug.error('PWFOOD authorization failed:', approvalResult.error);
+                        }
+                    } catch (approvalError) {
+                        debug.error('Authorization process error:', approvalError);
+                        showToast('Authorization process error: ' + (approvalError.message || 'Unknown error'), 5000);
+                    }
+                    return;
+                }
+                
+                // Insufficient balance
+                if (feedingResult.error && feedingResult.error.includes('Insufficient balance')) {
+                    showToast(`PWFOOD balance is insufficient, you need ${feedingResult.requiredAmount} PWFOOD, current balance ${feedingResult.balance} PWFOOD`, 5000);
+                    alert(`Your PWFOOD balance is insufficient to feed all pets!<br>Required: ${feedingResult.requiredAmount} PWFOOD<br>Current balance: ${feedingResult.balance} PWFOOD`);
+                    return;
+                }
+                
+                // Display information for invalid NFTs
+                if (feedingResult.invalidNfts && feedingResult.invalidNfts.length > 0) {
+                    const message = `There are ${feedingResult.invalidNfts.length} pets that have been skipped because the feeding time exceeds the limit`;
+                    showToast(message, 5000);
+                    debug.log('Skipped pets:', feedingResult.invalidNfts);
+                }
+                
+                // Other errors
+                showToast('Batch feed failed: ' + feedingResult.error, 5000);
+                return;
+            }
+            
+            // Display success results
+            if (feedingResult.successCount > 0) {
+                let message = `Successfully fed ${feedingResult.successCount} pets, each ${feedingHoursPerNFT} hours`;
+                
+                if (feedingResult.failCount > 0) {
+                    message += `, failed ${feedingResult.failCount} pets`;
+                }
+                
+                if (feedingResult.skippedCount > 0) {
+                    message += `, skipped ${feedingResult.skippedCount} pets (exceeds limit)`;
+                }
+                
+                showToast(message, 5000);
+                alert(`Successfully fed!\n✅ Successfully fed: ${feedingResult.successCount} pets\n${feedingResult.failCount > 0 ? `❌ Failed: ${feedingResult.failCount} pets\n` : ''}${feedingResult.skippedCount > 0 ? `⚠️ Skipped: ${feedingResult.skippedCount} pets (exceeds limit)\n` : ''}⏱️ Each pet feeding time: ${feedingHoursPerNFT} hours\n💰 Consumed PWFOOD: ${feedingResult.totalFood}`);
+                
+                // Refresh NFT display
+                setTimeout(() => {
+                    if (typeof window.loadUserNFTs === 'function') {
+                        window.loadUserNFTs(true);
+                    }
+                }, 1000);
+            } else if (feedingResult.failCount > 0) {
+                showToast(`All feeding attempts failed, please check the PWFOOD balance or network status`, 5000);
+                alert(`Feeding failed!\nAll ${feedingResult.failCount} pets' feeding attempts failed.\nPlease check your PWFOOD balance or network status and try again.`);
+            }
+        } catch (error) {
+            debug.error('Batch feed process error:', error);
+            showToast('Batch feed failed: ' + (error.message || 'Unknown error'), 5000);
+            alert(`Feeding process error\n${error.message || 'Unknown error'}`);
+        }
+    }
+
+    /**
+     * Handle pet feeding operation
+     * @param {Object} feedData - Feeding data
+     */
+    async function handlePetFeeding(feedData) {
+        try {
+            const { tokenId, feedHours, element } = feedData;
+            console.log(`Handling pet feeding: TokenID=${tokenId}, Feeding time=${feedHours} hours`);
+            
+            // Check wallet connection and get user address
+            let userAddress = null;
+            
+            console.log('[PetFeeding Debug] Checking wallet status...');
+            
+            // Priority 1: Use WalletNetworkManager if available
+            if (window.walletNetworkManager && window.walletNetworkManager.isReadyForContracts()) {
+                userAddress = window.walletNetworkManager.getCurrentAddress();
+                console.log('[PetFeeding Debug] Using WalletNetworkManager address:', userAddress);
+                
+                // Ensure Web3 is available from WalletNetworkManager
+                if (!window.web3) {
+                    const managerWeb3 = window.walletNetworkManager.getWeb3();
+                    if (managerWeb3) {
+                        window.web3 = managerWeb3;
+                        console.log('[PetFeeding Debug] Set Web3 from WalletNetworkManager for feeding');
+                    }
+                }
+            } else {
+                console.log('[PetFeeding Debug] WalletNetworkManager not ready, checking fallback options...');
+                
+                // Fallback: Check if Web3 is available
+                if (!window.web3) {
+                    console.log('[PetFeeding Debug] No Web3 available');
+                    if (window.ModalDialog) {
+                        await window.ModalDialog.alert('Please connect your wallet to feed the pet', { title: 'Error', confirmText: 'OK' });
+                    } else {
+                        alert('Please connect your wallet to feed the pet');
+                    }
+                    return;
+                }
+                
+                try {
+                const accounts = await window.web3.eth.getAccounts();
+                userAddress = accounts[0];
+                    console.log('[PetFeeding Debug] Got fallback wallet address:', userAddress);
+                } catch (error) {
+                    console.error('[PetFeeding Debug] Error getting accounts from Web3:', error);
+                }
+            }
+            
+            if (!userAddress) {
+                console.error('No user address available for feeding');
+                if (window.ModalDialog) {
+                    await window.ModalDialog.alert('Please connect your wallet to feed the pet', { title: 'Error', confirmText: 'OK' });
+                } else {
+                    alert('Please connect your wallet to feed the pet');
+                }
+                return;
+            }
+            
+            console.log('Pet feeding with user address:', userAddress);
+            
+            // Call feedSinglePet function to handle feeding
+            const result = await feedSinglePet(feedData);
+            
+            if (!result.success) {
+                // Check if authorization is needed (this is handled in the feedSinglePet function)
+                if (window.ModalDialog) {
+                    await window.ModalDialog.alert(`Feeding failed: ${result.error || "Unknown error"}`, { title: 'Error', confirmText: 'OK' });
+                } else {
+                    alert(`Feeding failed: ${result.error || "Unknown error"}`);
+                }
+                return;
+            }
+            
+            // Show feeding success message using ModalDialog (consistent with normal mode)
+            if (window.ModalDialog) {
+                await window.ModalDialog.alert(`Successfully fed for ${feedHours} hours!`, { 
+                    title: 'Feeding Success', 
+                    confirmText: 'OK' 
+                });
+            } else if (window.PetCard && window.PetCard.showFeedingMessage) {
+                window.PetCard.showFeedingMessage(element, `Successfully fed for ${feedHours} hours!`, "success");
+            } else {
+                // Fallback to simple alert
+                alert(`Successfully fed for ${feedHours} hours!`);
+            }
+            
+            // Update card display
+            if (result.feedingInfo) {
+                if (window.PetCard && window.PetCard.updatePetSatietyWithFeedingInfo) {
+                    window.PetCard.updatePetSatietyWithFeedingInfo(element, result.feedingInfo.feedingHours, result.feedingInfo);
+                }
+            } else {
+                // If no new feeding information is returned, manually calculate
+                const currentHours = parseInt(element.dataset.feedingHours) || 0;
+                const maxHours = window.PetCard ? (window.PetCard.MAX_FEEDING_HOURS || 168) : 168;
+                const newHours = Math.min(currentHours + feedHours, maxHours);
+                if (window.PetCard && window.PetCard.updatePetSatiety) {
+                    window.PetCard.updatePetSatiety(element, newHours);
+                }
+            }
+        } catch (error) {
+            console.error('Error handling pet feeding:', error);
+            if (feedData && feedData.element) {
+                if (window.ModalDialog) {
+                    await window.ModalDialog.alert('Error occurred during feeding', { title: 'Error', confirmText: 'OK' });
+                } else {
+                    alert('Error occurred during feeding');
+                }
+            }
+        }
+    }
+
+    // Helper functions that need to be available in this scope
+
+    function showToast(message, duration = 3000) {
+        // Check if toast already exists
+        let toast = document.querySelector('.refresh-toast');
+        
+        // If toast already exists, remove it
+        if (toast) {
+            document.body.removeChild(toast);
+        }
+        
+        // Create new toast
+        toast = document.createElement('div');
+        toast.className = 'refresh-toast';
+        toast.textContent = message;
+        toast.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 12px 20px;
+            border-radius: 6px;
+            z-index: 10000;
+            font-size: 14px;
+            opacity: 1;
+            transition: opacity 0.5s ease;
+        `;
+        document.body.appendChild(toast);
+        
+        // Set timer to automatically hide
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            setTimeout(() => {
+                if (toast.parentNode) {
+                    document.body.removeChild(toast);
+                }
+            }, 500);
+        }, duration);
+    }
+
     // Export public methods
     return {
         feedSinglePet,
@@ -1217,9 +2175,17 @@ const PetFeeding = (function() {
         initFeedingContract,
         feedAllPets,
         checkPWFOODBalance,
-        getNFTFeedingInfo
+        getNFTFeedingInfo,
+        handleFeedFriendNFT,
+        handleFeedAllPets,
+        handlePetFeeding
     };
 })();
+
+// Export functions to global scope for use by pets.js
+window.handleFeedFriendNFT = PetFeeding.handleFeedFriendNFT;
+window.handleFeedAllPets = PetFeeding.handleFeedAllPets;
+window.handlePetFeeding = PetFeeding.handlePetFeeding;
 
 // Compatible with CommonJS and browser environments
 if (typeof module !== 'undefined' && typeof module.exports !== 'undefined') {

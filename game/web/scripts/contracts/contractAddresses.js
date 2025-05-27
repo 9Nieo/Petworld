@@ -23,21 +23,21 @@ window.currentNetwork = window.CONTRACT_NETWORKS.MAIN;
 // Contract address configuration for different network environments
 window.contractAddresses = window.contractAddresses || {
       [window.CONTRACT_NETWORKS.TEST]: {
-    PwPoint: '0x0000000000000000000000000000000000000000',  // test network's PwPoint contract address
-    PwFood: '0x0000000000000000000000000000000000000000',  // test network's PwFood contract address
-    PwBounty: '0x0000000000000000000000000000000000000000',  // test network's PwBounty contract address
-    PwReverse: '0x0000000000000000000000000000000000000000',  // test network's PwReverse contract address
-    PwNFT: '0x0000000000000000000000000000000000000000',  // test network's PwNFT contract address
-    PwUSD: '0x0000000000000000000000000000000000000000',  // test network's PwUSD contract address
-    NFTManager: '0x0000000000000000000000000000000000000000',  // test network's NFTManager contract address
-    NFTFeedingManager: '0x0000000000000000000000000000000000000000',  // test network's NFTFeedingManager contract address
-    NFTLotteryManager: '0x0000000000000000000000000000000000000000',  // test network's NFTLotteryManager contract address
-    PwPointManager: '0x0000000000000000000000000000000000000000',  // test network's PwPointManager contract address
-    PaymentManager: '0x0000000000000000000000000000000000000000',  // test network's PaymentManager contract address
-    PwFoodManager: '0x0000000000000000000000000000000000000000',  // test network's PwFoodManager contract address
-    PwUSDStaking: '0x0000000000000000000000000000000000000000',  // test network's PwUSDStaking contract address
-    NFTMarketplace: '0x0000000000000000000000000000000000000000',  // test network's NFTMarketplace contract address
-    RareNFTTransactionIndexer: '0x0000000000000000000000000000000000000000',  // test network's RareNFTTransactionIndexer contract address
+        PwPoint: '0x0000000000000000000000000000000000000000',  // test network's PwPoint contract address
+        PwFood: '0x0000000000000000000000000000000000000000',  // test network's PwFood contract address
+        PwBounty: '0x0000000000000000000000000000000000000000',  // test network's PwBounty contract address
+        PwReverse: '0x0000000000000000000000000000000000000000',  // test network's PwReverse contract address
+        PwNFT: '0x0000000000000000000000000000000000000000',  // test network's PwNFT contract address
+        PwUSD: '0x0000000000000000000000000000000000000000',  // test network's PwUSD contract address
+        NFTManager: '0x0000000000000000000000000000000000000000',  // test network's NFTManager contract address
+        NFTFeedingManager: '0x0000000000000000000000000000000000000000',  // test network's NFTFeedingManager contract address
+        NFTLotteryManager: '0x0000000000000000000000000000000000000000',  // test network's NFTLotteryManager contract address
+        PwPointManager: '0x0000000000000000000000000000000000000000',  // test network's PwPointManager contract address
+        PaymentManager: '0x0000000000000000000000000000000000000000',  // test network's PaymentManager contract address
+        PwFoodManager: '0x0000000000000000000000000000000000000000',  // test network's PwFoodManager contract address
+        PwUSDStaking: '0x0000000000000000000000000000000000000000',  // test network's PwUSDStaking contract address
+        NFTMarketplace: '0x0000000000000000000000000000000000000000',  // test network's NFTMarketplace contract address
+        RareNFTTransactionIndexer: '0x0000000000000000000000000000000000000000',  // test network's RareNFTTransactionIndexer contract address
   },
       [window.CONTRACT_NETWORKS.MAIN]: {
     PwPoint: '0xb9705AD3e3431ef63d33c9965A4Cdaf5Cc87139E',  // main network's PwPoint contract address

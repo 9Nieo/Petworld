@@ -1,4 +1,3 @@
-
 document.addEventListener('DOMContentLoaded', () => {
     const debug = {
         log: function() {
@@ -234,6 +233,26 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Receive Web3 instance
                 if (message.data) {
                     debug.log('Received Web3 instance data:', message.data);
+                    
+                    // Priority 1: Check if private key wallet is available
+                    if (window.parent && window.parent.SecureWalletManager && 
+                        window.parent.SecureWalletManager.shouldUsePrivateKeyForTransactions()) {
+                        debug.log('Using private key wallet Web3 instance');
+                        web3 = window.parent.SecureWalletManager.getWeb3();
+                        currentAddress = window.parent.SecureWalletManager.getAddress();
+                        
+                        if (web3 && currentAddress) {
+                            debug.log('Private key wallet Web3 and address obtained successfully');
+                            // Initialize payment functionality
+                            estimateGasFee();
+                            initializeContracts();
+                        } else {
+                            debug.warn('Private key wallet not fully ready, falling back to connected wallet');
+                        }
+                    }
+                    
+                    // Priority 2: If private key wallet not available, use connected wallet
+                    if (!web3) {
                     // Web3 passing is limited, so we try to create a new instance using the available Provider
                     try {
                         if (window.ethereum) {
@@ -268,6 +287,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     } catch (error) {
                         debug.error('Error creating Web3 instance:', error);
+                        }
                     }
                 }
                 break;
@@ -357,8 +377,21 @@ document.addEventListener('DOMContentLoaded', () => {
      * Initialize token contracts
      */
     function initializeTokenContracts() {
-        if (!web3) {
-            debug.error('Web3 instance not initialized, cannot create token contracts');
+        // Determine which Web3 instance to use
+        let activeWeb3 = null;
+        
+        // Priority 1: Use private key wallet Web3 if available
+        if (window.parent && window.parent.SecureWalletManager && 
+            window.parent.SecureWalletManager.shouldUsePrivateKeyForTransactions()) {
+            activeWeb3 = window.parent.SecureWalletManager.getWeb3();
+            debug.log('Using private key wallet Web3 for token contracts');
+        } else if (web3) {
+            activeWeb3 = web3;
+            debug.log('Using connected wallet Web3 for token contracts');
+        }
+        
+        if (!activeWeb3) {
+            debug.error('No Web3 instance available, cannot create token contracts');
             return;
         }
         
@@ -378,7 +411,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 // Use initERC20Contract function to initialize token contract
                 if (typeof window.initERC20Contract === 'function') {
-                    tokenContracts[token.id] = window.initERC20Contract(web3, address);
+                    tokenContracts[token.id] = window.initERC20Contract(activeWeb3, address);
                     if (tokenContracts[token.id]) {
                         debug.log(`${token.id} contract initialized successfully, address: ${address}`);
                     } else {
@@ -392,7 +425,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         return;
                     }
                     
-                    tokenContracts[token.id] = new web3.eth.Contract(abi, address);
+                    tokenContracts[token.id] = new activeWeb3.eth.Contract(abi, address);
                     debug.log(`${token.id} contract initialized successfully, address: ${address}`);
                 }
             });
@@ -407,8 +440,21 @@ document.addEventListener('DOMContentLoaded', () => {
      * Initialize PaymentManager contract
      */
     function initializePaymentManagerContract() {
-        if (!web3) {
-            debug.error('Web3 not initialized, cannot initialize PaymentManager contract');
+        // Determine which Web3 instance to use
+        let activeWeb3 = null;
+        
+        // Priority 1: Use private key wallet Web3 if available
+        if (window.parent && window.parent.SecureWalletManager && 
+            window.parent.SecureWalletManager.shouldUsePrivateKeyForTransactions()) {
+            activeWeb3 = window.parent.SecureWalletManager.getWeb3();
+            debug.log('Using private key wallet Web3 for PaymentManager contract');
+        } else if (web3) {
+            activeWeb3 = web3;
+            debug.log('Using connected wallet Web3 for PaymentManager contract');
+        }
+        
+        if (!activeWeb3) {
+            debug.error('No Web3 instance available, cannot initialize PaymentManager contract');
             return;
         }
         
@@ -436,7 +482,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             
             // Create contract instance
-            paymentManagerContract = new web3.eth.Contract(abi, paymentManagerAddress);
+            paymentManagerContract = new activeWeb3.eth.Contract(abi, paymentManagerAddress);
             debug.log('PaymentManager contract initialized successfully, address:', paymentManagerAddress);
         } catch (error) {
             debug.error('Failed to initialize PaymentManager contract:', error);
@@ -682,10 +728,49 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Update balance display
         try {
-            if (currentAddress && web3 && tokenContracts[tokenId]) {
-                // Get token balance
+            // Priority 1: Check if private key wallet is available and ready
+            let activeWeb3 = null;
+            let activeAddress = null;
+            
+            if (window.parent && window.parent.SecureWalletManager && 
+                window.parent.SecureWalletManager.shouldUsePrivateKeyForTransactions()) {
+                debug.log('Using private key wallet for balance check');
+                activeWeb3 = window.parent.SecureWalletManager.getWeb3();
+                activeAddress = window.parent.SecureWalletManager.getAddress();
+            } else if (currentAddress && web3) {
+                debug.log('Using connected wallet for balance check');
+                activeWeb3 = web3;
+                activeAddress = currentAddress;
+            }
+            
+            if (activeAddress && activeWeb3 && tokenContracts[tokenId]) {
+                debug.log('Getting token balance...', {
+                    token: selectedToken.name,
+                    address: activeAddress,
+                    contractAddress: selectedToken.contractAddress
+                });
+                
+                // Get token balance with enhanced error handling
                 const contract = tokenContracts[tokenId];
-                const balance = await contract.methods.balanceOf(currentAddress).call();
+                
+                // Verify contract has the correct address
+                if (contract._address && contract._address.toLowerCase() !== selectedToken.contractAddress.toLowerCase()) {
+                    debug.warn('Contract address mismatch, recreating contract instance');
+                    // Recreate contract with correct address
+                    if (window.GENERIC_ERC20_ABI) {
+                        tokenContracts[tokenId] = new activeWeb3.eth.Contract(window.GENERIC_ERC20_ABI, selectedToken.contractAddress);
+                    } else {
+                        throw new Error('GENERIC_ERC20_ABI not available');
+                    }
+                }
+                
+                // Try to get balance with timeout protection
+                const balancePromise = tokenContracts[tokenId].methods.balanceOf(activeAddress).call();
+                const timeoutPromise = new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error('Balance check timeout')), 10000)
+                );
+                
+                const balance = await Promise.race([balancePromise, timeoutPromise]);
                 
                 // Format balance according to token precision
                 const formattedBalance = selectedToken.decimals > 0 
@@ -694,13 +779,42 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 // Update balance display
                 tokenBalance.textContent = `${formattedBalance} ${selectedToken.name}`;
+                debug.log('Token balance retrieved successfully:', formattedBalance);
             } else {
+                debug.warn('Cannot get token balance - missing requirements:', {
+                    hasAddress: !!activeAddress,
+                    hasWeb3: !!activeWeb3,
+                    hasContract: !!tokenContracts[tokenId]
+                });
                 tokenBalance.textContent = `0 ${selectedToken.name}`;
             }
         } catch (error) {
             debug.error('Failed to get token balance:', error);
             tokenBalance.textContent = `0 ${selectedToken.name}`;
-            // Error不影响代币的选择，确保selectedToken仍然有值
+            
+            // Try to reinitialize the token contract if balance check failed
+            if (selectedToken.contractAddress) {
+                try {
+                    debug.log('Attempting to reinitialize token contract...');
+                    let reinitWeb3 = web3;
+                    
+                    // Use private key wallet Web3 if available
+                    if (window.parent && window.parent.SecureWalletManager && 
+                        window.parent.SecureWalletManager.shouldUsePrivateKeyForTransactions()) {
+                        reinitWeb3 = window.parent.SecureWalletManager.getWeb3();
+                    }
+                    
+                    if (reinitWeb3 && window.GENERIC_ERC20_ABI) {
+                        tokenContracts[tokenId] = new reinitWeb3.eth.Contract(
+                            window.GENERIC_ERC20_ABI, 
+                            selectedToken.contractAddress
+                        );
+                        debug.log('Token contract reinitialized');
+                    }
+                } catch (reinitError) {
+                    debug.error('Failed to reinitialize token contract:', reinitError);
+                }
+            }
         }
         
         // Update total price display
@@ -717,17 +831,34 @@ document.addEventListener('DOMContentLoaded', () => {
     async function checkAndApproveToken(tokenContract, spender, amount) {
         debug.log('Checking token approval:', { spender, amount });
         
-        if (!tokenContract || !currentAddress) {
+        // Determine active wallet and Web3 instance
+        let activeWeb3 = null;
+        let activeAddress = null;
+        let usePrivateKeyWallet = false;
+        
+        if (window.parent && window.parent.SecureWalletManager && 
+            window.parent.SecureWalletManager.shouldUsePrivateKeyForTransactions()) {
+            debug.log('Using private key wallet for approval');
+            activeWeb3 = window.parent.SecureWalletManager.getWeb3();
+            activeAddress = window.parent.SecureWalletManager.getAddress();
+            usePrivateKeyWallet = true;
+        } else if (currentAddress && web3) {
+            debug.log('Using connected wallet for approval');
+            activeWeb3 = web3;
+            activeAddress = currentAddress;
+        }
+        
+        if (!tokenContract || !activeAddress || !activeWeb3) {
             debug.error('Token contract not initialized or wallet not connected');
             return false;
         }
         
         try {
             // Check existing allowance
-            const allowance = await tokenContract.methods.allowance(currentAddress, spender).call();
+            const allowance = await tokenContract.methods.allowance(activeAddress, spender).call();
             debug.log('Current allowance:', allowance);
             
-            if (web3.utils.toBN(allowance).gte(web3.utils.toBN(amount))) {
+            if (activeWeb3.utils.toBN(allowance).gte(activeWeb3.utils.toBN(amount))) {
                 debug.log('Enough allowance');
                 return true;
             }
@@ -736,12 +867,24 @@ document.addEventListener('DOMContentLoaded', () => {
             showStatus('Please confirm authorization in your wallet...', 'info');
             
             // Approve larger amount to avoid frequent authorization
-            const largeAmount = web3.utils.toWei('1000000', 'ether');
+            const largeAmount = activeWeb3.utils.toWei('1000000', 'ether');
             
             // Send authorization transaction
-            const receipt = await tokenContract.methods
+            let receipt;
+            if (usePrivateKeyWallet) {
+                // Use private key wallet for approval
+                receipt = await window.parent.SecureWalletManager.sendContractTransaction(
+                    tokenContract,
+                    'approve',
+                    [spender, largeAmount],
+                    { gas: 100000 }
+                );
+            } else {
+                // Use connected wallet for approval
+                receipt = await tokenContract.methods
                 .approve(spender, largeAmount)
-                .send({ from: currentAddress });
+                    .send({ from: activeAddress });
+            }
             
             debug.log('Token approval successful:', receipt);
             showStatus('Authorization successful!', 'success');

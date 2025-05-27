@@ -1183,42 +1183,40 @@
             if (!result.success) {
                 // Check if approval needed
                 if (result.needApproval) {
-                    const confirmApproval = confirm(`You need to authorize PWFOOD tokens to continue feeding.\n\nRequired: At least ${result.requiredAmount} PWFOOD\n\nDo you want to authorize now?`);
-                    
-                    if (confirmApproval) {
-                        try {
-                            showStatus('Authorizing PWFOOD tokens...', 'info');
-                            
-                            // Load ContractApprovalManager if needed
-                            if (!window.ContractApprovalManager) {
-                                await loadContractApprovalManager();
-                            }
-                            
-                            // Execute approval
-                            const approvalResult = await window.ContractApprovalManager.approveERC20Token(
-                                result.pwfoodContract,
-                                result.feedingManagerAddress,
-                                '115792089237316195423570985008687907853269984665640564039457584007913129639935', // Max uint256
-                                userAddress,
-                                true
-                            );
-                            
-                            if (approvalResult.success) {
-                                showStatus('Authorization successful, trying to feed again...', 'info');
-                                
-                                // Try feeding again after a short delay
-                                setTimeout(() => {
-                                    handleFeed(hours);
-                                }, 1000);
-                            } else {
-                                showStatus(`Authorization failed: ${approvalResult.error || 'Unknown error'}`, 'error');
-                            }
-                        } catch (error) {
-                            debug.error('Error during approval:', error);
-                            showStatus(`Authorization process error: ${error.message || 'Unknown error'}`, 'error');
+                    try {
+                        // Execute approval automatically without user confirmation
+                        showStatus('Authorizing PWFOOD tokens automatically...', 'info');
+                        debug.log('Auto-authorizing PWFOOD tokens for friend NFT feeding');
+                        
+                        // Load ContractApprovalManager if needed
+                        if (!window.ContractApprovalManager) {
+                            await loadContractApprovalManager();
                         }
-                    } else {
-                        showStatus('Authorization operation cancelled', 'info');
+                        
+                        // Execute approval
+                        const approvalResult = await window.ContractApprovalManager.approveERC20Token(
+                            result.pwfoodContract,
+                            result.feedingManagerAddress,
+                            '115792089237316195423570985008687907853269984665640564039457584007913129639935', // Max uint256
+                            userAddress,
+                            true
+                        );
+                        
+                        if (approvalResult.success) {
+                            showStatus('Authorization successful, trying to feed again...', 'info');
+                            debug.log('PWFOOD authorization successful, retrying friend NFT feeding');
+                            
+                            // Try feeding again after a short delay
+                            setTimeout(() => {
+                                handleFeed(hours);
+                            }, 1000);
+                        } else {
+                            showStatus(`Authorization failed: ${approvalResult.error || 'Unknown error'}`, 'error');
+                            debug.error('PWFOOD authorization failed:', approvalResult.error);
+                        }
+                    } catch (error) {
+                        debug.error('Error during approval:', error);
+                        showStatus(`Authorization process error: ${error.message || 'Unknown error'}`, 'error');
                     }
                     return;
                 }

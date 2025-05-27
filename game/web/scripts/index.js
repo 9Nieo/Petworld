@@ -23,6 +23,25 @@ document.addEventListener('DOMContentLoaded', () => {
     // Sakura background instance
     let sakuraBackground = null;
     
+    // Wallet choice modal elements
+    const walletChoiceModal = document.getElementById('walletChoiceModal');
+    const chooseWalletOption = document.getElementById('chooseWalletOption');
+    const choosePrivateKeyOption = document.getElementById('choosePrivateKeyOption');
+    const skipWalletChoice = document.getElementById('skipWalletChoice');
+    
+    // Private key modal elements
+    const privateKeyModal = document.getElementById('privateKeyModal');
+    const privateKeyForm = document.getElementById('privateKeyForm');
+    const masterPasswordInput = document.getElementById('masterPasswordInput');
+    const walletNameInput = document.getElementById('walletNameInput');
+    const privateKeyInput = document.getElementById('privateKeyInput');
+    const cancelPrivateKey = document.getElementById('cancelPrivateKey');
+    const setupPrivateKey = document.getElementById('setupPrivateKey');
+    
+    // Wallet choice cooldown (30 seconds)
+    const WALLET_CHOICE_COOLDOWN = 30000;
+    let lastWalletChoiceTime = 0;
+    
     // Hide loading overlay after a small delay to ensure all resources are loaded
     setTimeout(() => {
         if (loadingOverlay) {
@@ -69,8 +88,22 @@ document.addEventListener('DOMContentLoaded', () => {
         // Listen for language change events
         window.addEventListener('localeChanged', handleLocaleChanged);
         
+        // Listen for private key wallet status changes
+        setupPrivateKeyWalletListener();
+        
+        // Bind wallet choice modal events
+        bindWalletChoiceEvents();
+        
+        // Wait for SecureWalletManager to be fully initialized before checking wallet status
+        setTimeout(() => {
         // Check if there is a stored wallet connection status
         checkStoredWalletConnection();
+        
+        // Check if we should show wallet choice modal
+        setTimeout(() => {
+            checkAndShowWalletChoice();
+        }, 2000); // Show after 2 seconds if no wallet is connected
+        }, 100);
         
         // Apply current language settings
         updateUITexts();
@@ -503,6 +536,26 @@ document.addEventListener('DOMContentLoaded', () => {
     function handleWalletConnected(data) {
         const { walletType, address, chainId } = data;
         
+        // Check if private key wallet is already active
+        if (window.SecureWalletManager && window.SecureWalletManager.shouldUsePrivateKeyWallet()) {
+            console.log('Private key wallet is active, not updating to connected wallet address');
+            
+            // Still save the connected wallet info but don't change the displayed address
+            localStorage.setItem('walletConnected', 'true');
+            localStorage.setItem('walletAddress', address);
+            localStorage.setItem('walletType', walletType || 'metamask');
+            
+            sessionStorage.setItem('walletConnected', 'true');
+            sessionStorage.setItem('walletAddress', address);
+            sessionStorage.setItem('walletType', walletType || 'metamask');
+            
+            // Hide wallet modal
+            hideWalletModal();
+            
+            console.log(`External wallet connected but private key wallet takes priority: ${walletType}, address: ${address}, chain ID: ${chainId}`);
+            return;
+        }
+        
         // Set connection status
         isWalletConnected = true;
         currentAddress = address;
@@ -549,6 +602,9 @@ document.addEventListener('DOMContentLoaded', () => {
             type: walletType,
             chainId: chainId
         });
+        
+        // Set cooldown for wallet choice modal
+        lastWalletChoiceTime = Date.now();
         
         // If there is a global Web3 instance, use it directly
         if (window.ethereum && walletType === 'metamask') {
@@ -647,6 +703,49 @@ document.addEventListener('DOMContentLoaded', () => {
      * Check if there is a stored wallet connection status
      */
     function checkStoredWalletConnection() {
+        // Check wallet status using SecureWalletManager
+        if (window.SecureWalletManager) {
+            const walletStatus = window.SecureWalletManager.getWalletStatus();
+            
+            if (walletStatus.hasWallet) {
+                console.log('Found wallet connection:', walletStatus);
+                
+                // Set connection status
+                isWalletConnected = true;
+                currentAddress = walletStatus.activeAddress;
+                
+                // Update UI with active wallet address
+                updateWalletUI(true, currentAddress);
+                
+                // If using private key wallet, no need to auto-connect to external wallet
+                if (walletStatus.usingPrivateKey) {
+                    console.log('Using private key wallet:', currentAddress);
+                    return;
+                }
+                
+                // If using connected wallet, try to auto-connect
+                if (walletStatus.usingConnectedWallet) {
+                    console.log('Using connected wallet, attempting auto-connect');
+                    // Notify wallet iframe to attempt auto connection
+                    setTimeout(() => {
+                        if (walletFrame && walletFrame.contentWindow) {
+                            try {
+                                walletFrame.contentWindow.postMessage({ 
+                                    type: 'autoConnect',
+                                    walletType: walletStatus.walletType
+                                }, '*');
+                            } catch (error) {
+                                console.error('Failed to send auto-connect message:', error);
+                            }
+                        }
+                    }, 500);
+                }
+                
+                return;
+            }
+        }
+        
+        // Fallback to original logic if SecureWalletManager not available
         const storedConnected = localStorage.getItem('walletConnected');
         const storedAddress = localStorage.getItem('walletAddress');
         
@@ -658,10 +757,16 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // Notify wallet iframe to attempt auto connection
             setTimeout(() => {
+                if (walletFrame && walletFrame.contentWindow) {
+                    try {
                 walletFrame.contentWindow.postMessage({ 
                     type: 'autoConnect',
                     walletType: localStorage.getItem('walletType')
                 }, '*');
+                    } catch (error) {
+                        console.error('Failed to send auto-connect message:', error);
+                    }
+                }
             }, 500);
         }
     }
@@ -891,5 +996,395 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             });
         });
+    }
+    
+    /**
+     * Setup listener for private key wallet status changes (Enhanced for Multi-Key)
+     */
+    function setupPrivateKeyWalletListener() {
+        // Immediately check private key wallet status on initialization
+        setTimeout(() => {
+            if (window.SecureWalletManager) {
+                const keyCount = window.SecureWalletManager.getKeyCount();
+                const isLocked = window.SecureWalletManager.isWalletLocked();
+                const activeAddress = window.SecureWalletManager.getAddress();
+                
+                console.log('Private key wallet status on initialization:', {
+                    keyCount,
+                    isLocked,
+                    activeAddress: activeAddress ? formatAddress(activeAddress) : null
+                });
+                
+                // Only check if we have keys and wallet is not locked
+                if (keyCount > 0 && !isLocked && activeAddress) {
+                    console.log('Private key wallet detected on initialization:', activeAddress);
+                    isWalletConnected = true;
+                    currentAddress = activeAddress;
+                    updateWalletUI(true, activeAddress);
+                }
+            }
+        }, 50); // Small delay to ensure SecureWalletManager is ready
+        
+        // Check for private key wallet status changes periodically
+        setInterval(() => {
+            if (window.SecureWalletManager) {
+                const keyCount = window.SecureWalletManager.getKeyCount();
+                const isLocked = window.SecureWalletManager.isWalletLocked();
+                const activeAddress = window.SecureWalletManager.getAddress();
+                const currentDisplayedAddress = walletAddressSpan.textContent;
+                
+                // If wallet has keys, is not locked, and has active address
+                if (keyCount > 0 && !isLocked && activeAddress) {
+                    const formattedAddress = formatAddress(activeAddress);
+                    
+                    // Only update if the displayed address is different
+                    if (currentDisplayedAddress !== formattedAddress && 
+                        !currentDisplayedAddress.includes(activeAddress.substring(0, 6))) {
+                        
+                        console.log('Private key wallet status changed, updating UI');
+                        isWalletConnected = true;
+                        currentAddress = activeAddress;
+                        updateWalletUI(true, activeAddress);
+                    }
+                } else if (isWalletConnected && (!keyCount || isLocked || !activeAddress)) {
+                    // Private key wallet was locked/removed, check if we have connected wallet
+                    const connectedWallet = localStorage.getItem('walletConnected') === 'true';
+                    if (connectedWallet) {
+                        const connectedAddress = localStorage.getItem('walletAddress');
+                        console.log('Private key wallet removed, falling back to connected wallet');
+                        currentAddress = connectedAddress;
+                        updateWalletUI(true, connectedAddress);
+                    } else {
+                        console.log('No wallet available, updating UI to disconnected state');
+                        isWalletConnected = false;
+                        currentAddress = null;
+                        updateWalletUI(false);
+                    }
+                }
+            }
+        }, 1000); // Check every second
+    }
+    
+    /**
+     * Bind wallet choice modal events
+     */
+    function bindWalletChoiceEvents() {
+        // Choose wallet option
+        if (chooseWalletOption) {
+            chooseWalletOption.addEventListener('click', () => {
+                hideWalletChoiceModal();
+                showWalletModal();
+            });
+        }
+        
+        // Choose private key option
+        if (choosePrivateKeyOption) {
+            choosePrivateKeyOption.addEventListener('click', () => {
+                hideWalletChoiceModal();
+                showPrivateKeyModal();
+            });
+        }
+        
+        // Skip for now
+        if (skipWalletChoice) {
+            skipWalletChoice.addEventListener('click', () => {
+                hideWalletChoiceModal();
+                // Set cooldown to prevent showing again soon
+                lastWalletChoiceTime = Date.now();
+            });
+        }
+        
+        // Private key form submission
+        if (privateKeyForm) {
+            privateKeyForm.addEventListener('submit', handlePrivateKeySetup);
+        }
+        
+        // Cancel private key setup
+        if (cancelPrivateKey) {
+            cancelPrivateKey.addEventListener('click', () => {
+                hidePrivateKeyModal();
+                clearPrivateKeyForm();
+            });
+        }
+        
+        // Close modals when clicking outside
+        if (walletChoiceModal) {
+            walletChoiceModal.addEventListener('click', (e) => {
+                if (e.target === walletChoiceModal) {
+                    hideWalletChoiceModal();
+                    lastWalletChoiceTime = Date.now();
+                }
+            });
+        }
+        
+        if (privateKeyModal) {
+            privateKeyModal.addEventListener('click', (e) => {
+                if (e.target === privateKeyModal) {
+                    hidePrivateKeyModal();
+                    clearPrivateKeyForm();
+                }
+            });
+        }
+    }
+    
+    /**
+     * Check if we should show wallet choice modal
+     */
+    function checkAndShowWalletChoice() {
+        // Check cooldown
+        const now = Date.now();
+        if (now - lastWalletChoiceTime < WALLET_CHOICE_COOLDOWN) {
+            console.log('Wallet choice modal on cooldown');
+            return;
+        }
+        
+        // Check if wallet is already connected
+        if (isWalletConnected && currentAddress) {
+            console.log('Wallet already connected, not showing choice modal');
+            return;
+        }
+        
+        // Check if private key wallet is available
+        if (window.SecureWalletManager) {
+            const keyCount = window.SecureWalletManager.getKeyCount();
+            const isLocked = window.SecureWalletManager.isWalletLocked();
+            const activeAddress = window.SecureWalletManager.getAddress();
+            
+            if (keyCount > 0 && !isLocked && activeAddress) {
+                console.log('Private key wallet available, not showing choice modal');
+                return;
+            }
+        }
+        
+        // Check if user has stored wallet connection
+        const storedConnected = localStorage.getItem('walletConnected');
+        const storedAddress = localStorage.getItem('walletAddress');
+        
+        if (storedConnected === 'true' && storedAddress) {
+            console.log('Stored wallet connection found, not showing choice modal');
+            return;
+        }
+        
+        // Show wallet choice modal
+        console.log('No wallet connection found, showing choice modal');
+        showWalletChoiceModal();
+    }
+    
+    /**
+     * Show wallet choice modal
+     */
+    function showWalletChoiceModal() {
+        if (walletChoiceModal) {
+            walletChoiceModal.classList.add('show');
+            
+            // Animate the modal appearance
+            gsap.fromTo(walletChoiceModal.querySelector('.wallet-choice-content'), 
+                { opacity: 0, scale: 0.9 },
+                { 
+                    opacity: 1, 
+                    scale: 1, 
+                    duration: 0.4, 
+                    ease: 'back.out(1.7)'
+                }
+            );
+        }
+    }
+    
+    /**
+     * Hide wallet choice modal
+     */
+    function hideWalletChoiceModal() {
+        if (walletChoiceModal) {
+            // Animate the modal disappearance
+            gsap.to(walletChoiceModal.querySelector('.wallet-choice-content'), {
+                opacity: 0,
+                scale: 0.9,
+                duration: 0.3,
+                ease: 'power2.in',
+                onComplete: () => {
+                    walletChoiceModal.classList.remove('show');
+                }
+            });
+        }
+    }
+    
+    /**
+     * Show private key modal
+     */
+    function showPrivateKeyModal() {
+        if (privateKeyModal) {
+            privateKeyModal.classList.add('show');
+            
+            // Animate the modal appearance
+            gsap.fromTo(privateKeyModal.querySelector('.private-key-content'), 
+                { opacity: 0, scale: 0.9 },
+                { 
+                    opacity: 1, 
+                    scale: 1, 
+                    duration: 0.4, 
+                    ease: 'back.out(1.7)'
+                }
+            );
+            
+            // Focus on first input
+            setTimeout(() => {
+                if (masterPasswordInput) {
+                    masterPasswordInput.focus();
+                }
+            }, 400);
+        }
+    }
+    
+    /**
+     * Hide private key modal
+     */
+    function hidePrivateKeyModal() {
+        if (privateKeyModal) {
+            // Animate the modal disappearance
+            gsap.to(privateKeyModal.querySelector('.private-key-content'), {
+                opacity: 0,
+                scale: 0.9,
+                duration: 0.3,
+                ease: 'power2.in',
+                onComplete: () => {
+                    privateKeyModal.classList.remove('show');
+                }
+            });
+        }
+    }
+    
+    /**
+     * Handle private key setup
+     */
+    async function handlePrivateKeySetup(event) {
+        event.preventDefault();
+        
+        const masterPassword = masterPasswordInput.value.trim();
+        const walletName = walletNameInput.value.trim();
+        const privateKey = privateKeyInput.value.trim();
+        
+        // Validate inputs
+        if (!masterPassword) {
+            showMessage(i18n ? i18n.t('wallet.enterMasterPassword') : 'Please enter a master password', 'error');
+            return;
+        }
+        
+        if (masterPassword.length < 6) {
+            showMessage(i18n ? i18n.t('wallet.passwordTooShort') : 'Password must be at least 6 characters', 'error');
+            return;
+        }
+        
+        if (!walletName) {
+            showMessage(i18n ? i18n.t('wallet.enterWalletName') : 'Please enter a wallet name', 'error');
+            return;
+        }
+        
+        if (!privateKey) {
+            showMessage(i18n ? i18n.t('wallet.enterPrivateKey') : 'Please enter your private key', 'error');
+            return;
+        }
+        
+        // Validate private key format
+        if (!window.SecureWalletManager || !window.SecureWalletManager.validatePrivateKey(privateKey)) {
+            showMessage(i18n ? i18n.t('wallet.invalidPrivateKey') : 'Invalid private key format. Must be 64 hex characters.', 'error');
+            return;
+        }
+        
+        try {
+            // Disable submit button
+            setupPrivateKey.disabled = true;
+            setupPrivateKey.textContent = i18n ? i18n.t('wallet.setting') : 'Setting up...';
+            
+            // Authenticate with master password
+            const authSuccess = await window.SecureWalletManager.authenticateUser(masterPassword);
+            
+            if (authSuccess) {
+                // Add the private key
+                const result = await window.SecureWalletManager.addPrivateKey(privateKey, walletName);
+                
+                if (result.success) {
+                    showMessage(i18n ? i18n.t('wallet.setupSuccess') : 'Wallet setup successful!');
+                    
+                    // Update wallet status
+                    isWalletConnected = true;
+                    currentAddress = window.SecureWalletManager.getAddress();
+                    updateWalletUI(true, currentAddress);
+                    
+                    // Hide modal and clear form
+                    hidePrivateKeyModal();
+                    clearPrivateKeyForm();
+                    
+                    // Set cooldown
+                    lastWalletChoiceTime = Date.now();
+                } else {
+                    showMessage(i18n ? i18n.t('wallet.setupFailed') : 'Wallet setup failed: ' + result.error, 'error');
+                }
+            } else {
+                showMessage(i18n ? i18n.t('wallet.authFailed') : 'Authentication failed', 'error');
+            }
+        } catch (error) {
+            console.error('Error setting up private key wallet:', error);
+            showMessage(i18n ? i18n.t('wallet.setupError') : 'Error setting up wallet', 'error');
+        } finally {
+            // Re-enable submit button
+            setupPrivateKey.disabled = false;
+            setupPrivateKey.textContent = i18n ? i18n.t('wallet.setup') : 'Setup Wallet';
+        }
+    }
+    
+    /**
+     * Clear private key form
+     */
+    function clearPrivateKeyForm() {
+        if (masterPasswordInput) masterPasswordInput.value = '';
+        if (walletNameInput) walletNameInput.value = '';
+        if (privateKeyInput) privateKeyInput.value = '';
+    }
+    
+    /**
+     * Show message
+     */
+    function showMessage(message, type = 'success') {
+        // Create message element
+        const messageEl = document.createElement('div');
+        messageEl.className = `message-toast ${type}`;
+        messageEl.textContent = message;
+        messageEl.style.position = 'fixed';
+        messageEl.style.bottom = '20px';
+        messageEl.style.right = '20px';
+        messageEl.style.backgroundColor = type === 'success' ? '#10b981' : '#ef4444';
+        messageEl.style.color = 'white';
+        messageEl.style.padding = '12px 20px';
+        messageEl.style.borderRadius = '8px';
+        messageEl.style.zIndex = '3000';
+        messageEl.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.15)';
+        messageEl.style.fontSize = '0.9rem';
+        messageEl.style.fontWeight = '500';
+        messageEl.style.maxWidth = '300px';
+        messageEl.style.wordWrap = 'break-word';
+        
+        // Add to page
+        document.body.appendChild(messageEl);
+        
+        // Animate in
+        gsap.fromTo(messageEl, 
+            { opacity: 0, x: 50 },
+            { opacity: 1, x: 0, duration: 0.3, ease: 'power2.out' }
+        );
+        
+        // Remove after 4 seconds
+        setTimeout(() => {
+            gsap.to(messageEl, {
+                opacity: 0,
+                x: 50,
+                duration: 0.3,
+                ease: 'power2.in',
+                onComplete: () => {
+                    if (document.body.contains(messageEl)) {
+                        document.body.removeChild(messageEl);
+                    }
+                }
+            });
+        }, 4000);
     }
 }); 

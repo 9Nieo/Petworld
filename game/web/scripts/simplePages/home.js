@@ -1,7 +1,7 @@
 const i18n = window.i18n;
 
 document.addEventListener('DOMContentLoaded', () => {
-    // Debug tool, useful for troubleshooting
+    // Debugging tool for troubleshooting
     const debug = {
         log: function() {
             const args = Array.from(arguments);
@@ -10,6 +10,10 @@ document.addEventListener('DOMContentLoaded', () => {
         error: function() {
             const args = Array.from(arguments);
             console.error('[Pet World Normal Mode Error]', ...args);
+        },
+        warn: function() {
+            const args = Array.from(arguments);
+            console.warn('[Pet World Normal Mode Warning]', ...args);
         }
     };
     
@@ -72,6 +76,58 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!pwPointBalanceElem) debug.error('PwPoint balance display element not found');
         if (!pwBountyBalanceElem) debug.error('PwBounty balance display element not found');
         if (!pwFoodBalanceElem) debug.error('PwFood balance display element not found');
+        bindFeatureButtons();
+        // Priority 1: Check private key wallet first (async)
+        checkPrivateKeyWallet().then(privateKeyWalletReady => {
+            debug.log('Private key wallet check completed, ready:', privateKeyWalletReady);
+            
+            // If private key wallet is not ready, proceed with other wallet checks
+            if (!privateKeyWalletReady) {
+                debug.log('Private key wallet not ready, checking other wallet connections...');
+                initializeAlternativeWalletSources();
+            }
+        }).catch(error => {
+            debug.error('Error during private key wallet check:', error);
+            // Fallback to other wallet methods
+            initializeAlternativeWalletSources();
+        });
+        
+        // Bind wallet connection button click event
+        if (walletBtn) {
+            walletBtn.addEventListener('click', handleWalletBtnClick);
+        }
+        
+        // Bind refresh button click event
+        if (refreshBtn) {
+            refreshBtn.addEventListener('click', () => {
+                refreshAssets();
+            });
+        }
+        
+        // Listen for messages from the wallet iframe
+        window.addEventListener('message', handleIframeMessage);
+        
+        // Listen for language change events
+        window.addEventListener('localeChanged', handleLocaleChanged);
+        
+        // Setup private key wallet listener
+        setupPrivateKeyWalletListener();
+        
+        // Apply current language settings
+        updateUITexts();
+        
+        // Initialize card interactions
+        initCardInteractions();
+        
+        // Load initial contract files
+        loadContractInitializers();
+    }
+    
+    /**
+     * Initialize alternative wallet sources when private key wallet is not available
+     */
+    function initializeAlternativeWalletSources() {
+        debug.log('Initializing alternative wallet sources...');
         
         // Preload wallet iframe
         if (walletFrame) {
@@ -94,49 +150,189 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // If iframe is already loaded, check wallet status directly
             if (walletFrame.complete) {
-                debug.log('Wallet iframe loaded');
+                debug.log('Wallet iframe already loaded');
                 checkWalletStatus();
             }
         }
         
-        // Bind wallet connection button click event
-        if (walletBtn) {
-            walletBtn.addEventListener('click', handleWalletBtnClick);
+        // Wait for SecureWalletManager to be fully initialized before checking wallet status
+        setTimeout(() => {
+            // Check if there is a stored wallet connection status
+            checkStoredWalletConnection();
+        }, 100);
+    }
+    
+    /**
+     * Check private key wallet status and initialize if available (Enhanced for Multi-Key)
+     */
+    async function checkPrivateKeyWallet() {
+        debug.log('Checking private key wallet status (Enhanced Multi-Key)...');
+        
+        // Wait for SecureWalletManager to be available with timeout
+        let attempts = 0;
+        const maxAttempts = 50; // 5 seconds total wait time
+        
+        while (!window.SecureWalletManager && attempts < maxAttempts) {
+            debug.log(`SecureWalletManager not yet available, waiting... (${attempts + 1}/${maxAttempts})`);
+            await new Promise(resolve => setTimeout(resolve, 100));
+            attempts++;
         }
         
-        // Bind refresh button click event
-        if (refreshBtn) {
-            refreshBtn.addEventListener('click', () => {
-                refreshAssets();
-            });
+        if (!window.SecureWalletManager) {
+            debug.error('SecureWalletManager failed to load after timeout');
+            return false;
         }
         
-        // Initialize asset card interactions
-        initCardInteractions();
+        // Wait for SecureWalletManager to finish initializing
+        if (window.SecureWalletManager.isInitializing) {
+            debug.log('SecureWalletManager is initializing, waiting for completion...');
+            try {
+                await window.SecureWalletManager.init();
+                debug.log('SecureWalletManager initialization completed');
+            } catch (error) {
+                debug.error('SecureWalletManager initialization failed:', error);
+                return false;
+            }
+        }
         
-        // Bind new feature buttons click event
-        bindFeatureButtons();
+        // Check if user has stored keys
+        const keyCount = window.SecureWalletManager.getKeyCount();
         
-        // Listen for messages from wallet iframe
-        window.addEventListener('message', handleIframeMessage);
+        if (keyCount === 0) {
+            debug.log('No private keys stored, will check connected wallets');
+            return false;
+        }
         
-        // Listen for language change event
-        window.addEventListener('localeChanged', handleLocaleChanged);
+        debug.log(`Found ${keyCount} stored private keys`);
         
-        // Listen for language initialization event
-        window.addEventListener('localeInitialized', function(event) {
-            debug.log('Detected language initialization event:', event.detail);
-            updateUITexts();
-        });
+        // Check if wallet is locked due to auto-lock timeout
+        const isLocked = window.SecureWalletManager.isWalletLocked();
+        if (isLocked) {
+            debug.log('Wallet is locked due to auto-lock timeout, user needs to unlock in settings');
+            return false;
+        }
         
-        // Apply current language
-        updateUITexts();
+        // Check if user is authenticated (should be automatic if within auto-lock time)
+        const isAuthenticated = window.SecureWalletManager.isUserAuthenticated();
+        if (!isAuthenticated) {
+            debug.log('User not authenticated, checking if auto-unlock is possible...');
+            
+            // Try to auto-authenticate based on auto-lock settings
+            // This should work if we're within the auto-lock time window
+            const autoLockTime = window.SecureWalletManager.getAutoLockTime();
+            debug.log('Auto-lock time setting:', autoLockTime);
+            
+            if (autoLockTime === 'never') {
+                debug.log('Auto-lock is set to never, but user is not authenticated. This should not happen.');
+                return false;
+            }
+            
+            // If auto-lock time is set and we're not authenticated, 
+            // it means the time has expired and user needs to re-authenticate
+            debug.log('Auto-lock time has expired, user needs to authenticate in settings');
+            return false;
+        }
         
-        // Add refresh balance button
-        addRefreshBalanceButton();
+        // Check if wallet is ready
+        const isReady = window.SecureWalletManager.isWalletReady();
+        if (!isReady) {
+            debug.log('Wallet not ready, attempting to wait for initialization...');
+            
+            // Wait a bit for wallet to become ready
+            let readyAttempts = 0;
+            const maxReadyAttempts = 10;
+            
+            while (!window.SecureWalletManager.isWalletReady() && readyAttempts < maxReadyAttempts) {
+                debug.log(`Waiting for wallet to be ready... (${readyAttempts + 1}/${maxReadyAttempts})`);
+                await new Promise(resolve => setTimeout(resolve, 500));
+                readyAttempts++;
+            }
+            
+            if (!window.SecureWalletManager.isWalletReady()) {
+                debug.log('Wallet failed to become ready after waiting');
+                return false;
+            }
+        }
         
-        // Load initial contract files
-        loadContractInitializers();
+        // Get current active address
+        const activeAddress = window.SecureWalletManager.getAddress();
+        
+        if (!activeAddress) {
+            debug.error('No active address available from private key wallet');
+            return false;
+        }
+        
+        debug.log('Private key wallet is ready and active, using it for home page');
+        debug.log('Active address:', activeAddress);
+        
+        // Set current address and connection status
+        currentAddress = activeAddress;
+        isWalletConnected = true;
+        
+        // Get Web3 instance from private key wallet
+        web3 = window.SecureWalletManager.getWeb3();
+        
+        if (!web3) {
+            debug.error('Failed to get Web3 instance from private key wallet');
+            return false;
+        }
+        
+        debug.log('Web3 instance obtained from private key wallet');
+        
+        // Update UI
+        updateWalletUI(true, currentAddress);
+        
+        // Initialize contracts with retry mechanism
+        try {
+            debug.log('Initializing contracts with private key wallet...');
+            await initContractsWithRetry();
+            
+            // Update token balances after contracts are initialized
+            setTimeout(() => {
+                updateTokenBalances();
+            }, 500);
+            
+            debug.log('Private key wallet setup completed successfully');
+            return true;
+        } catch (error) {
+            debug.error('Failed to initialize contracts with private key wallet:', error);
+            return false;
+        }
+    }
+    
+    /**
+     * Initialize contracts with retry mechanism
+     */
+    async function initContractsWithRetry() {
+        const maxRetries = 3;
+        let retryCount = 0;
+        
+        while (retryCount < maxRetries) {
+            try {
+                debug.log(`Initializing contracts (attempt ${retryCount + 1}/${maxRetries})...`);
+                
+                // Call the original initGameTokens function
+                await initGameTokens();
+        
+                // Verify that key contracts are initialized
+                if (pwPointContract && pwBountyContract && pwFoodContract) {
+                    debug.log('Contracts initialized successfully');
+                    return true;
+                } else {
+                    throw new Error('Key contracts not initialized properly');
+                }
+            } catch (error) {
+                debug.error(`Contract initialization attempt ${retryCount + 1} failed:`, error);
+                retryCount++;
+                
+                if (retryCount < maxRetries) {
+                    debug.log(`Retrying contract initialization in 1 second...`);
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                }
+            }
+        }
+        
+        throw new Error('Failed to initialize contracts after all retries');
     }
     
     /**
@@ -249,22 +445,60 @@ document.addEventListener('DOMContentLoaded', () => {
     
     /**
      * Check wallet status
-     * First check sessionStorage, then check localStorage
      */
     function checkWalletStatus() {
-        debug.log('Checking wallet connection status...');
+        console.log('Checking wallet connection status...');
+        
+        // Priority 1: Check private key wallet status
+        if (window.SecureWalletManager) {
+            const walletStatus = window.SecureWalletManager.getWalletStatus();
+            
+            if (walletStatus.hasWallet) {
+                console.log('Found wallet connection:', walletStatus);
+                
+                // Set connection status
+                isWalletConnected = true;
+                currentAddress = walletStatus.activeAddress;
+                
+                // Update UI with active wallet address
+                updateWalletUI(true, currentAddress);
+                
+                // If using private key wallet, initialize contracts directly
+                if (walletStatus.usingPrivateKey) {
+                    console.log('Using private key wallet:', currentAddress);
+                    
+                    // Initialize contracts with private key wallet's Web3 instance
+                    const web3Instance = window.SecureWalletManager.getWeb3();
+                    if (web3Instance) {
+                        window.web3Instance = web3Instance;
+                        initGameTokens();
+                        updateTokenBalances();
+                    }
+                    
+                    return;
+                }
+                
+                // If using connected wallet, try to auto-connect
+                if (walletStatus.usingConnectedWallet) {
+                    console.log('Using connected wallet, attempting auto-connect');
+                    // Continue with original logic for connected wallet
+                }
+            }
+        }
+        
+        // Original logic for connected wallet
         // First check sessionStorage (cross-page transfer), then check localStorage (long-term storage)
         const sessionWalletConnected = sessionStorage.getItem('walletConnected');
         const sessionWalletAddress = sessionStorage.getItem('walletAddress');
         const sessionWalletType = sessionStorage.getItem('walletType');
         
         if (sessionWalletConnected === 'true' && sessionWalletAddress) {
-            debug.log('Found wallet connection info in sessionStorage:', sessionWalletAddress);
+            console.log('Found wallet connection info in sessionStorage:', sessionWalletAddress);
             // Restore connection status from sessionStorage
             isWalletConnected = true;
             currentAddress = sessionWalletAddress;
             
-            // Use unified UI update function
+            // Use a unified UI update function
             updateWalletUI(true, currentAddress);
             
             // Save to localStorage for long-term storage
@@ -272,31 +506,31 @@ document.addEventListener('DOMContentLoaded', () => {
             localStorage.setItem('walletAddress', currentAddress);
             localStorage.setItem('walletType', sessionWalletType || 'metamask');
             
-            debug.log('Wallet connected, requesting Web3 instance');
+            console.log('Wallet connected, requesting Web3 instance');
             // Request Web3 instance from iframe to get balance
             setTimeout(() => {
                 if (walletFrame && walletFrame.contentWindow) {
                     try {
-                        debug.log('Sending getWeb3Instance message to wallet iframe');
+                        console.log('Sending getWeb3Instance message to wallet iframe');
                         walletFrame.contentWindow.postMessage({ 
                             type: 'getWeb3Instance',
                             walletType: sessionWalletType
                         }, '*');
-                        // Try auto-connect simultaneously
+                        // Try to auto-connect at the same time
                         walletFrame.contentWindow.postMessage({ 
                             type: 'autoConnect',
                             walletType: sessionWalletType
                         }, '*');
                     } catch (error) {
-                        debug.error('Failed to send message to iframe:', error);
+                        console.error('Failed to send message to iframe:', error);
                     }
                 } else {
-                    debug.error('Wallet iframe or its contentWindow is not available');
+                    console.error('Wallet iframe or its contentWindow is unavailable');
                 }
             }, 500);
         } else {
-            debug.log('No wallet info in sessionStorage, checking localStorage');
-            // Check localStorage if sessionStorage has no info
+            console.log('No wallet info in sessionStorage, checking localStorage');
+            // If sessionStorage has no info, check localStorage
             checkStoredWalletConnection();
         }
     }
@@ -601,31 +835,146 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     /**
-     * Handle wallet connection success
-     * @param {Object} data Wallet connection data
+     * Setup private key wallet listener (Enhanced for Multi-Key)
      */
-    function handleWalletConnected(data) {
-        // Web3 has been updated in handleIframeMessage, here mainly handle other business logic
-        debug.log('Handle wallet connection success, start initializing contracts');
-        
-        // If there is already a web3 instance, update balance
-        if (web3) {
-            initGameTokens();
-            
-            // Update balance once after wallet connection
-            updateTokenBalances();
-        } else {
-            // Send message to get Web3 instance
-            setTimeout(() => {
-                if (walletFrame && walletFrame.contentWindow) {
-                    try {
-                        walletFrame.contentWindow.postMessage({ type: 'getWeb3Instance' }, '*');
-                    } catch (error) {
-                        debug.error('Error requesting Web3 instance:', error);
+    function setupPrivateKeyWalletListener() {
+        // Immediately check private key wallet status on initialization
+        setTimeout(() => {
+            if (window.SecureWalletManager) {
+                const keyCount = window.SecureWalletManager.getKeyCount();
+                const isAuthenticated = window.SecureWalletManager.isUserAuthenticated();
+                const isReady = window.SecureWalletManager.isWalletReady();
+                const isLocked = window.SecureWalletManager.isWalletLocked();
+                const activeAddress = window.SecureWalletManager.getAddress();
+                
+                console.log('Private key wallet status on initialization:', {
+                    keyCount,
+                    isAuthenticated,
+                    isReady,
+                    isLocked,
+                    activeAddress: activeAddress ? formatAddress(activeAddress) : null
+                });
+                
+                if (keyCount > 0 && isAuthenticated && isReady && !isLocked && activeAddress) {
+                    console.log('Private key wallet detected on initialization:', activeAddress);
+                    isWalletConnected = true;
+                    currentAddress = activeAddress;
+                    updateWalletUI(true, activeAddress);
+                    
+                    // Initialize contracts with private key wallet's Web3 instance
+                    const web3Instance = window.SecureWalletManager.getWeb3();
+                    if (web3Instance) {
+                        window.web3Instance = web3Instance;
+                        initGameTokens();
+                        updateTokenBalances();
                     }
                 }
-            }, 300);
+            }
+        }, 50); // Small delay to ensure SecureWalletManager is ready
+        
+        // Check for private key wallet status changes periodically
+        setInterval(() => {
+            if (window.SecureWalletManager) {
+                const keyCount = window.SecureWalletManager.getKeyCount();
+                const isAuthenticated = window.SecureWalletManager.isUserAuthenticated();
+                const isReady = window.SecureWalletManager.isWalletReady();
+                const isLocked = window.SecureWalletManager.isWalletLocked();
+                const activeAddress = window.SecureWalletManager.getAddress();
+                const currentDisplayedAddress = document.getElementById('walletAddress').textContent;
+                
+                // If wallet is ready and has active address
+                if (keyCount > 0 && isAuthenticated && isReady && !isLocked && activeAddress) {
+                    const formattedAddress = formatAddress(activeAddress);
+                    
+                    // Only update if the displayed address is different
+                    if (currentDisplayedAddress !== formattedAddress && 
+                        !currentDisplayedAddress.includes(activeAddress.substring(0, 6))) {
+                        
+                        console.log('Private key wallet status changed, updating UI');
+                        isWalletConnected = true;
+                        currentAddress = activeAddress;
+                        updateWalletUI(true, activeAddress);
+                        
+                        // Update token balances with private key wallet
+                        const web3Instance = window.SecureWalletManager.getWeb3();
+                        if (web3Instance) {
+                            window.web3Instance = web3Instance;
+                            initGameTokens();
+                            updateTokenBalances();
+                        }
+                    }
+                } else if (isWalletConnected && (!keyCount || !isAuthenticated || isLocked || !activeAddress)) {
+                    // Private key wallet was locked/removed, check if we have connected wallet
+                    const connectedWallet = localStorage.getItem('walletConnected') === 'true';
+                    if (connectedWallet) {
+                        const connectedAddress = localStorage.getItem('walletAddress');
+                        console.log('Private key wallet removed, falling back to connected wallet');
+                        currentAddress = connectedAddress;
+                        updateWalletUI(true, connectedAddress);
+                    } else {
+                        console.log('No wallet available, updating UI to disconnected state');
+                        isWalletConnected = false;
+                        currentAddress = null;
+                        updateWalletUI(false);
+                    }
+                }
+            }
+        }, 1000); // Check every second
+    }
+    
+    /**
+     * Handle wallet connection success
+     */
+    function handleWalletConnected(data) {
+        const { walletType, address, chainId } = data;
+        
+        // Check if private key wallet is already active
+        if (window.SecureWalletManager) {
+            const keyCount = window.SecureWalletManager.getKeyCount();
+            const isAuthenticated = window.SecureWalletManager.isUserAuthenticated();
+            const isReady = window.SecureWalletManager.isWalletReady();
+            const isLocked = window.SecureWalletManager.isWalletLocked();
+            
+            if (keyCount > 0 && isAuthenticated && isReady && !isLocked) {
+                console.log('Private key wallet is active, not updating to connected wallet address');
+                
+                // Still save the connected wallet info but don't change the displayed address
+                localStorage.setItem('walletConnected', 'true');
+                localStorage.setItem('walletAddress', address);
+                localStorage.setItem('walletType', walletType);
+                
+                sessionStorage.setItem('walletConnected', 'true');
+                sessionStorage.setItem('walletAddress', address);
+                sessionStorage.setItem('walletType', walletType);
+                
+                // Hide wallet modal
+                hideWalletModal();
+                
+                console.log(`External wallet connected but private key wallet takes priority: ${walletType}, address: ${address}, chain ID: ${chainId}`);
+                return;
+            }
         }
+        
+        // Set connection status
+        isWalletConnected = true;
+        currentAddress = address;
+        
+        // Update UI
+        updateWalletUI(true, address);
+        
+        // Store connection status in localStorage and sessionStorage
+        localStorage.setItem('walletConnected', 'true');
+        localStorage.setItem('walletAddress', address);
+        localStorage.setItem('walletType', walletType || 'metamask');
+        
+        sessionStorage.setItem('walletConnected', 'true');
+        sessionStorage.setItem('walletAddress', address);
+        sessionStorage.setItem('walletType', walletType || 'metamask');
+        
+        // Hide wallet modal
+        hideWalletModal();
+        
+        console.log(`Wallet connected successfully: ${walletType}, address: ${address}, chain ID: ${chainId}`);
     }
     
     /**
@@ -1008,7 +1357,6 @@ document.addEventListener('DOMContentLoaded', () => {
             
             if (typeof window.initNFTManagerContract !== 'function') {
                 debug.error('NFTManager contract initialization function not loaded');
-
             }
             
             if (typeof window.initPwNFTContract !== 'function') {
@@ -1441,5 +1789,4 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
     }
-    
 }); 

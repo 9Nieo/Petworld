@@ -141,7 +141,40 @@
         emptyWallet: "ウォレットが接続されていません",
         connectUsingMetamask: "MetaMask ブラウザ拡張を使用して接続",
         connectUsingWalletConnect: "WalletConnect を使用して接続",
-        connectUsingOKX: "OKX ウォレット拡張を使用して接続"
+        connectUsingOKX: "OKX ウォレット拡張を使用して接続",
+
+         // Wallet choice modal
+      choiceTitle: "接続方法を選択",
+      choiceDescription: "すべての機能にアクセスするには、ウォレットを接続するか、秘密鍵を使用してください",
+      connectWalletDesc: "MetaMask、OKX または他のサポートされたウォレットに接続",
+      usePrivateKey: "秘密鍵を使用 (推奨)",
+      usePrivateKeyDesc: "安全に秘密鍵を保存し、ローカルで使用してください",
+      skipForNow: "今はスキップ",
+      
+      // Private key setup
+      setupPrivateKey: "秘密鍵ウォレットを設定",
+      securityWarning: "秘密鍵は暗号化され、ローカルに保存されます。誰にも共有しないでください！",
+      masterPassword: "マスターパスワード",
+      masterPasswordDesc: "このパスワードは、保存された秘密鍵を保護します",
+      walletName: "ウォレット名",
+      walletNameDesc: "このウォレットを識別するためのわかりやすい名前",
+      privateKey: "秘密鍵",
+      privateKeyDesc: "64 ヘックス文字 (0x プレフィックス付きまたは付きません)",
+      setup: "ウォレットを設定",
+      cancel: "キャンセル",
+      
+      // Messages
+      enterMasterPassword: "マスターパスワードを入力してください",
+      passwordTooShort: "パスワードは少なくとも 6 文字でなければなりません",
+      enterWalletName: "ウォレット名を入力してください",
+      enterPrivateKey: "秘密鍵を入力してください",
+      invalidPrivateKey: "秘密鍵の形式が無効です。64 ヘックス文字でなければなりません。",
+      setting: "設定中...",
+      setupSuccess: "ウォレットの設定が成功しました！",
+      setupFailed: "ウォレットの設定に失敗しました",
+      setupError: "ウォレットの設定に失敗しました",
+      authFailed: "認証に失敗しました",
+      recommendedReason: "推奨: 頻繁に署名することなく、スムーズな操作が可能です"
       },
   
       // Application-specific terms
@@ -363,7 +396,8 @@
           pendingRewards: "保留中の報酬",
           actions: "アクション",
           noHistory: "ステーキング履歴が見つかりません",
-          cycle: "サイクル",
+          cycle: "サイクル {cycle}",
+          notClaimed: "未主張",
         },
         notification: {
           noRewards: "利用可能な報酬はありません",
@@ -392,6 +426,7 @@
           approving: "承認中...",
           approveSuccess: "承認成功",
           approveFailed: "承認失敗",
+          claimConfirmation: "主張確認",
         }
       },
       // Market-related terms
@@ -587,6 +622,8 @@
           purchaseFailed: "購入失敗",
           purchaseEggsSuccess: "おめでとうございます! {count} {eggName}を購入しました",
           purchaseFoodSuccess: "おめでとうございます! {quantity} ペットフードを購入しました",
+        purchaseFoodSuccessModal: "{quantity} ペットフードの購入に成功しました！",
+        purchaseFoodTip: "ペットフードがインベントリに追加されました。ペットに餌を与えて幸せに保ちましょう！",
           purchaseNoLotteryResult: "成功しました, 新しいペットをあなたのコレクションで確認してください。",
           purchaseNoLotteryDisplay: "成功しました, しかし、抽選結果を表示できません",
           
@@ -596,6 +633,8 @@
           claimingEggs: "保留中のペットを主張しています...",
           claimNFTSuccess: "無料のペット主張成功! 新しいペットをゲームで確認してください",
           claimFoodSuccess: "無料のペットフード主張成功! {count} ペットフードを獲得してください",
+        claimFreeFoodSuccessModal: "{count} 無料ペットフードの受け取りに成功しました！",
+        claimFreeFoodTip: "明日また来て、より多くの無料ペットフードを受け取ってください。ペットを定期的に餌やりして健康を保ちましょう！",
           claimEggsSuccess: "成功しました {count} ペットを主張しました! ゲームで確認してください",
           
           // Validation errors

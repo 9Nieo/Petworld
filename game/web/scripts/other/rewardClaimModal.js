@@ -404,9 +404,15 @@ const RewardClaimModal = (function() {
                         // Close modal
                         closeRewardModal();
                         
-                        // Show success message
-                        if (window.showNotification) {
-                            window.showNotification('Reward claimed successfully!', 'success');
+                        // Show actual reward amounts if available in result
+                        if (window.RewardNotification && window.RewardNotification.showRewardClaimed && result.actualRewards) {
+                            window.RewardNotification.showRewardClaimed({
+                                pwpotAmount: result.actualRewards.pwpotAmount || 0,
+                                pwbotAmount: result.actualRewards.pwbotAmount || 0,
+                                transactionHash: result.transactionHash || result.transaction?.transactionHash,
+                                tokenId: currentNftData.id,
+                                nftName: currentNftData.name
+                            });
                         }
                         
                         // Trigger reward claimed event
@@ -432,11 +438,15 @@ const RewardClaimModal = (function() {
                     // Close modal
                     closeRewardModal();
                     
-                    // Show success message, can use custom notification function
-                    if (window.showNotification) {
-                        window.showNotification('Reward claimed successfully!', 'success');
-                    } else {
-                        alert('Reward claimed successfully!');
+                    // Show actual reward amounts if available in response
+                    if (window.RewardNotification && window.RewardNotification.showRewardClaimed && response.actualRewards) {
+                        window.RewardNotification.showRewardClaimed({
+                            pwpotAmount: response.actualRewards.pwpotAmount || 0,
+                            pwbotAmount: response.actualRewards.pwbotAmount || 0,
+                            transactionHash: response.transactionHash || response.transaction?.transactionHash,
+                            tokenId: currentNftData.id,
+                            nftName: currentNftData.name
+                        });
                     }
                     
                     // If a page refresh is needed, can trigger a custom event or directly call related functions

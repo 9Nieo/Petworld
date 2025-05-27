@@ -302,6 +302,145 @@
             color: #757575;
             text-align: center;
         }
+
+        /* Wallet Private Key Styles */
+        .wallet-input-group {
+            margin-bottom: 15px;
+        }
+        
+        .wallet-input-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+            color: #333;
+        }
+        
+        .wallet-input-group input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 0.9rem;
+            box-sizing: border-box;
+        }
+        
+        .wallet-input-group input:focus {
+            outline: none;
+            border-color: #4d7bef;
+            box-shadow: 0 0 0 2px rgba(77, 123, 239, 0.2);
+        }
+        
+        .wallet-status {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 15px;
+            padding: 10px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+        }
+        
+        .wallet-status-icon {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+        
+        .wallet-status-icon.connected {
+            background-color: #28a745;
+        }
+        
+        .wallet-status-icon.disconnected {
+            background-color: #dc3545;
+        }
+        
+        .wallet-status-icon.locked {
+            background-color: #ffc107;
+        }
+        
+        .wallet-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        
+        .wallet-btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: background-color 0.2s;
+        }
+        
+        .wallet-btn.primary {
+            background-color: #4d7bef;
+            color: white;
+        }
+        
+        .wallet-btn.primary:hover {
+            background-color: #3a68d8;
+        }
+        
+        .wallet-btn.secondary {
+            background-color: #6c757d;
+            color: white;
+        }
+        
+        .wallet-btn.secondary:hover {
+            background-color: #545b62;
+        }
+        
+        .wallet-btn.danger {
+            background-color: #dc3545;
+            color: white;
+        }
+        
+        .wallet-btn.danger:hover {
+            background-color: #c82333;
+        }
+        
+        .wallet-btn:disabled {
+            background-color: #e9ecef;
+            color: #6c757d;
+            cursor: not-allowed;
+        }
+        
+        .wallet-address-display {
+            font-family: monospace;
+            font-size: 0.85rem;
+            color: #495057;
+            background-color: #f8f9fa;
+            padding: 8px;
+            border-radius: 4px;
+            border: 1px solid #dee2e6;
+            word-break: break-all;
+        }
+        
+        .security-warning {
+            background-color: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 4px;
+            padding: 12px;
+            margin-bottom: 15px;
+            font-size: 0.85rem;
+            color: #856404;
+        }
+        
+        .security-warning .warning-icon {
+            color: #f39c12;
+            margin-right: 5px;
+        }
+        
+        .gas-price-info {
+            margin-top: 5px;
+        }
+        
+        .gas-price-info small {
+            color: #6c757d;
+            font-style: italic;
+        }
     </style>
 </head>
 <body>
@@ -364,6 +503,136 @@
                     </label>
                 </div>
             </div>
+
+            <!-- Wallet Private Key Settings Section -->
+            <div class="settings-group">
+                <h3 class="group-title" data-i18n="settings.walletSettings">Wallet Settings</h3>
+                
+                <div class="security-warning">
+                    <span class="warning-icon">⚠️</span>
+                    <span data-i18n="settings.securityWarning">Your private keys will be encrypted and stored locally. Never share your private keys with anyone!</span>
+                </div>
+                
+                <!-- Authentication Section (shown when not authenticated) -->
+                <div id="auth-section" style="display: none;">
+                    <div class="wallet-input-group">
+                        <label for="master-password-input" data-i18n="settings.masterPasswordLabel">Master Password</label>
+                        <input type="password" id="master-password-input" placeholder="Enter your master password...">
+                        <div class="setting-description" data-i18n="settings.masterPasswordDescription">Enter your master password to access your stored private keys.</div>
+                    </div>
+                    <div class="wallet-actions">
+                        <button id="authenticate-btn" class="wallet-btn primary" data-i18n="settings.authenticate">Authenticate</button>
+                    </div>
+                </div>
+                
+                <!-- Key Management Section (shown when authenticated) -->
+                <div id="key-management-section" style="display: none;">
+                    <!-- Current Active Key Display -->
+                <div class="wallet-status" id="wallet-status">
+                    <div class="wallet-status-icon disconnected" id="wallet-status-icon"></div>
+                    <span id="wallet-status-text" data-i18n="settings.walletDisconnected">Wallet not configured</span>
+                    </div>
+                    
+                    <!-- Active Key Selector -->
+                    <div class="wallet-input-group" id="key-selector-group" style="display: none;">
+                        <label for="active-key-select" data-i18n="settings.activeKeyLabel">Active Wallet</label>
+                        <select id="active-key-select" class="form-select">
+                            <!-- Options will be populated dynamically -->
+                        </select>
+                        <div class="setting-description" data-i18n="settings.activeKeyDescription">Select which wallet to use for transactions.</div>
+                    </div>
+                    
+                    <!-- Key List -->
+                    <div class="wallet-input-group" id="key-list-group" style="display: none;">
+                        <label data-i18n="settings.storedKeysLabel">Stored Wallets</label>
+                        <div id="stored-keys-list" class="stored-keys-list">
+                            <!-- Keys will be populated dynamically -->
+                        </div>
+                    </div>
+                    
+                    <!-- Add New Key Section -->
+                    <div id="add-key-section" style="display: none;">
+                        <div class="wallet-input-group">
+                            <label for="new-key-name-input" data-i18n="settings.keyNameLabel">Wallet Name</label>
+                            <input type="text" id="new-key-name-input" placeholder="Enter a name for this wallet...">
+                </div>
+                
+                <div class="wallet-input-group">
+                    <label for="private-key-input" data-i18n="settings.privateKeyLabel">BNB Private Key (64 hex characters)</label>
+                    <input type="password" id="private-key-input" placeholder="Enter your BNB private key..." maxlength="66">
+                </div>
+                
+                        <div class="wallet-actions">
+                            <button id="add-key-btn" class="wallet-btn primary" data-i18n="settings.addKey">Add Wallet</button>
+                            <button id="cancel-add-key-btn" class="wallet-btn secondary" data-i18n="settings.cancel">Cancel</button>
+                        </div>
+                    </div>
+                    
+                    <!-- Main Actions -->
+                    <div class="wallet-actions" id="main-wallet-actions">
+                        <button id="show-add-key-btn" class="wallet-btn primary" data-i18n="settings.addNewKey">Add New Wallet</button>
+                        <button id="lock-wallet-btn" class="wallet-btn secondary" data-i18n="settings.lockWallet" style="display: none;">Lock Wallet</button>
+                        <button id="logout-btn" class="wallet-btn danger" data-i18n="settings.logout">Logout</button>
+                    </div>
+                </div>
+                
+                <!-- First Time Setup Section (shown when no keys exist) -->
+                <div id="first-time-setup" style="display: none;">
+                    <div class="wallet-input-group">
+                        <label for="setup-master-password-input" data-i18n="settings.setupMasterPasswordLabel">Create Master Password</label>
+                        <input type="password" id="setup-master-password-input" placeholder="Create a master password...">
+                        <div class="setting-description" data-i18n="settings.setupMasterPasswordDescription">This password will protect all your stored private keys.</div>
+                    </div>
+                    
+                    <div class="wallet-input-group">
+                        <label for="setup-key-name-input" data-i18n="settings.keyNameLabel">Wallet Name</label>
+                        <input type="text" id="setup-key-name-input" placeholder="Enter a name for your first wallet...">
+                    </div>
+                    
+                    <div class="wallet-input-group">
+                        <label for="setup-private-key-input" data-i18n="settings.privateKeyLabel">BNB Private Key (64 hex characters)</label>
+                        <input type="password" id="setup-private-key-input" placeholder="Enter your BNB private key..." maxlength="66">
+                    </div>
+                    
+                    <div class="wallet-actions">
+                        <button id="setup-wallet-btn" class="wallet-btn primary" data-i18n="settings.setupWallet">Setup Wallet</button>
+                    </div>
+                </div>
+                
+                <div class="wallet-address-display" id="wallet-address-display" style="display: none;">
+                    <strong data-i18n="settings.walletAddress">Wallet Address:</strong>
+                    <div id="wallet-address-text">Not available</div>
+                </div>
+                
+                <!-- Auto-lock Time Settings -->
+                <div class="wallet-input-group">
+                    <label for="auto-lock-time-select" data-i18n="settings.autoLockTimeLabel">Auto-lock Time</label>
+                    <select id="auto-lock-time-select" class="form-select">
+                        <option value="24h" data-i18n="settings.autoLock24h">24 Hours</option>
+                        <option value="3d" data-i18n="settings.autoLock3d">3 Days</option>
+                        <option value="7d" data-i18n="settings.autoLock7d">7 Days</option>
+                        <option value="14d" data-i18n="settings.autoLock14d">14 Days</option>
+                        <option value="30d" data-i18n="settings.autoLock30d">30 Days</option>
+                        <option value="90d" data-i18n="settings.autoLock90d">90 Days</option>
+                        <option value="never" data-i18n="settings.autoLockNever">Never Auto-lock</option>
+                    </select>
+                    <div class="setting-description" data-i18n="settings.autoLockDescription">Choose how long before the wallet automatically locks for security.</div>
+                </div>
+                
+                <!-- Gas Price Limit Settings -->
+                <div class="wallet-input-group">
+                    <label for="gas-price-limit-input" data-i18n="settings.gasPriceLimitLabel">Max Gas Price (gwei)</label>
+                    <input type="number" id="gas-price-limit-input" placeholder="0.1" min="0.1" max="10" step="0.1">
+                    <div class="gas-price-info">
+                        <small id="gas-price-range-info" data-i18n="settings.gasPriceInfo">Range: 0.1 - 10 gwei (Default: 0.1 gwei)</small>
+                        <div id="current-network-info" style="margin-top: 5px; font-weight: bold; color: #007bff;">
+                            Current Network: <span id="current-network-name">Loading...</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <p class="setting-description" data-i18n="settings.walletDescription">Store your BNB private keys securely to interact with blockchain features. Your keys are encrypted before storage.</p>
+            </div>
             
             <!-- Token settings section -->
             <div class="settings-group">
@@ -397,6 +666,9 @@
             <button id="save-settings-btn" class="primary-btn" data-i18n="settings.saveButton">Save Settings</button>
         </div>
     </div>
+    
+    <!-- Include Web3.js -->
+    <script src="https://cdn.jsdelivr.net/npm/web3@1.8.2/dist/web3.min.js"></script>
     
     <!-- Include settings page scripts -->
     <script src="../../i18n/i18n.js"></script>
@@ -446,6 +718,10 @@
     })();
     </script>
     <script src="../../scripts/init_contracts/contractManager.js"></script>
+    
+    <!-- Add Secure Wallet Manager -->
+    <script src="../../resources/wallets/sessionManager.js"></script>
+    <script src="../../resources/wallets/walletManager.js"></script>
     
     <!-- Add Sound Manager -->
     <script src="../../scripts/other/soundManager.js"></script>

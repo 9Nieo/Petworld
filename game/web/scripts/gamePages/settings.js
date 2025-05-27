@@ -6,6 +6,49 @@ document.addEventListener('DOMContentLoaded', () => {
     const resetBtn = document.getElementById('reset-settings-btn');
     const saveBtn = document.getElementById('save-settings-btn');
     
+    // Wallet elements - Multi-key support
+    const authSection = document.getElementById('auth-section');
+    const keyManagementSection = document.getElementById('key-management-section');
+    const firstTimeSetup = document.getElementById('first-time-setup');
+    
+    // Authentication elements
+    const masterPasswordInput = document.getElementById('master-password-input');
+    const authenticateBtn = document.getElementById('authenticate-btn');
+    
+    // First time setup elements
+    const setupMasterPasswordInput = document.getElementById('setup-master-password-input');
+    const setupKeyNameInput = document.getElementById('setup-key-name-input');
+    const setupPrivateKeyInput = document.getElementById('setup-private-key-input');
+    const setupWalletBtn = document.getElementById('setup-wallet-btn');
+    
+    // Key management elements
+    const activeKeySelect = document.getElementById('active-key-select');
+    const keySelectorGroup = document.getElementById('key-selector-group');
+    const keyListGroup = document.getElementById('key-list-group');
+    const storedKeysList = document.getElementById('stored-keys-list');
+    
+    // Add new key elements
+    const addKeySection = document.getElementById('add-key-section');
+    const newKeyNameInput = document.getElementById('new-key-name-input');
+    const privateKeyInput = document.getElementById('private-key-input');
+    const addKeyBtn = document.getElementById('add-key-btn');
+    const cancelAddKeyBtn = document.getElementById('cancel-add-key-btn');
+    const showAddKeyBtn = document.getElementById('show-add-key-btn');
+    
+    // Main action elements
+    const mainWalletActions = document.getElementById('main-wallet-actions');
+    const lockWalletBtn = document.getElementById('lock-wallet-btn');
+    const logoutBtn = document.getElementById('logout-btn');
+    
+    // Legacy elements (for compatibility)
+    const walletStatusIcon = document.getElementById('wallet-status-icon');
+    const walletStatusText = document.getElementById('wallet-status-text');
+    const walletAddressDisplay = document.getElementById('wallet-address-display');
+    const walletAddressText = document.getElementById('wallet-address-text');
+    
+    // Auto-lock elements
+    const autoLockTimeSelect = document.getElementById('auto-lock-time-select');
+    
     // default settings
     const defaultSettings = {
         language: 'en',
@@ -14,6 +57,10 @@ document.addEventListener('DOMContentLoaded', () => {
             muteBackground: false
         }
     };
+    
+    // Add state tracking for UI sections
+    let isAddingNewKey = false;
+    let lastWalletState = null;
     
     // initialize
     init();
@@ -96,6 +143,44 @@ document.addEventListener('DOMContentLoaded', () => {
         // bind the token status toggle event (moved down for better flow)
         bindTokenStatusToggleEvent();
         
+        // Bind wallet events
+        bindWalletEvents();
+        
+        // Initialize wallet status
+        updateWalletUI();
+        
+        // Add periodic wallet status check to handle async initialization
+        // Only check if wallet state actually changed to avoid unnecessary UI updates
+        const walletStatusCheckInterval = setInterval(() => {
+            if (window.SecureWalletManager) {
+                const currentState = {
+                    keyCount: window.SecureWalletManager.getKeyCount(),
+                    isAuthenticated: window.SecureWalletManager.isUserAuthenticated(),
+                    isReady: window.SecureWalletManager.isWalletReady(),
+                    isLocked: window.SecureWalletManager.isWalletLocked(),
+                    address: window.SecureWalletManager.getAddress()
+                };
+                
+                // Only update UI if state actually changed
+                if (!lastWalletState || JSON.stringify(currentState) !== JSON.stringify(lastWalletState)) {
+                    console.log('Wallet state changed, updating UI');
+                    lastWalletState = currentState;
+                    updateWalletUI();
+                    
+                    // If wallet is ready and was loading before, clear the interval
+                    if (currentState.isReady && (!lastWalletState || !lastWalletState.isReady)) {
+                        console.log('Wallet became ready, clearing check interval');
+                        clearInterval(walletStatusCheckInterval);
+                    }
+                }
+            }
+        }, 2000); // Check every 2 seconds instead of 1 second
+        
+        // Clear interval after 30 seconds to avoid infinite checking
+        setTimeout(() => {
+            clearInterval(walletStatusCheckInterval);
+        }, 30000);
+        
         // listen to the language initialization event
         window.addEventListener('localeInitialized', function(event) {
             console.log('Detected the language initialization event:', event.detail);
@@ -171,6 +256,557 @@ document.addEventListener('DOMContentLoaded', () => {
         loadAndApplyAudioSettings();
         
         console.log('Game settings page initialization completed');
+    }
+    
+    /**
+     * Bind wallet-related events
+     */
+    function bindWalletEvents() {
+        // Authentication events
+        if (authenticateBtn) {
+            authenticateBtn.addEventListener('click', handleAuthenticate);
+        }
+        
+        if (masterPasswordInput) {
+            masterPasswordInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    handleAuthenticate();
+                }
+            });
+        }
+        
+        // First time setup events
+        if (setupWalletBtn) {
+            setupWalletBtn.addEventListener('click', handleSetupWallet);
+        }
+        
+        // Key management events
+        if (activeKeySelect) {
+            activeKeySelect.addEventListener('change', handleActiveKeyChange);
+        }
+        
+        if (showAddKeyBtn) {
+            showAddKeyBtn.addEventListener('click', showAddKeySection);
+        }
+        
+        if (addKeyBtn) {
+            addKeyBtn.addEventListener('click', handleAddKey);
+        }
+        
+        if (cancelAddKeyBtn) {
+            cancelAddKeyBtn.addEventListener('click', hideAddKeySection);
+        }
+        
+        if (lockWalletBtn) {
+            lockWalletBtn.addEventListener('click', handleLockWallet);
+        }
+        
+        if (logoutBtn) {
+            logoutBtn.addEventListener('click', handleLogout);
+        }
+        
+        // Private key input validation
+        if (privateKeyInput) {
+            privateKeyInput.addEventListener('input', validatePrivateKeyInput);
+        }
+        
+        if (setupPrivateKeyInput) {
+            setupPrivateKeyInput.addEventListener('input', validateSetupPrivateKeyInput);
+        }
+        
+        // Load current gas price limit
+        loadGasPriceLimit();
+        
+        // Load auto-lock settings
+        loadAutoLockSettings();
+    }
+
+    /**
+     * Handle authentication
+     */
+    function handleAuthenticate() {
+        const password = masterPasswordInput.value.trim();
+        
+        if (!password) {
+            showMessage(getTranslation('settings.enterPassword', 'Please enter your password'), 'error');
+            return;
+        }
+        
+        if (window.SecureWalletManager) {
+            window.SecureWalletManager.authenticateUser(password).then(success => {
+                if (success) {
+                    showMessage(getTranslation('settings.authSuccess', 'Authentication successful'));
+                    masterPasswordInput.value = '';
+                    updateWalletUI();
+                } else {
+                    showMessage(getTranslation('settings.authFailed', 'Authentication failed. Please check your password.'), 'error');
+                }
+            });
+        }
+    }
+    
+    /**
+     * Handle first time wallet setup
+     */
+    function handleSetupWallet() {
+        const masterPassword = setupMasterPasswordInput.value.trim();
+        const keyName = setupKeyNameInput.value.trim();
+        const privateKey = setupPrivateKeyInput.value.trim();
+        
+        if (!masterPassword) {
+            showMessage(getTranslation('settings.enterMasterPassword', 'Please enter a master password'), 'error');
+            return;
+        }
+        
+        if (masterPassword.length < 6) {
+            showMessage(getTranslation('settings.passwordTooShort', 'Password must be at least 6 characters'), 'error');
+            return;
+        }
+        
+        if (!keyName) {
+            showMessage(getTranslation('settings.enterKeyName', 'Please enter a name for your wallet'), 'error');
+            return;
+        }
+        
+        if (!privateKey) {
+            showMessage(getTranslation('settings.enterPrivateKey', 'Please enter your private key'), 'error');
+            return;
+        }
+        
+        if (!window.SecureWalletManager.validatePrivateKey(privateKey)) {
+            showMessage(getTranslation('settings.invalidPrivateKey', 'Invalid private key format. Must be 64 hex characters.'), 'error');
+            return;
+        }
+        
+        if (window.SecureWalletManager) {
+            // First authenticate with master password
+            window.SecureWalletManager.authenticateUser(masterPassword).then(authSuccess => {
+                if (authSuccess) {
+                    // Then add the first key
+                    window.SecureWalletManager.addPrivateKey(privateKey, keyName).then(result => {
+                        if (result.success) {
+                            showMessage(getTranslation('settings.walletSetupSuccess', 'Wallet setup successful!'));
+                            
+                            // Clear input fields
+                            setupMasterPasswordInput.value = '';
+                            setupKeyNameInput.value = '';
+                            setupPrivateKeyInput.value = '';
+                            
+                            // Update UI
+                            updateWalletUI();
+                        } else {
+                            showMessage(getTranslation('settings.walletSetupFailed', 'Wallet setup failed: ') + result.error, 'error');
+                        }
+                    });
+                } else {
+                    showMessage(getTranslation('settings.authFailed', 'Authentication failed'), 'error');
+                }
+            });
+        }
+    }
+    
+    /**
+     * Handle active key change
+     */
+    function handleActiveKeyChange() {
+        const selectedKeyId = activeKeySelect.value;
+        
+        if (selectedKeyId && window.SecureWalletManager) {
+            window.SecureWalletManager.switchToKey(selectedKeyId).then(success => {
+        if (success) {
+                    showMessage(getTranslation('settings.keySwitched', 'Switched to selected wallet'));
+                    updateWalletUI();
+                } else {
+                    showMessage(getTranslation('settings.keySwitchFailed', 'Failed to switch wallet'), 'error');
+                    // Revert selection
+                    const activeKey = window.SecureWalletManager.getActiveKey();
+                    if (activeKey) {
+                        activeKeySelect.value = activeKey.id;
+                    }
+                }
+            });
+        }
+    }
+    
+    /**
+     * Show add key section
+     */
+    function showAddKeySection() {
+        isAddingNewKey = true;
+        addKeySection.style.display = 'block';
+        mainWalletActions.style.display = 'none';
+        newKeyNameInput.focus();
+    }
+    
+    /**
+     * Hide add key section
+     */
+    function hideAddKeySection() {
+        isAddingNewKey = false;
+        addKeySection.style.display = 'none';
+        mainWalletActions.style.display = 'block';
+            
+            // Clear input fields
+        newKeyNameInput.value = '';
+            privateKeyInput.value = '';
+    }
+    
+    /**
+     * Handle add new key
+     */
+    function handleAddKey() {
+        const keyName = newKeyNameInput.value.trim();
+        const privateKey = privateKeyInput.value.trim();
+        
+        if (!keyName) {
+            showMessage(getTranslation('settings.enterKeyName', 'Please enter a name for this wallet'), 'error');
+            return;
+        }
+        
+        if (!privateKey) {
+            showMessage(getTranslation('settings.enterPrivateKey', 'Please enter your private key'), 'error');
+            return;
+        }
+        
+        if (!window.SecureWalletManager.validatePrivateKey(privateKey)) {
+            showMessage(getTranslation('settings.invalidPrivateKey', 'Invalid private key format. Must be 64 hex characters.'), 'error');
+            return;
+        }
+        
+        if (window.SecureWalletManager) {
+            window.SecureWalletManager.addPrivateKey(privateKey, keyName).then(result => {
+                if (result.success) {
+                    showMessage(getTranslation('settings.keyAdded', 'Wallet added successfully!'));
+                    hideAddKeySection();
+                    updateWalletUI();
+        } else {
+                    showMessage(getTranslation('settings.keyAddFailed', 'Failed to add wallet: ') + result.error, 'error');
+                }
+            });
+        }
+    }
+    
+    /**
+     * Handle lock wallet
+     */
+    function handleLockWallet() {
+        if (window.SecureWalletManager) {
+            window.SecureWalletManager.lockWallet();
+            showMessage(getTranslation('settings.walletLocked', 'Wallet locked successfully'));
+            updateWalletUI();
+        }
+    }
+    
+    /**
+     * Handle logout
+     */
+    function handleLogout() {
+        const confirmMessage = getTranslation('settings.confirmLogout', 'Are you sure you want to logout? You will need to re-enter your master password.');
+        
+        if (confirm(confirmMessage)) {
+            if (window.SecureWalletManager) {
+                // Clear authentication
+                window.SecureWalletManager.isAuthenticated = false;
+                window.SecureWalletManager.masterPassword = null;
+                window.SecureWalletManager.lockWallet();
+                
+                showMessage(getTranslation('settings.loggedOut', 'Logged out successfully'));
+                updateWalletUI();
+            }
+        }
+    }
+
+    /**
+     * Handle remove key
+     */
+    function handleRemoveKey(keyId) {
+        const keyMetadata = window.SecureWalletManager.getAllKeys()[keyId];
+        if (!keyMetadata) return;
+        
+        const confirmMessage = getTranslation('settings.confirmRemoveKey', 'Are you sure you want to remove wallet "{{name}}"? This action cannot be undone.')
+            .replace('{{name}}', keyMetadata.name);
+        
+        if (confirm(confirmMessage)) {
+            if (window.SecureWalletManager.removePrivateKey(keyId)) {
+                showMessage(getTranslation('settings.keyRemoved', 'Wallet removed successfully'));
+                updateWalletUI();
+            } else {
+                showMessage(getTranslation('settings.keyRemoveFailed', 'Failed to remove wallet'), 'error');
+            }
+        }
+    }
+    
+    /**
+     * Handle edit key name
+     */
+    function handleEditKeyName(keyId) {
+        const keyMetadata = window.SecureWalletManager.getAllKeys()[keyId];
+        if (!keyMetadata) return;
+        
+        const newName = prompt(getTranslation('settings.enterNewKeyName', 'Enter new name for this wallet:'), keyMetadata.name);
+        
+        if (newName && newName.trim() && newName.trim() !== keyMetadata.name) {
+            if (window.SecureWalletManager.updateKeyName(keyId, newName.trim())) {
+                showMessage(getTranslation('settings.keyNameUpdated', 'Wallet name updated successfully'));
+                updateWalletUI();
+            } else {
+                showMessage(getTranslation('settings.keyNameUpdateFailed', 'Failed to update wallet name'), 'error');
+            }
+        }
+    }
+
+    /**
+     * Validate private key input
+     */
+    function validatePrivateKeyInput() {
+        const privateKey = privateKeyInput.value.trim();
+        
+        if (privateKey && !window.SecureWalletManager.validatePrivateKey(privateKey)) {
+            privateKeyInput.style.borderColor = '#dc3545';
+        } else {
+            privateKeyInput.style.borderColor = '#ddd';
+        }
+    }
+
+    /**
+     * Validate setup private key input
+     */
+    function validateSetupPrivateKeyInput() {
+        const privateKey = setupPrivateKeyInput.value.trim();
+        
+        if (privateKey && !window.SecureWalletManager.validatePrivateKey(privateKey)) {
+            setupPrivateKeyInput.style.borderColor = '#dc3545';
+        } else {
+            setupPrivateKeyInput.style.borderColor = '#ddd';
+        }
+    }
+
+    /**
+     * Update wallet UI based on current state
+     */
+    function updateWalletUI() {
+        if (!window.SecureWalletManager) {
+            console.log('SecureWalletManager not available');
+            return;
+        }
+        
+        const keyCount = window.SecureWalletManager.getKeyCount();
+        const isAuthenticated = window.SecureWalletManager.isUserAuthenticated();
+        const hasStoredKeys = window.SecureWalletManager.hasStoredKey();
+        const isReady = window.SecureWalletManager.isWalletReady();
+        const isLocked = window.SecureWalletManager.isWalletLocked();
+        const address = window.SecureWalletManager.getAddress();
+        
+        console.log('Wallet UI update:', {
+            keyCount,
+            isAuthenticated,
+            hasStoredKeys,
+            isReady,
+            isLocked,
+            address: address ? address.substring(0, 10) + '...' : null,
+            isAddingNewKey
+        });
+        
+        // Hide sections first, but preserve add key section state if user is adding a key
+        if (authSection) authSection.style.display = 'none';
+        if (keyManagementSection) keyManagementSection.style.display = 'none';
+        if (firstTimeSetup) firstTimeSetup.style.display = 'none';
+        
+        // Only hide add key section if user is not currently adding a new key
+        if (addKeySection && !isAddingNewKey) {
+            addKeySection.style.display = 'none';
+        }
+        
+        if (keyCount === 0) {
+            // First time setup
+            if (firstTimeSetup) firstTimeSetup.style.display = 'block';
+            updateWalletStatus('setup', 'No wallets configured');
+        } else if (!isAuthenticated) {
+            // Show authentication
+            if (authSection) authSection.style.display = 'block';
+            updateWalletStatus('auth', 'Authentication required');
+        } else {
+            // Show key management
+            if (keyManagementSection) keyManagementSection.style.display = 'block';
+            
+            // Update key selector
+            updateKeySelector();
+            
+            // Update key list
+            updateKeyList();
+            
+            // Update wallet status
+        if (isReady) {
+                updateWalletStatus('ready', 'Wallet ready');
+            
+            // Show wallet address
+                if (address && walletAddressDisplay && walletAddressText) {
+                walletAddressDisplay.style.display = 'block';
+                walletAddressText.textContent = address;
+            }
+            } else if (isLocked) {
+                updateWalletStatus('locked', 'Wallet locked');
+                if (walletAddressDisplay) walletAddressDisplay.style.display = 'none';
+        } else {
+                updateWalletStatus('loading', 'Wallet loading...');
+                if (walletAddressDisplay) walletAddressDisplay.style.display = 'none';
+            }
+            
+            // Show/hide sections based on state
+            if (keySelectorGroup) {
+                keySelectorGroup.style.display = keyCount > 1 ? 'block' : 'none';
+            }
+            if (keyListGroup) {
+                keyListGroup.style.display = 'block';
+            }
+            
+            // Only show main wallet actions if not adding a new key
+            if (mainWalletActions) {
+                mainWalletActions.style.display = isAddingNewKey ? 'none' : 'block';
+            }
+        }
+    }
+    
+    /**
+     * Update wallet status display
+     */
+    function updateWalletStatus(status, text) {
+        if (!walletStatusIcon || !walletStatusText) return;
+        
+        // Remove all status classes
+        walletStatusIcon.className = 'wallet-status-icon';
+        
+        // Add appropriate status class
+        switch (status) {
+            case 'ready':
+                walletStatusIcon.classList.add('connected');
+                break;
+            case 'locked':
+                walletStatusIcon.classList.add('locked');
+                break;
+            case 'loading':
+                walletStatusIcon.classList.add('loading');
+                break;
+            case 'auth':
+            case 'setup':
+            default:
+                walletStatusIcon.classList.add('disconnected');
+                break;
+        }
+        
+        walletStatusText.textContent = getTranslation(`settings.wallet${status.charAt(0).toUpperCase() + status.slice(1)}`, text);
+    }
+    
+    /**
+     * Update key selector dropdown
+     */
+    function updateKeySelector() {
+        if (!activeKeySelect || !window.SecureWalletManager) return;
+        
+        const allKeys = window.SecureWalletManager.getAllKeys();
+        const activeKey = window.SecureWalletManager.getActiveKey();
+        
+        // Clear existing options
+        activeKeySelect.innerHTML = '';
+            
+        // Add options for each key
+        Object.values(allKeys).forEach(key => {
+            const option = document.createElement('option');
+            option.value = key.id;
+            option.textContent = `${key.name} (${formatAddress(key.address)})`;
+            if (key.isActive) {
+                option.selected = true;
+            }
+            activeKeySelect.appendChild(option);
+        });
+    }
+    
+    /**
+     * Update key list display
+     */
+    function updateKeyList() {
+        if (!storedKeysList || !window.SecureWalletManager) return;
+        
+        const allKeys = window.SecureWalletManager.getAllKeys();
+        
+        // Clear existing list
+        storedKeysList.innerHTML = '';
+        
+        if (Object.keys(allKeys).length === 0) {
+            const emptyMessage = document.createElement('div');
+            emptyMessage.className = 'empty-keys-message';
+            emptyMessage.textContent = getTranslation('settings.noKeysStored', 'No wallets stored');
+            storedKeysList.appendChild(emptyMessage);
+            return;
+        }
+        
+        // Add each key to the list
+        Object.values(allKeys).forEach(key => {
+            const keyItem = document.createElement('div');
+            keyItem.className = `stored-key-item ${key.isActive ? 'active' : ''}`;
+            
+            keyItem.innerHTML = `
+                <div class="key-info">
+                    <div class="key-name">
+                        <span class="${key.isActive ? 'active-key-indicator' : 'inactive-key-indicator'}"></span>
+                        ${escapeHtml(key.name)}
+                        ${key.isActive ? '<span class="key-count-badge">Active</span>' : ''}
+                    </div>
+                    <div class="key-address">${formatAddress(key.address)}</div>
+                </div>
+                <div class="key-actions">
+                    ${!key.isActive ? `<button class="key-action-btn switch" onclick="handleSwitchToKey('${key.id}')" data-i18n="settings.switchTo">Switch</button>` : ''}
+                    <button class="key-action-btn edit" onclick="handleEditKeyName('${key.id}')" data-i18n="settings.edit">Edit</button>
+                    <button class="key-action-btn delete" onclick="handleRemoveKey('${key.id}')" data-i18n="settings.remove">Remove</button>
+                </div>
+            `;
+            
+            storedKeysList.appendChild(keyItem);
+        });
+    }
+    
+    /**
+     * Handle switch to key (called from inline onclick)
+     */
+    function handleSwitchToKey(keyId) {
+        if (window.SecureWalletManager) {
+            window.SecureWalletManager.switchToKey(keyId).then(success => {
+                if (success) {
+                    showMessage(getTranslation('settings.keySwitched', 'Switched to selected wallet'));
+                    updateWalletUI();
+                } else {
+                    showMessage(getTranslation('settings.keySwitchFailed', 'Failed to switch wallet'), 'error');
+            }
+            });
+        }
+    }
+    
+    /**
+     * Escape HTML to prevent XSS
+     */
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+    
+    /**
+     * Format address for display
+     */
+    function formatAddress(address) {
+        if (!address) return '';
+        return `${address.substring(0, 6)}...${address.substring(address.length - 4)}`;
+            }
+    
+    /**
+     * Load auto-lock settings
+     */
+    function loadAutoLockSettings() {
+        if (window.SecureWalletManager && autoLockTimeSelect) {
+            const currentAutoLockTime = window.SecureWalletManager.getAutoLockTime();
+            autoLockTimeSelect.value = currentAutoLockTime;
+            console.log('Loaded auto-lock time setting:', currentAutoLockTime);
+        }
     }
     
     /**
@@ -417,6 +1053,40 @@ document.addEventListener('DOMContentLoaded', () => {
         
         console.log('Saving settings with language:', fullLocale);
         
+        // Save gas price limit if SecureWalletManager is available
+        let gasLimitSaved = true;
+        if (window.SecureWalletManager) {
+            const gasPriceLimitInput = document.getElementById('gas-price-limit-input');
+            if (gasPriceLimitInput && gasPriceLimitInput.value.trim()) {
+                const gasPriceValue = gasPriceLimitInput.value.trim();
+                const validation = window.SecureWalletManager.validateGasPriceForNetwork(gasPriceValue);
+                
+                if (validation.isValid) {
+                    const success = window.SecureWalletManager.saveGasPriceLimit(gasPriceValue);
+                    if (!success) {
+                        gasLimitSaved = false;
+                        console.warn('Failed to save gas price limit');
+                    }
+                } else {
+                    gasLimitSaved = false;
+                    console.warn('Invalid gas price value:', validation.errorMessage);
+                }
+            }
+        }
+        
+        // Save auto-lock time if SecureWalletManager is available
+        let autoLockSaved = true;
+        if (window.SecureWalletManager && autoLockTimeSelect) {
+            const autoLockTime = autoLockTimeSelect.value;
+            if (autoLockTime) {
+                const success = window.SecureWalletManager.saveAutoLockTime(autoLockTime);
+                if (!success) {
+                    autoLockSaved = false;
+                    console.warn('Failed to save auto-lock time');
+                }
+            }
+        }
+        
         // save the settings to the local storage
         settings.language = fullLocale;
         localStorage.setItem('gameSettings', JSON.stringify(settings));
@@ -440,7 +1110,11 @@ document.addEventListener('DOMContentLoaded', () => {
             
             if (success) {
                 // Show success message first
-                showMessage(getTranslation('settings.settingsSaved', 'Settings saved! Reloading...'));
+                let message = getTranslation('settings.settingsSaved', 'Settings saved! Reloading...');
+                if (!gasLimitSaved || !autoLockSaved) {
+                    message = getTranslation('settings.settingsPartialSaved', 'Settings saved with some warnings. Reloading...');
+                }
+                showMessage(message);
                 
                 // Reload after a short delay to ensure the language change takes effect
                 setTimeout(() => {
@@ -472,7 +1146,11 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         
         // show the save success message
-        showMessage(getTranslation('settings.settingsSaved', 'Settings saved!'));
+        let message = getTranslation('settings.settingsSaved', 'Settings saved!');
+        if (!gasLimitSaved || !autoLockSaved) {
+            message = getTranslation('settings.settingsPartialSaved', 'Settings saved with some warnings.');
+        }
+        showMessage(message);
     }
     
     /**
@@ -1152,4 +1830,71 @@ document.addEventListener('DOMContentLoaded', () => {
         
         console.log('Loaded settings:', savedSettings);
     }
+    
+    /**
+     * Load current gas price limit
+     */
+    function loadGasPriceLimit() {
+        const gasPriceLimitInput = document.getElementById('gas-price-limit-input');
+        if (!gasPriceLimitInput) {
+            return;
+        }
+        
+        if (window.SecureWalletManager) {
+            try {
+                const currentLimit = window.SecureWalletManager.getGasPriceLimitGwei();
+                if (currentLimit) {
+                    gasPriceLimitInput.value = parseFloat(currentLimit).toFixed(1);
+                }
+                
+                // Update network info and input constraints
+                updateNetworkGasInfo();
+            } catch (error) {
+                console.warn('Failed to load gas price limit:', error);
+            }
+        }
+    }
+    
+    /**
+     * Update unified gas price information and input constraints
+     */
+    function updateNetworkGasInfo() {
+        if (!window.SecureWalletManager) return;
+        
+        try {
+            const gasSettings = window.SecureWalletManager.getCurrentNetworkGasSettings();
+            const gasPriceLimitInput = document.getElementById('gas-price-limit-input');
+            const gasPriceRangeInfo = document.getElementById('gas-price-range-info');
+            const currentNetworkName = document.getElementById('current-network-name');
+            
+            // Update network name display
+            if (currentNetworkName) {
+                currentNetworkName.textContent = gasSettings.networkName;
+            }
+            
+            // Update range info with unified settings
+            if (gasPriceRangeInfo) {
+                gasPriceRangeInfo.textContent = `Range: ${gasSettings.minGwei} - ${gasSettings.maxGwei} gwei (Default: ${gasSettings.defaultGwei} gwei)`;
+            }
+            
+            // Update input constraints with unified settings
+            if (gasPriceLimitInput) {
+                gasPriceLimitInput.min = gasSettings.minGwei;
+                gasPriceLimitInput.max = gasSettings.maxGwei;
+                gasPriceLimitInput.placeholder = gasSettings.defaultGwei;
+                
+                // Use fine-grained step for unified settings
+                gasPriceLimitInput.step = '0.1';
+            }
+            
+            console.log('Updated unified gas info:', gasSettings);
+        } catch (error) {
+            console.warn('Failed to update gas info:', error);
+        }
+    }
+
+    // Make functions globally accessible for inline onclick handlers
+    window.handleRemoveKey = handleRemoveKey;
+    window.handleEditKeyName = handleEditKeyName;
+    window.handleSwitchToKey = handleSwitchToKey;
 }); 

@@ -174,7 +174,7 @@ class EggManager extends PetAnimationBase {
             return true;
         }
         
-        console.log(`[EggDebug] Not an egg: ${element.dataset.name || 'unknown'} (classes: ${Array.from(element.classList)})`);
+        // console.log(`[EggDebug] Not an egg: ${element.dataset.name || 'unknown'} (classes: ${Array.from(element.classList)})`);
         return false;
     }
     
@@ -206,7 +206,7 @@ class EggManager extends PetAnimationBase {
      * @param {boolean} applyShadows - Whether to apply shadows, default is true
      */
     checkForPets(applyShadows = true) {
-        console.log('[EggDebug] checkForPets/checkForEggs called on page:', window.location.href);
+        // console.log('[EggDebug] checkForPets/checkForEggs called on page:', window.location.href);
         
         // Find all NFT elements in the farm
         const farmContainer = document.getElementById('farm-animals-container');
@@ -215,23 +215,23 @@ class EggManager extends PetAnimationBase {
             return;
         }
         
-        console.log('[EggDebug] Farm container found:', farmContainer);
+        // console.log('[EggDebug] Farm container found:', farmContainer);
         
         // Find all animal elements - use several selectors to catch all possibilities
         const animalElements = farmContainer.querySelectorAll('.animal, .nft-animal, .egg-nft');
-        console.log(`[EggDebug] Found ${animalElements.length} animal elements:`, animalElements);
+        // console.log(`[EggDebug] Found ${animalElements.length} animal elements:`, animalElements);
         
         // More detailed logging of found animals
-        Array.from(animalElements).forEach((el, idx) => {
-            console.log(`[EggDebug] Animal #${idx}:`, {
-                id: el.dataset.id || 'none',
-                name: el.dataset.name || 'none',
-                classes: Array.from(el.classList),
-                isEgg: this.isPetTypeElement(el),
-                hasPet: !!this.animatedPets.get(el),
-                isProcessed: this.processedNftIds.has(el.dataset.id || 'unknown')
-            });
-        });
+        // Array.from(animalElements).forEach((el, idx) => {
+        //     console.log(`[EggDebug] Animal #${idx}:`, {
+        //         id: el.dataset.id || 'none',
+        //         name: el.dataset.name || 'none',
+        //         classes: Array.from(el.classList),
+        //         isEgg: this.isPetTypeElement(el),
+        //         hasPet: !!this.animatedPets.get(el),
+        //         isProcessed: this.processedNftIds.has(el.dataset.id || 'unknown')
+        //     });
+        // });
         
         // Create set of all NFT IDs currently on the page, for cleaning up animations later
         const currentNftIds = new Set();
@@ -262,7 +262,7 @@ class EggManager extends PetAnimationBase {
             
             // Check if this is an egg
             if (this.isPetTypeElement(animalElement)) {
-                console.log(`[EggDebug] Found egg NFT #${index} (ID: ${nftId}) - applying animation:`, animalElement.dataset.name);
+                // console.log(`[EggDebug] Found egg NFT #${index} (ID: ${nftId}) - applying animation:`, animalElement.dataset.name);
                 
                 // Mark this NFT as processed
                 this.processedNftIds.add(nftId);
@@ -323,6 +323,21 @@ class EggManager extends PetAnimationBase {
             return;
         }
         
+        // Use PetSizeHelper for intelligent size checking and animation application
+        if (window.PetSizeHelper) {
+            window.PetSizeHelper.applyAnimationWithSizeCheck(
+                element,
+                'egg',
+                (el) => this.doApplyEggAnimation(el),
+                {
+                    maxWaitAttempts: 8,
+                    fallbackSize: { width: '50px', height: '50px' }
+                }
+            );
+        } else {
+            // Fallback to original logic if PetSizeHelper is not available
+            this.log('[EggManager] PetSizeHelper not available, using fallback logic');
+            
         // Check element dimensions, delay processing if zero
         if (element.offsetWidth === 0 || element.offsetHeight === 0) {
             this.log('[EggManager] Element has zero dimensions, delaying animation:', element);
@@ -334,10 +349,22 @@ class EggManager extends PetAnimationBase {
                     this.log('[EggManager] Element now has dimensions, applying animation');
                     this.doApplyEggAnimation(element);
                 } else {
-                    this.error('[EggManager] Element still has zero dimensions after delay, using default size');
-                    // Force set minimum size to ensure animation can be applied
-                    element.style.width = element.style.width || '50px';
-                    element.style.height = element.style.height || '50px';
+                    this.error('[EggManager] Element still has zero dimensions after delay, applying PetSizeManager or default size');
+                    
+                    // First try to apply PetSizeManager if available
+                    if (window.PetSizeManager) {
+                        const petType = window.PetSizeManager.detectPetType(element);
+                        window.PetSizeManager.setSize(element, petType);
+                        this.log('[EggManager] Applied PetSizeManager sizing');
+                    }
+                    
+                    // Only set fallback size if PetSizeManager didn't set dimensions
+                    if (element.offsetWidth === 0 || element.offsetHeight === 0) {
+                        element.style.width = element.style.width || '50px';
+                        element.style.height = element.style.height || '50px';
+                        this.log('[EggManager] Applied fallback size as last resort');
+                    }
+                    
                     // Try to apply animation
                     this.doApplyEggAnimation(element);
                 }
@@ -348,6 +375,7 @@ class EggManager extends PetAnimationBase {
         
         // If dimensions are normal, apply animation directly
         this.doApplyEggAnimation(element);
+        }
     }
     
     /**
@@ -545,18 +573,18 @@ class EggManager extends PetAnimationBase {
             return false;
         }
         
-        // Check element dimensions
-        if (element.offsetWidth === 0 || element.offsetHeight === 0) {
-            this.error('[EggManager] Cannot prepare element - element has zero dimensions');
-            // Set minimum size
-            element.style.width = element.style.width || '50px';
-            element.style.height = element.style.height || '50px';
-        }
-        
-        // Apply size using PetSizeManager if available
+        // Apply size using PetSizeManager first if available
         if (window.PetSizeManager) {
             window.PetSizeManager.setSize(element, 'egg');
             this.log('[EggManager] Applied size using PetSizeManager');
+        }
+        
+        // Check element dimensions after PetSizeManager
+        if (element.offsetWidth === 0 || element.offsetHeight === 0) {
+            this.error('[EggManager] Element still has zero dimensions after PetSizeManager, applying fallback size');
+            // Set minimum size as fallback
+            element.style.width = element.style.width || '50px';
+            element.style.height = element.style.height || '50px';
         }
 
         // Ensure the element has position relative for absolute positioning of the animation
@@ -959,14 +987,14 @@ class EggManager extends PetAnimationBase {
     // Use the base class method, but add debug output
     getAbsoluteResourcePath(relativePath) {
         // Output current URL and relative path
-        console.log(`[EggDebug] Current URL: ${window.location.href}`);
-        console.log(`[EggDebug] Relative path: ${relativePath}`);
-        
+            // console.log(`[EggDebug] Current URL: ${window.location.href}`);
+            // console.log(`[EggDebug] Relative path: ${relativePath}`);
+            
         // Call the base class method
         const result = super.getAbsoluteResourcePath(relativePath);
         
         // Output the result
-        console.log(`[EggDebug] Resolved path: ${result}`);
+        // console.log(`[EggDebug] Resolved path: ${result}`);
         return result;
     }
 

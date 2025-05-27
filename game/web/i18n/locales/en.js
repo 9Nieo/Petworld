@@ -141,7 +141,40 @@
       emptyWallet: "No wallet connected",
       connectUsingMetamask: "Connect using MetaMask browser extension",
       connectUsingWalletConnect: "Connect using WalletConnect",
-      connectUsingOKX: "Connect using OKX Wallet extension"
+      connectUsingOKX: "Connect using OKX Wallet extension",
+      
+      // Wallet choice modal
+      choiceTitle: "Choose Connection Method",
+      choiceDescription: "To access all features, please connect your wallet or use a private key",
+      connectWalletDesc: "Connect MetaMask, OKX or other supported wallets",
+      usePrivateKey: "Use Private Key (Recommended)",
+      usePrivateKeyDesc: "Securely store and use your private key locally",
+      skipForNow: "Skip for now",
+      
+      // Private key setup
+      setupPrivateKey: "Setup Private Key Wallet",
+      securityWarning: "Your private key will be encrypted and stored locally. Never share it with anyone!",
+      masterPassword: "Master Password",
+      masterPasswordDesc: "This password will protect your stored private key",
+      walletName: "Wallet Name",
+      walletNameDesc: "A friendly name to identify this wallet",
+      privateKey: "Private Key",
+      privateKeyDesc: "64 hex characters (with or without 0x prefix)",
+      setup: "Setup Wallet",
+      cancel: "Cancel",
+      
+      // Messages
+      enterMasterPassword: "Please enter a master password",
+      passwordTooShort: "Password must be at least 6 characters",
+      enterWalletName: "Please enter a wallet name",
+      enterPrivateKey: "Please enter your private key",
+      invalidPrivateKey: "Invalid private key format. Must be 64 hex characters.",
+      setting: "Setting up...",
+      setupSuccess: "Wallet setup successful!",
+      setupFailed: "Wallet setup failed",
+      setupError: "Error setting up wallet",
+      authFailed: "Authentication failed",
+      recommendedReason: "Recommended: Seamless operations without frequent signing"
     },
 
     // Application-specific terms
@@ -288,7 +321,114 @@
       backgroundMusic: "Background Music",
       uiLanguage: "UI Language",
       resetButton: "Reset to Defaults",
-      saveButton: "Save Settings"
+      saveButton: "Save Settings",
+      
+      // Wallet Settings
+      walletSettings: "Wallet Settings",
+      securityWarning: "Your private key will be encrypted and stored locally. Never share your private key with anyone!",
+      privateKeyLabel: "BNB Private Key (64 hex characters)",
+      walletPasswordLabel: "Encryption Password",
+      unlockPasswordLabel: "Enter Password to Unlock",
+      walletAddress: "Wallet Address",
+      storeKey: "Store Key",
+      unlockWallet: "Unlock Wallet",
+      lockWallet: "Lock Wallet",
+      removeKey: "Remove Key",
+      walletDescription: "Store your BNB private key securely to interact with blockchain features. Your key is encrypted before storage.",
+      
+      // Gas Price Settings
+      gasPriceLimitLabel: "Max Gas Price (gwei)",
+      gasPriceInfo: "Range will be shown based on current network",
+      saveGasLimit: "Save Gas Limit",
+      gasPriceSaved: "Gas price limit saved successfully",
+      gasPriceSaveFailed: "Failed to save gas price limit",
+      invalidGasPrice: "Please enter a valid gas price for current network",
+      gasPriceRangeError: "Gas price must be within the allowed range for current network",
+      
+      // Wallet Status Messages
+      walletDisconnected: "Wallet not configured",
+      walletReady: "Private key wallet is ready",
+      walletLoading: "Private key wallet is loading...",
+      walletNotConfigured: "Private key wallet not configured",
+      
+      // Wallet Action Messages
+      enterPrivateKey: "Please enter your private key",
+      enterPassword: "Please enter an encryption password",
+      passwordTooShort: "Password must be at least 6 characters",
+      invalidPrivateKey: "Invalid private key format. Must be 64 hex characters.",
+      keyStoredAndActivated: "Private key stored and activated successfully! You can now use it across all pages.",
+      keyStoreFailed: "Failed to store private key",
+      confirmRemoveKey: "Are you sure you want to remove your stored private key? This action cannot be undone.",
+      keyRemoved: "Private key removed successfully",
+      
+      // Auto-lock Settings
+      autoLockTimeLabel: "Auto-lock Time",
+      autoLockDescription: "Choose how long before the wallet automatically locks for security.",
+      autoLock24h: "24 Hours",
+      autoLock3d: "3 Days",
+      autoLock7d: "7 Days",
+      autoLock14d: "14 Days",
+      autoLock30d: "30 Days",
+      autoLock90d: "90 Days",
+      autoLockNever: "Never Auto-lock",
+      saveAutoLock: "Save Auto-lock Time",
+      autoLockTimeSaved: "Auto-lock time saved successfully",
+      autoLockTimeSaveFailed: "Failed to save auto-lock time",
+      selectAutoLockTime: "Please select an auto-lock time",
+      
+      // Lock/Unlock Messages
+      walletLocked: "Wallet locked successfully",
+      walletUnlocked: "Wallet unlocked successfully",
+      unlockFailed: "Failed to unlock wallet. Please check your password.",
+      enterUnlockPassword: "Please enter your password to unlock the wallet",
+      
+      // Multi-key Management
+      masterPasswordLabel: "Master Password",
+      masterPasswordDescription: "Enter your master password to access your stored private keys.",
+      setupMasterPasswordLabel: "Create Master Password",
+      setupMasterPasswordDescription: "This password will protect all your stored private keys.",
+      keyNameLabel: "Wallet Name",
+      activeKeyLabel: "Active Wallet",
+      activeKeyDescription: "Select which wallet to use for transactions.",
+      storedKeysLabel: "Stored Wallets",
+      addNewKey: "Add New Wallet",
+      addKey: "Add Wallet",
+      setupWallet: "Setup Wallet",
+      authenticate: "Authenticate",
+      logout: "Logout",
+      cancel: "Cancel",
+      edit: "Edit",
+      remove: "Remove",
+      switchTo: "Switch",
+      
+      // Multi-key Status Messages
+      authSuccess: "Authentication successful",
+      authFailed: "Authentication failed. Please check your password.",
+      walletSetupSuccess: "Wallet setup successful!",
+      walletSetupFailed: "Wallet setup failed",
+      keyAdded: "Wallet added successfully!",
+      keyAddFailed: "Failed to add wallet",
+      keySwitched: "Switched to selected wallet",
+      keySwitchFailed: "Failed to switch wallet",
+      keyRemoved: "Wallet removed successfully",
+      keyRemoveFailed: "Failed to remove wallet",
+      keyNameUpdated: "Wallet name updated successfully",
+      keyNameUpdateFailed: "Failed to update wallet name",
+      confirmLogout: "Are you sure you want to logout? You will need to re-enter your master password.",
+      loggedOut: "Logged out successfully",
+      noKeysStored: "No wallets stored",
+      
+      // Multi-key Input Validation
+      enterMasterPassword: "Please enter a master password",
+      enterKeyName: "Please enter a name for your wallet",
+      enterNewKeyName: "Enter new name for this wallet:",
+      
+      // Multi-key Status Display
+      walletAuth: "Authentication required",
+      walletSetup: "No wallets configured",
+      walletReady: "Wallet ready",
+      walletLocked: "Wallet locked",
+      walletLoading: "Wallet loading..."
     },
 
     // Asset-related terms
@@ -364,7 +504,8 @@
         pendingRewards: "Pending Rewards",
         actions: "Actions",
         noHistory: "No staking history found",
-        cycle: "Cycle",
+        cycle: "Cycle {cycle}",
+        notClaimed: "Not Claimed",
       },
       notification: {
         noRewards: "No rewards available",
@@ -393,6 +534,7 @@
         approving: "Approving...",
         approveSuccess: "Approve successful",
         approveFailed: "Approve failed",
+        claimConfirmation: "Claim Confirmation",
         
       }
     },
@@ -592,6 +734,8 @@
         purchaseFailed: "Purchase failed",
         purchaseEggsSuccess: "Congratulations! Successfully purchased {count} {eggName}",
         purchaseFoodSuccess: "Congratulations! Successfully purchased {quantity} pet food",
+        purchaseFoodSuccessModal: "Successfully purchased {quantity} pet food!",
+        purchaseFoodTip: "Pet food has been added to your inventory. Use it to feed your pets and keep them happy!",
         purchaseNoLotteryResult: "Successfully purchased eggs, please check your collection for new pets.",
         purchaseNoLotteryDisplay: "Successfully purchased eggs, but unable to display lottery results",
         
@@ -601,6 +745,8 @@
         claimingEggs: "Claiming unclaimed pets...",
         claimNFTSuccess: "Free pet claim successful! Please check your new pet in the game",
         claimFoodSuccess: "Free pet food claim successful! Get {count} pet food",
+        claimFreeFoodSuccessModal: "Successfully claimed {count} free pet food!",
+        claimFreeFoodTip: "Come back tomorrow to claim more free pet food. Feed your pets regularly to keep them healthy!",
         claimEggsSuccess: "Successfully claimed {count} pets! Please check them in the game",
         
         // Validation errors

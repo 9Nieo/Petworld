@@ -1,5 +1,21 @@
 // Pet page script
 document.addEventListener('DOMContentLoaded', () => {
+    // Debug utility
+    const debug = {
+        log: function() {
+            const args = Array.from(arguments);
+            console.log('[Game Pets Debug]', ...args);
+        },
+        error: function() {
+            const args = Array.from(arguments);
+            console.error('[Game Pets Error]', ...args);
+        },
+        warn: function() {
+            const args = Array.from(arguments);
+            console.warn('[Game Pets Warning]', ...args);
+        }
+    };
+
     // Get DOM elements
     const sortSelect = document.querySelector('.sort-select');
     const adoptPetBtn = document.querySelector('.adopt-pet-btn');
@@ -18,25 +34,171 @@ document.addEventListener('DOMContentLoaded', () => {
     let pageSize = 6;
     let totalNFTs = 0;
     let allNFTs = [];
+    let originalNFTs = []; // Store original unfiltered NFT data
     
     // current selected quality filter
     let currentQualityFilter = 'all';
     
+    // Global variables for NFT management
+    let userNFTs = []; // Store user's NFT data for batch operations
+    let hasLoadedNFT = false;
+    let isLoadingMore = false;
+    let hasReachedEnd = false;
+    let isLoadingInBackground = false;
+    
+    // Global variables for WalletNetworkManager
+    let walletNetworkManager = null;
+    let isWalletNetworkManagerReady = false;
+    
     // initialization
     init();
+
+    /**
+     * Wait for SecureWalletManager to be ready
+     */
+
+
+    /**
+     * Initialize WalletNetworkManager
+     */
+    async function initializeWalletNetworkManager() {
+        debug.log('Initializing WalletNetworkManager...');
+        
+        try {
+            if (!window.WalletNetworkManager) {
+                throw new Error('WalletNetworkManager not available');
+            }
+            
+            // Ensure variables are properly initialized
+            walletNetworkManager = null;
+            isWalletNetworkManagerReady = false;
+            
+            walletNetworkManager = new window.WalletNetworkManager();
+            const result = await walletNetworkManager.init();
+            
+            if (result && result.success) {
+                isWalletNetworkManagerReady = true;
+                debug.log('WalletNetworkManager initialized successfully:', result);
+                
+                // Make walletNetworkManager globally accessible
+                window.walletNetworkManager = walletNetworkManager;
+                
+                // Set up event listeners after walletNetworkManager is assigned
+                setupWalletNetworkManagerEventListeners();
+                
+                return result;
+            } else {
+                debug.error('WalletNetworkManager initialization failed:', result ? result.error : 'Unknown error');
+                // Reset variables on failure
+                walletNetworkManager = null;
+                isWalletNetworkManagerReady = false;
+                return result || { success: false, error: 'Unknown initialization error' };
+            }
+        } catch (error) {
+            debug.error('Error initializing WalletNetworkManager:', error);
+            // Reset variables on error
+            walletNetworkManager = null;
+            isWalletNetworkManagerReady = false;
+            return { success: false, error: error.message };
+        }
+    }
+
+    /**
+     * Set up WalletNetworkManager event listeners
+     */
+    function setupWalletNetworkManagerEventListeners() {
+        if (!walletNetworkManager) return;
+        
+        walletNetworkManager.on('onConnectionStatusChanged', (status) => {
+            debug.log('WalletNetworkManager connection status changed:', status);
+            updateLocalStateFromManager(status);
+        });
+        
+        walletNetworkManager.on('onNetworkChanged', (networkInfo) => {
+            debug.log('WalletNetworkManager network changed:', networkInfo);
+            // Handle network change if needed
+        });
+    }
+
+    /**
+     * Update local state from WalletNetworkManager
+     */
+    function updateLocalStateFromManager(managerData) {
+        if (managerData.success && managerData.isConnected && walletNetworkManager) {
+            // Update global Web3 instance
+            const web3Instance = walletNetworkManager.getWeb3();
+            if (web3Instance) {
+                window.web3 = web3Instance;
+                window.currentAddress = walletNetworkManager.getCurrentAddress();
+                debug.log('Updated global Web3 and address from WalletNetworkManager');
+            }
+        }
+    }
+
+    /**
+     * Get current wallet address using WalletNetworkManager
+     */
+    function getCurrentWalletAddress() {
+        debug.log('Getting current wallet address...');
+        
+        // Use WalletNetworkManager if available and ready
+        if (walletNetworkManager && isWalletNetworkManagerReady) {
+            const address = walletNetworkManager.getCurrentAddress();
+            if (address) {
+                debug.log('Using WalletNetworkManager address:', address);
+                return address;
+        }
+        }
+        
+        debug.log('No wallet address found');
+        return null;
+    }
+
+    /**
+     * Check if wallet is ready for operations
+     */
+    function isWalletReady() {
+        debug.log('Checking if wallet is ready...');
+        
+        // Check WalletNetworkManager
+        if (walletNetworkManager && 
+               isWalletNetworkManagerReady && 
+            walletNetworkManager.isReadyForContracts()) {
+            debug.log('WalletNetworkManager is ready');
+            return true;
+        }
+        
+        debug.log('No wallet is ready');
+        return false;
+    }
     
     /**
      * Initialization function
      */
-    function init() {
-        console.log('Initializing pet page......');
+    async function init() {
+        debug.log('Initializing game pets page...');
+        
+        // Initialize WalletNetworkManager first
+        const walletResult = await initializeWalletNetworkManager();
+        if (walletResult.success) {
+            debug.log('WalletNetworkManager ready, initializing contracts...');
+            await initializeContractsWithManager();
+        } else {
+            debug.warn('WalletNetworkManager initialization failed, using fallback initialization');
+            await initializeLegacyWallet();
+        }
         
         // print if required components exist
-        console.log('Required component check:');
-        console.log('- web3:', typeof window.web3 !== 'undefined');
-        console.log('- NFTFeedingManagerABI:', typeof window.NFTFeedingManagerABI !== 'undefined');
-        console.log('- PetNFTService:', typeof window.PetNFTService !== 'undefined');
-        console.log('- initNFTFeedingManagerContract:', typeof window.initNFTFeedingManagerContract !== 'undefined');
+        debug.log('Required component check:');
+        debug.log('- web3:', typeof window.web3 !== 'undefined');
+        debug.log('- NFTFeedingManagerABI:', typeof window.NFTFeedingManagerABI !== 'undefined');
+        debug.log('- PetNFTService:', typeof window.PetNFTService !== 'undefined');
+        debug.log('- initNFTFeedingManagerContract:', typeof window.initNFTFeedingManagerContract !== 'undefined');
+        debug.log('- WalletNetworkManager:', typeof window.WalletNetworkManager !== 'undefined');
+        
+        // Check current wallet address
+        const currentAddress = getCurrentWalletAddress();
+        debug.log('Current wallet address:', currentAddress);
         
         // add quality filter
         addQualityFilter();
@@ -44,7 +206,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // load last selected quality filter from local storage
         const savedQualityFilter = localStorage.getItem('petQualityFilter');
         if (savedQualityFilter) {
-            console.log('Loaded quality filter from local storage:', savedQualityFilter);
+            debug.log('Loaded quality filter from local storage:', savedQualityFilter);
             currentQualityFilter = savedQualityFilter;
             
             // find the corresponding tab and set it to active state
@@ -86,49 +248,60 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
         
+        // Load required modules
+        loadRequiredModules();
+        
         // load NFTFeedingManager initialization script
         if (typeof window.initNFTFeedingManagerContract === 'undefined') {
-            console.log('Loading initNFTFeedingManager.js script...');
+            debug.log('Loading initNFTFeedingManager.js script...');
             const script = document.createElement('script');
             script.src = '../../scripts/init_contracts/initNFTFeedingManager.js';
             script.onload = function() {
-                console.log('initNFTFeedingManager.jsScript loaded successfully, initializing contract...');
+                debug.log('initNFTFeedingManager.js script loaded successfully, initializing contract...');
                 // initialize NFTFeedingManager contract
                 initNFTFeedingManagerContract();
             };
             script.onerror = function() {
-                console.error('initNFTFeedingManager.jsScript failed to load');
+                debug.error('initNFTFeedingManager.js script failed to load');
             };
             document.head.appendChild(script);
         }
         
         // ensure contract ABI is loaded
         if (typeof window.NFTFeedingManagerABI === 'undefined') {
-            console.log('Attempting to load NFTFeedingManagerABI...');
+            debug.log('Attempting to load NFTFeedingManagerABI...');
             
             // async load NFTFeedingManagerABI script
             const script = document.createElement('script');
             script.src = '../../scripts/contracts/ABI/NFTFeedingManagerABI.js';
             script.onload = function() {
-                console.log('NFTFeedingManagerABI loaded successfully');
+                debug.log('NFTFeedingManagerABI loaded successfully');
                 // after loading successfully, initialize contract
                 if (typeof window.initNFTFeedingManagerContract !== 'undefined') {
                     initNFTFeedingManagerContract();
                 } else {
-                    console.log('NFTFeedingManagerABI loaded, but initNFTFeedingManagerContract is undefined, waiting for script loading');
+                    debug.log('NFTFeedingManagerABI loaded, but initNFTFeedingManagerContract is undefined, waiting for script loading');
                 }
             };
             script.onerror = function() {
-                console.error('NFTFeedingManagerABI loading failed');
+                debug.error('NFTFeedingManagerABI loading failed');
             };
             document.head.appendChild(script);
         }
         
         // Initializing PetNFTService
         if (window.PetNFTService) {
-            console.log('Initializing PetNFTService...');
+            debug.log('Initializing PetNFTService...');
             window.PetNFTService.init().then(success => {
-                console.log('PetNFTService initialization' + (success ? 'succeeded' : 'failed'));
+                debug.log('PetNFTService initialization' + (success ? 'succeeded' : 'failed'));
+                
+                // Expose PetNFTService functions to global scope for backward compatibility
+                if (success) {
+                    window.loadUserNFTs = window.PetNFTService.loadUserNFTs;
+                    window.loadSpecificNFT = window.PetNFTService.loadSpecificNFT;
+                    window.refreshNFTs = window.PetNFTService.refreshNFTs;
+                    debug.log('PetNFTService functions exposed to global scope');
+                }
                 
                 // after PetNFTService initialization, initialize NFTFeedingManager contract
                 if (success && typeof window.NFTFeedingManagerABI !== 'undefined' && 
@@ -137,36 +310,27 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
         } else {
-            console.warn('PetNFTService not found, cannot initialize');
+            debug.warn('PetNFTService not found, cannot initialize');
         }
         
-        // After initializing Web3, initializing contract
-        if (typeof window.ethereum !== 'undefined') {
-            console.log('Ethereum provider detected, initializing Web3...');
-            window.web3 = new Web3(window.ethereum);
-            
-            // after Web3 initialization, immediately try to initialize contract
-            if (typeof window.NFTFeedingManagerABI !== 'undefined' && 
-                typeof window.initNFTFeedingManagerContract !== 'undefined') {
-                initNFTFeedingManagerContract();
+        // Complete initialization
+        debug.log('Pets page initialization completed');
+        
+        // Load NFT pets after initialization is complete
+        setTimeout(() => {
+            if (isWalletReady()) {
+                loadNFTPets();
+            } else {
+                debug.log('Wallet not ready, showing wallet connection message');
+                showWalletNotConnectedMessage();
             }
-        } else if (typeof window.web3 !== 'undefined') {
-            console.log('using existing Web3 instance');
-            
-            // using existing Web3 instance to initialize contract
-            if (typeof window.NFTFeedingManagerABI !== 'undefined' && 
-                typeof window.initNFTFeedingManagerContract !== 'undefined') {
-                initNFTFeedingManagerContract();
-            }
-        } else {
-            console.warn('Web3 or Ethereum provider not detected');
-        }
+        }, 2000);
         
         // Bind sort select event
         if (sortSelect) {
             sortSelect.addEventListener('change', () => {
                 const sortType = sortSelect.value;
-                console.log('Sort method changed:', sortType);
+                debug.log('Sort method changed:', sortType);
                 
                 // if NFT data already exists, apply sorting directly and display the first page
                 if (allNFTs.length > 0) {
@@ -219,58 +383,570 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
         
-        // bind global events of game pet cards
+        // listen for parent page messages
+        window.addEventListener('message', handleParentMessage);
+        
+        // load modal dialog component
+        loadModalDialogComponent();
+        
+        // bind pet card events
         bindPetCardEvents();
         
-        // listen to messages from parent page
-        window.addEventListener('message', handleParentMessage);
+        // bind global pet card action events
+        bindGlobalPetCardEvents();
         
         // localize content
         localizeContent();
         
-        // load NFT pets
-        loadNFTPets();
-        
-        // preload ModalDialog component
-        loadModalDialogComponent();
+        // Note: loadNFTPets will be called after contracts are initialized in initializeContractsWithManager
     }
     
     /**
-     * add quality filter function
+     * Initialize contracts using WalletNetworkManager
+     */
+    async function initializeContractsWithManager() {
+        debug.log('Initializing contracts with WalletNetworkManager...');
+        
+        try {
+            if (!walletNetworkManager || !walletNetworkManager.isReadyForContracts()) {
+                throw new Error('WalletNetworkManager not ready for contracts');
+            }
+            
+            // Load contract addresses first
+            loadContractInitializers();
+            
+            // Wait a bit for contract addresses to load
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            // Initialize contracts using WalletNetworkManager
+            const contractResult = await walletNetworkManager.initializeContracts({
+                contracts: ['PwNFT', 'NFTManager', 'NFTFeedingManager']
+            });
+            
+            debug.log('Contract initialization result:', contractResult);
+            
+            if (contractResult.success) {
+                // Set contract instances
+                window.pwNFTContract = contractResult.contracts.PwNFT || window.pwNFTContract;
+                window.nftManagerContract = contractResult.contracts.NFTManager || window.nftManagerContract;
+                window.nftFeedingManagerContract = contractResult.contracts.NFTFeedingManager || window.nftFeedingManagerContract;
+                
+                debug.log('Contracts initialized:', {
+                    pwNFT: !!window.pwNFTContract,
+                    nftManager: !!window.nftManagerContract,
+                    nftFeedingManager: !!window.nftFeedingManagerContract
+                });
+                
+                // Initialize PetNFTService with contracts
+                if (window.PetNFTService && window.pwNFTContract) {
+                    debug.log('Re-initializing PetNFTService with contracts...');
+                    try {
+                        // Force re-initialization with contracts
+                        window.PetNFTService._resetInitialization();
+                        const success = await window.PetNFTService.init();
+                        debug.log('PetNFTService re-initialization result:', success);
+                        
+                        if (success) {
+                            // Expose functions again
+                            window.loadUserNFTs = window.PetNFTService.loadUserNFTs;
+                            window.loadSpecificNFT = window.PetNFTService.loadSpecificNFT;
+                            window.refreshNFTs = window.PetNFTService.refreshNFTs;
+                            debug.log('PetNFTService functions re-exposed to global scope');
+                        }
+                    } catch (error) {
+                        debug.error('Error re-initializing PetNFTService:', error);
+                    }
+                }
+                
+                // Test NFTFeedingManager contract if available
+                if (window.nftFeedingManagerContract) {
+                    await testNFTFeedingManagerContract();
+                }
+                
+                // Load NFT pets after contracts are ready
+                setTimeout(() => {
+                    loadNFTPets();
+                }, 500);
+                
+                return true;
+            } else {
+                debug.error('Contract initialization failed:', contractResult);
+                return false;
+            }
+        } catch (error) {
+            debug.error('Error initializing contracts with manager:', error);
+            return false;
+        }
+    }
+    
+    // Load contract initializers
+    function loadContractInitializers() {
+        debug.log('Loading contract initializer files...');
+        
+        if (
+            typeof window.initPwNFTContract !== 'undefined' &&
+            typeof window.initNFTManagerContract !== 'undefined' &&
+            typeof window.initNFTFeedingManagerContract !== 'undefined'
+        ) {
+            debug.log('Contract initializer files already loaded');
+            return;
+        }
+        
+        const initFiles = [
+            '../../scripts/init_contracts/initPwNFT.js',
+            '../../scripts/init_contracts/initNFTManager.js',
+            '../../scripts/init_contracts/initNFTFeedingManager.js'
+        ];
+        
+        initFiles.forEach(src => {
+            const script = document.createElement('script');
+            script.src = src;
+            script.onload = function() {
+                debug.log(`Loaded: ${src}`);
+                if (window.web3 && window.currentAddress) {
+                    initContracts();
+                }
+            };
+            script.onerror = function() {
+                debug.error(`Failed to load: ${src}`);
+            };
+            document.head.appendChild(script);
+        });
+    }
+    
+    /**
+     * Check stored wallet connection (similar to shop.js)
+     */
+    function checkStoredWalletConnection() {
+        // Priority 1: Check WalletNetworkManager first
+        if (walletNetworkManager && walletNetworkManager.isInitialized) {
+            const status = walletNetworkManager.getStatus();
+            debug.log('WalletNetworkManager status in checkStoredWalletConnection:', status);
+            
+            if (status.isConnected) {
+                window.currentAddress = walletNetworkManager.getCurrentAddress();
+                window.web3 = walletNetworkManager.getWeb3();
+                
+                debug.log('Using WalletNetworkManager connection:', {
+                    walletType: status.walletType,
+                    network: status.network,
+                    address: window.currentAddress
+                });
+                
+                if (window.web3 && window.nftFeedingManagerContract) {
+                    loadNFTPets();
+                }
+                
+                return;
+            }
+        }
+        
+        // Priority 2: Check private key wallet
+        if (window.SecureWalletManager) {
+            const keyCount = window.SecureWalletManager.getKeyCount();
+            const isLocked = window.SecureWalletManager.isWalletLocked();
+            const isReady = window.SecureWalletManager.isWalletReady();
+            const activeAddress = window.SecureWalletManager.getAddress();
+            
+            const hasWallet = keyCount > 0 && !isLocked && isReady && !!activeAddress;
+            
+            debug.log('Private key wallet status in checkStoredWalletConnection:', {
+                keyCount, isLocked, isReady, activeAddress, hasWallet
+            });
+            
+            if (hasWallet) {
+                debug.log('Private key wallet is active, using it for game pets');
+                
+                window.currentAddress = activeAddress;
+                window.web3 = window.SecureWalletManager.getWeb3();
+                
+                if (window.web3) {
+                    debug.log('Initializing contracts with private key wallet');
+                    initContracts();
+                }
+                
+                if (window.nftFeedingManagerContract) {
+                    loadNFTPets();
+                }
+                
+                return;
+            }
+        }
+        
+        // Priority 3: Check localStorage only if no other wallet
+        debug.log('No active wallet, checking localStorage...');
+        
+        const storedConnected = localStorage.getItem('walletConnected');
+        const storedAddress = localStorage.getItem('walletAddress');
+        
+        if (storedConnected === 'true' && storedAddress) {
+            debug.log('Restore wallet connection from localStorage:', storedAddress);
+            window.currentAddress = storedAddress;
+            
+            if (window.nftFeedingManagerContract) {
+                loadNFTPets();
+            }
+        } else {
+            debug.log('No wallet connection status found in localStorage');
+        }
+    }
+    
+    /**
+     * Request wallet data from parent window
+     */
+    function requestWalletData() {
+        debug.log('Request wallet data');
+        if (window.parent && window.parent !== window) {
+            window.parent.postMessage({
+                type: 'requestData',
+                data: {}
+            }, '*');
+        }
+    }
+    
+    /**
+     * Initialize contracts (similar to shop.js)
+     */
+    function initContracts() {
+        debug.log('Initialize contracts...');
+            
+        if (!window.web3) {
+            debug.error('Web3 not initialized');
+            return;
+        }
+        
+        // If WalletNetworkManager is available and ready, use it
+        if (walletNetworkManager && walletNetworkManager.isReadyForContracts()) {
+            initializeContractsWithManager();
+        } else {
+            // Fallback to legacy contract initialization
+            initPetsContracts();
+        }
+    }
+    
+    /**
+     * Initialize pets contracts (legacy method)
+     */
+    function initPetsContracts() {
+        debug.log('Initializing pets contracts...');
+        
+        try {
+            if (!window.web3) {
+                debug.error('Web3 is not initialized');
+                return;
+            }
+            
+            loadRequiredABIs();
+            
+            setTimeout(() => {
+                initializeContractsWithABI();
+            }, 1000);
+        } catch (error) {
+            debug.error('Error in initPetsContracts:', error);
+        }
+    }
+    
+    /**
+     * Load required ABIs
+     */
+    function loadRequiredABIs() {
+        debug.log('Loading required ABI files...');
+        
+        if (window.PwNFTABI && window.NFTFeedingManagerABI && window.NFTManagerABI) {
+            debug.log('ABIs already loaded, proceeding with contract initialization');
+            return;
+        }
+            
+        const abisToLoad = [
+            { name: 'PwNFTABI', src: '../../scripts/contracts/ABI/PwNFTABI.js' },
+            { name: 'NFTFeedingManagerABI', src: '../../scripts/contracts/ABI/NFTFeedingManagerABI.js' },
+            { name: 'NFTManagerABI', src: '../../scripts/contracts/ABI/NFTManagerABI.js' }
+        ];
+        
+        abisToLoad.forEach(abi => {
+            if (!window[abi.name]) {
+                const script = document.createElement('script');
+                script.src = abi.src;
+                script.onload = function() {
+                    debug.log(`${abi.name} loaded successfully`);
+                };
+                script.onerror = function() {
+                    debug.error(`Failed to load ${abi.name}`);
+                };
+                document.head.appendChild(script);
+            }
+        });
+    }
+    
+    /**
+     * Initialize contracts with loaded ABIs
+     */
+    function initializeContractsWithABI() {
+        debug.log('Initializing contracts with loaded ABIs...');
+        
+        // Ensure contract addresses are loaded
+        if (!window.contractAddresses) {
+            debug.log('Contract addresses not loaded, loading...');
+            const script = document.createElement('script');
+            script.src = '../../scripts/contracts/contractAddresses.js';
+            script.onload = function() {
+                debug.log('Contract addresses loaded, retrying contract initialization');
+                setTimeout(() => {
+                    initializeContractsWithABI();
+                }, 500);
+            };
+            script.onerror = function() {
+                debug.error('Failed to load contract addresses');
+            };
+            document.head.appendChild(script);
+            return;
+        }
+        
+        const getContractAddressFunc = window.getContractAddress || function(name) {
+            const network = window.currentNetwork || 'LOCAL';
+            if (window.contractAddresses && window.contractAddresses[network]) {
+                return window.contractAddresses[network][name];
+            }
+            return null;
+        };
+        
+        // Initialize PwNFT contract
+        if (typeof window.initPwNFTContract === 'function') {
+            try {
+                if (!window.PwNFTABI) {
+                    debug.error('PwNFTABI not loaded, retrying in 2 seconds...');
+                    setTimeout(() => {
+                        initializeContractsWithABI();
+                    }, 2000);
+                    return;
+                }
+                
+                debug.log('Starting to initialize the PwNFT contract...');
+                window.pwNFTContract = window.initPwNFTContract(window.web3, getContractAddressFunc);
+                
+                if (window.pwNFTContract) {
+                    debug.log('PwNFT contract initialized successfully, address:', window.pwNFTContract._address);
+                } else {
+                    debug.error('PwNFT contract initialization returned null');
+                }
+            } catch (error) {
+                debug.error('Failed to initialize the PwNFT contract:', error);
+            }
+        } else {
+            debug.error('Cannot find the initPwNFTContract function');
+        }
+        
+        // Initialize NFTFeedingManager contract
+        if (typeof window.initNFTFeedingManagerContract === 'function') {
+            try {
+                if (!window.NFTFeedingManagerABI) {
+                    debug.error('NFTFeedingManagerABI not loaded');
+                    return;
+                }
+                
+                debug.log('Starting to initialize the NFTFeedingManager contract...');
+                window.nftFeedingManagerContract = window.initNFTFeedingManagerContract(window.web3, getContractAddressFunc);
+                
+                if (window.nftFeedingManagerContract) {
+                    debug.log('NFTFeedingManager contract initialized successfully, address:', window.nftFeedingManagerContract._address);
+                } else {
+                    debug.error('NFTFeedingManager contract initialization returned null');
+                }
+            } catch (error) {
+                debug.error('Failed to initialize the NFTFeedingManager contract:', error);
+            }
+        } else {
+            debug.error('Cannot find the initNFTFeedingManagerContract function');
+        }
+        
+        // Initialize NFTManager contract
+        if (typeof window.initNFTManagerContract === 'function') {
+            try {
+                if (!window.NFTManagerABI) {
+                    debug.error('NFTManagerABI not loaded');
+                    return;
+                }
+                
+                debug.log('Starting to initialize the NFTManager contract...');
+                window.nftManagerContract = window.initNFTManagerContract(window.web3, getContractAddressFunc);
+                
+                if (window.nftManagerContract) {
+                    debug.log('NFTManager contract initialized successfully, address:', window.nftManagerContract._address);
+                } else {
+                    debug.error('NFTManager contract initialization returned null');
+                }
+            } catch (error) {
+                debug.error('Failed to initialize the NFTManager contract:', error);
+            }
+        } else {
+            debug.error('Cannot find the initNFTManagerContract function');
+        }
+        
+        // After all contracts are initialized, setup and load NFTs
+        setTimeout(() => {
+            if (window.web3 && window.currentAddress) {
+                loadNFTPets();
+            }
+        }, 500);
+    }
+
+    /**
+     * Legacy wallet initialization (fallback)
+     */
+    async function initializeLegacyWallet() {
+        debug.log('Initializing legacy wallet...');
+        
+        // Load contract initializers first
+        loadContractInitializers();
+        
+        // Try to initialize Web3 and contracts
+        if (!window.web3) {
+            // Priority 1: Check SecureWalletManager for private key wallet
+            if (window.SecureWalletManager) {
+                const keyCount = window.SecureWalletManager.getKeyCount();
+                const isLocked = window.SecureWalletManager.isWalletLocked();
+                const isReady = window.SecureWalletManager.isWalletReady();
+                const activeAddress = window.SecureWalletManager.getAddress();
+                
+                debug.log('Private key wallet status:', { keyCount, isLocked, isReady, activeAddress });
+                
+                if (keyCount > 0 && !isLocked && isReady && activeAddress) {
+                    debug.log('Private key wallet detected, using SecureWalletManager Web3...');
+                    
+                    const privateKeyWeb3 = window.SecureWalletManager.getWeb3();
+                    if (privateKeyWeb3) {
+                        window.web3 = privateKeyWeb3;
+                        window.currentAddress = activeAddress;
+                        debug.log('Private key wallet Web3 initialized successfully');
+                        
+                        // Initialize contracts with private key wallet
+                        setTimeout(() => {
+                            initContracts();
+                        }, 500);
+                        return;
+                    } else {
+                        debug.warn('Private key wallet Web3 not available');
+                    }
+                }
+            }
+            
+            // Priority 2: Check external wallet (MetaMask, etc.)
+            if (window.ethereum) {
+                window.web3 = new Web3(window.ethereum);
+                debug.log('Web3 initialized from window.ethereum');
+            } else if (window.web3) {
+                window.web3 = new Web3(window.web3.currentProvider);
+                debug.log('Web3 initialized from window.web3');
+            } else if (window.parent && window.parent.gameWeb3) {
+                window.web3 = window.parent.gameWeb3;
+                debug.log('Web3 initialized from parent.gameWeb3');
+            } else if (window.gameWeb3) {
+                window.web3 = window.gameWeb3;
+                debug.log('Web3 initialized from window.gameWeb3');
+            }
+        }
+        
+        // Initialize contracts if Web3 is available
+        if (window.web3) {
+            try {
+                initContracts();
+                
+                // Verify contracts are initialized after a delay
+                setTimeout(() => {
+                    if (!window.nftFeedingManagerContract || !window.pwNFTContract) {
+                        debug.warn('Some contracts not initialized, retrying...');
+                        initContracts();
+                    }
+                }, 3000);
+            } catch (error) {
+                debug.error('Error initializing contracts:', error);
+                setTimeout(() => {
+                    initializeLegacyWallet();
+                }, 3000);
+                return;
+            }
+        } else {
+            debug.warn('Web3 not available, will retry later');
+            setTimeout(() => {
+                initializeLegacyWallet();
+            }, 2000);
+            return;
+        }
+        
+        // Check wallet connection
+        checkStoredWalletConnection();
+        
+        // Request wallet data
+        requestWalletData();
+    }
+
+    /**
+     * Load required modules
+     */
+    async function loadRequiredModules() {
+        debug.log('Loading required modules...');
+        
+        try {
+            // Load PetFeeding module
+            if (!window.PetFeeding) {
+                debug.log('Loading PetFeeding module...');
+                await loadFunctionPackage('../../scripts/functionPackages/PetFeeding.js');
+            }
+            
+            // Load PetRewards module
+            if (!window.PetRewards) {
+                debug.log('Loading PetRewards module...');
+                await loadFunctionPackage('../../scripts/functionPackages/PetRewards.js');
+            }
+            
+            // Load displayAndFilterNfts module
+            if (!window.loadSpecificNFT) {
+                debug.log('Loading displayAndFilterNfts module...');
+                await loadFunctionPackage('../../scripts/functionPackages/displayAndFilterNfts.js');
+            }
+            
+            debug.log('All required modules loaded successfully');
+        } catch (error) {
+            debug.error('Error loading required modules:', error);
+        }
+    }
+    
+    /**
+     * Add quality filter
      */
     function addQualityFilter() {
-        console.log('adding quality filter');
+        debug.log('Adding quality filter');
         
-        // create quality filter container
+        // Create quality filter container
         const filterContainer = document.createElement('div');
         filterContainer.className = 'quality-filter-container';
         filterContainer.style.marginBottom = '20px';
         
-        // create quality filter
+        // Create quality filter
         const qualityFilter = document.createElement('div');
         qualityFilter.className = 'quality-filter';
         qualityFilter.style.display = 'flex';
         qualityFilter.style.flexWrap = 'wrap';
         qualityFilter.style.gap = '10px';
         
-        // create quality tab
+        // Create quality tabs
         const qualityLabels = [
-            { id: 'all', name: 'all' },
-            { id: 'COMMON', name: 'common' },
-            { id: 'GOOD', name: 'good' },
-            { id: 'EXCELLENT', name: 'excellent' },
-            { id: 'RARE', name: 'rare' },
-            { id: 'LEGENDARY', name: 'legendary' }
+            { id: 'all', name: 'All' },
+            { id: 'COMMON', name: 'Common' },
+            { id: 'GOOD', name: 'Good' },
+            { id: 'EXCELLENT', name: 'Excellent' },
+            { id: 'RARE', name: 'Rare' },
+            { id: 'LEGENDARY', name: 'Legendary' }
         ];
         
-        // add each quality tab
+        // Add each quality tab
         qualityLabels.forEach(quality => {
             const tab = document.createElement('div');
             tab.className = 'quality-tab' + (quality.id === 'all' ? ' active' : '');
             tab.setAttribute('data-quality', quality.id);
             tab.textContent = quality.name;
             
-            // set style
+            // Set styles
             tab.style.padding = '6px 15px';
             tab.style.borderRadius = '5px';
             tab.style.backgroundColor = '#f0f0f0';
@@ -279,56 +955,46 @@ document.addEventListener('DOMContentLoaded', () => {
             tab.style.border = '1px solid #ddd';
             tab.style.fontSize = '0.9rem';
             
-            // set active state style
+            // Set active state styles
             if (quality.id === 'all') {
                 tab.style.backgroundColor = '#4d7bef';
                 tab.style.color = 'white';
                 tab.style.borderColor = '#3a68d8';
             }
             
-            // if i18n support is needed
-            if (quality.id !== 'all') {
-                tab.setAttribute('data-i18n', `quality.${quality.id.toLowerCase()}`);
-            } else {
-                tab.setAttribute('data-i18n', 'common.all');
-            }
-            
-            // add click event
+            // Add click event
             tab.addEventListener('click', handleQualityTabClick);
             
             qualityFilter.appendChild(tab);
         });
         
-        // add quality filter to container
+        // Add quality filter to container
         filterContainer.appendChild(qualityFilter);
         
-        // add quality filter container to page
-        const petsContainer = document.querySelector('.pets-container');
-        const petsHeader = document.querySelector('.pets-header');
-        
-        // insert after pets-header
-        if (petsContainer && petsHeader) {
-            petsContainer.insertBefore(filterContainer, petsHeader.nextSibling);
+        // Add quality filter to page
+        const petContainer = petsGrid.parentElement;
+        if (petContainer) {
+            petContainer.insertBefore(filterContainer, petsGrid);
         }
     }
     
     /**
-     * handle quality tab click
+     * Handle quality tab click
      */
     function handleQualityTabClick(event) {
-        // remove active class from all tabs
+        // Remove active class from all tabs
         document.querySelectorAll('.quality-tab').forEach(tab => {
             tab.classList.remove('active');
-            // reset style
+            // Reset styles
             tab.style.backgroundColor = '#f0f0f0';
             tab.style.color = 'inherit';
             tab.style.borderColor = '#ddd';
         });
         
-        // add active class and style to the clicked tab
+        // Add active class and styles to the clicked tab
         event.currentTarget.classList.add('active');
         
-        // set active state style
+        // Set active state styles
         const qualityId = event.currentTarget.getAttribute('data-quality');
         if (qualityId === 'LEGENDARY') {
             event.currentTarget.style.backgroundColor = '#ff9800';
@@ -352,1818 +1018,1288 @@ document.addEventListener('DOMContentLoaded', () => {
         
         event.currentTarget.style.color = 'white';
         
-        // get selected quality
+        // Get selected quality
         currentQualityFilter = qualityId;
-        console.log('selected quality:', currentQualityFilter);
+        debug.log('Selected quality:', currentQualityFilter);
         
-        // save current filter condition to localStorage
+        // Save current filter condition to localStorage
         localStorage.setItem('petQualityFilter', currentQualityFilter);
-        console.log('saved quality filter condition to localStorage:', currentQualityFilter);
+        debug.log('Saved quality filter condition to localStorage:', currentQualityFilter);
         
-        // [important modification] clear previous filter result cache when quality changes
-        window.filteredNFTsByQuality = null;
-        
-        // switch to all quality, ensure pagination controls visibility will be checked again
-        if (qualityId === 'all') {
-            // show pagination controls (if needed)
-            resetPaginationControlsVisibility();
-        }
-        
-        // filter all pet cards, not only current page's
+        // Filter pet cards
         filterPetsByQuality();
     }
     
     /**
-     * reset pagination controls visibility
-     */
-    function resetPaginationControlsVisibility() {
-        const paginationContainer = document.querySelector('.pagination-container');
-        if (paginationContainer) {
-            // reset to visible
-            paginationContainer.style.display = 'flex';
-            console.log('reset pagination controls to visible');
-        }
-    }
-    
-    /**
-     * filter pets by quality
+     * Filter pet cards by quality
      */
     function filterPetsByQuality() {
-        console.log('start to filter pets by quality: ' + currentQualityFilter);
+        // Use original NFT data for filtering to ensure we always have the complete dataset
+        let nfts = originalNFTs.length > 0 ? originalNFTs : allNFTs || [];
         
-        // if selected "all", show all pet cards
+        // If "all" is selected, show all pet cards
         if (currentQualityFilter === 'all') {
-            // reset pagination controls visibility
-            resetPaginationControlsVisibility();
+            // Reset to original all data
+            allNFTs = [...nfts]; // Restore from original data
+            totalNFTs = nfts.length;
+            currentPage = 1; // Reset to first page
             
-            // reset to original all data
-            totalNFTs = allNFTs.length;
-            currentPage = 1; // reset to the first page
+            debug.log(`Showing all pet cards, total: ${totalNFTs}`);
             
-            console.log(`show all pets, total ${totalNFTs} pets`);
-            
-            // display paginated NFTs
+            // Re-render the pets page
             displayPaginatedNFTs();
-            // update pagination controls
-            updatePaginationControls();
         } else {
-            // reset pagination controls visibility
-            resetPaginationControlsVisibility();
-            
-            // filter all pet data by quality
-            const filteredNFTs = allNFTs.filter(nft => {
-                // get quality info from NFT metadata
-                let quality = 'COMMON'; // default quality
-                if (nft.metadata && nft.metadata.attributes) {
-                    const qualityAttr = nft.metadata.attributes.find(attr => 
-                        attr.trait_type === 'Quality' || 
-                        attr.trait_type === 'Rarity' || 
-                        attr.trait_type === 'quality' || 
-                        attr.trait_type === 'rarity'
-                    );
-                    if (qualityAttr) {
-                        quality = String(qualityAttr.value).toUpperCase();
-                    }
-                }
+            // Filter all pet data by quality
+            const filteredNFTs = nfts.filter(nft => {
+                // Enhanced quality extraction logic for game mode
+                let quality = extractNFTQuality(nft);
                 
-                // more powerful quality matching logic
+                // Use enhanced quality matching logic
                 return matchesQuality(quality, currentQualityFilter);
             });
             
-            console.log(`filtered ${filteredNFTs.length} pets with ${getQualityName(currentQualityFilter)} quality`);
+            debug.log(`Filtered ${filteredNFTs.length} pet cards of ${getQualityName(currentQualityFilter)} quality from ${nfts.length} total pets`);
             
-            // no pet matches the condition, display a message
+            // When there are no pet cards matching the quality, show a message
             if (filteredNFTs.length === 0) {
                 petsGrid.innerHTML = '';
                 const message = document.createElement('div');
                 message.className = 'no-pets-message';
-                message.textContent = `no pets with ${getQualityName(currentQualityFilter)} quality`;
+                message.textContent = `No pet cards of ${getQualityName(currentQualityFilter)} quality`;
                 petsGrid.appendChild(message);
                 
-                // hide pagination controls
+                // Hide pagination control
                 hidePaginationControls();
                 return;
             }
             
-            // [important modification] save filtered NFTs as a separate variable, not directly operate allNFTs
-            window.filteredNFTsByQuality = [...filteredNFTs];
+            // Update allNFTs with filtered data for pagination (but keep originalNFTs intact)
+            allNFTs = [...filteredNFTs];
             
-            // update total number and current page
+            // Update total count and current page
             totalNFTs = filteredNFTs.length;
-            currentPage = 1; // reset to the first page
+            currentPage = 1; // Reset to first page
             
-            console.log(`filtered ${totalNFTs} NFTs, total ${Math.ceil(totalNFTs / pageSize)} pages`);
+            debug.log(`After quality filtering, total: ${totalNFTs}, pages: ${Math.ceil(totalNFTs / pageSize)}`);
             
-            // display current page's NFTs
-            displayFilteredNFTs();
-            
-            // update pagination controls
-            updatePaginationControls();
-            
-            // ensure pagination controls visible (if there are multiple pages)
-            showPaginationIfNeeded();
+            // Render filtered NFTs
+            displayPaginatedNFTs();
         }
     }
     
     /**
-     * ensure pagination controls visible (if there are multiple pages)
+     * Enhanced NFT quality extraction function for game mode
+     * @param {Object} nft - NFT data object
+     * @returns {string} Extracted quality value
      */
-    function showPaginationIfNeeded() {
-        const paginationContainer = document.querySelector('.pagination-container');
-        if (paginationContainer) {
-            const totalPages = Math.ceil(totalNFTs / pageSize);
-            console.log(`check if pagination controls should be displayed: total pages=${totalPages}, page size=${pageSize}, total pets=${totalNFTs}`);
+    function extractNFTQuality(nft) {
+        let quality = 'COMMON'; // Default quality
+        
+        debug.log('Extracting quality from NFT:', nft);
+        
+        // Priority 1: Check if quality is directly stored in the NFT object
+        if (nft.quality) {
+            quality = String(nft.quality).toUpperCase();
+            debug.log(`Found quality in nft.quality: ${quality}`);
+            return quality;
+        }
+        
+        if (nft.rarity) {
+            quality = String(nft.rarity).toUpperCase();
+            debug.log(`Found quality in nft.rarity: ${quality}`);
+            return quality;
+        }
+        
+        // Priority 2: Check metadata attributes
+        if (nft.metadata && nft.metadata.attributes && Array.isArray(nft.metadata.attributes)) {
+            const qualityAttr = nft.metadata.attributes.find(attr => {
+                const traitType = String(attr.trait_type || '').toLowerCase();
+                return traitType === 'quality' || 
+                       traitType === 'rarity' || 
+                       traitType === 'grade' ||
+                       traitType === 'tier' ||
+                       traitType === 'level' ||
+                       traitType === 'rank';
+            });
             
-            if (totalPages > 1) {
-                // if there are multiple pages, display pagination controls
-                paginationContainer.style.display = 'flex';
-                console.log('display pagination controls - multiple pages');
-            } else if (totalNFTs <= pageSize) {
-                // if the number of pets is less than or equal to the number of pets per page, hide pagination controls
-                paginationContainer.style.display = 'none';
-                console.log('hide pagination controls - not enough pets');
-            } else {
-                // other cases, set to visible
-                paginationContainer.style.display = 'flex';
-                console.log('display pagination controls - default case');
+            if (qualityAttr && qualityAttr.value !== undefined) {
+                quality = String(qualityAttr.value).toUpperCase();
+                debug.log(`Found quality in metadata attributes: ${quality} (trait: ${qualityAttr.trait_type})`);
+                return quality;
             }
-        } else {
-            console.error('pagination container element not found');
-        }
-    }
-    
-    /**
-     * display filtered NFTs
-     */
-    function displayFilteredNFTs() {
-        // check if the filtered NFT array exists
-        if (!window.filteredNFTsByQuality || window.filteredNFTsByQuality.length === 0) {
-            console.error('filtered NFT array does not exist or is empty');
-            return;
         }
         
-        // calculate the current page's NFTs
-        const startIndex = (currentPage - 1) * pageSize;
-        const endIndex = Math.min(startIndex + pageSize, totalNFTs);
+        // Priority 3: Check if quality is stored in other metadata fields
+        if (nft.metadata) {
+            if (nft.metadata.quality) {
+                quality = String(nft.metadata.quality).toUpperCase();
+                debug.log(`Found quality in metadata.quality: ${quality}`);
+                return quality;
+            }
+            
+            if (nft.metadata.rarity) {
+                quality = String(nft.metadata.rarity).toUpperCase();
+                debug.log(`Found quality in metadata.rarity: ${quality}`);
+                return quality;
+            }
+            
+            if (nft.metadata.grade) {
+                quality = String(nft.metadata.grade).toUpperCase();
+                debug.log(`Found quality in metadata.grade: ${quality}`);
+                return quality;
+            }
+        }
         
-        // create a deep copy to avoid modifying the original data
-        const currentPageNFTs = window.filteredNFTsByQuality.slice(startIndex, endIndex).map(nft => {
-            return JSON.parse(JSON.stringify(nft));
-        });
+        // Priority 4: Try to infer quality from pet name or description
+        const petName = (nft.metadata?.name || nft.name || '').toLowerCase();
+        const petDescription = (nft.metadata?.description || nft.description || '').toLowerCase();
+        const combinedText = `${petName} ${petDescription}`;
         
-        console.log(`display filtered NFTs for page ${currentPage}, ${currentPageNFTs.length} pets, range: ${startIndex+1}-${endIndex}`);
+        if (combinedText.includes('legendary') || combinedText.includes('legend') || combinedText.includes('epic')) {
+            quality = 'LEGENDARY';
+            debug.log(`Inferred quality from name/description: ${quality}`);
+            return quality;
+        }
         
-        // clear and fill the pet grid
-        petsGrid.innerHTML = '';
+        if (combinedText.includes('rare') || combinedText.includes('purple')) {
+            quality = 'RARE';
+            debug.log(`Inferred quality from name/description: ${quality}`);
+            return quality;
+        }
         
-        // preprocess all NFTs to display, keep the original value
-        currentPageNFTs.forEach(nft => {
-            // add standardized quality info to each NFT, this will be used when creating the card
-            if (nft.metadata && nft.metadata.attributes) {
-                const qualityAttr = nft.metadata.attributes.find(attr => 
-                    attr.trait_type === 'Quality' || 
-                    attr.trait_type === 'Rarity' || 
-                    attr.trait_type === 'quality' || 
-                    attr.trait_type === 'rarity'
-                );
-                
-                if (qualityAttr) {
-                    // record the original quality value
-                    nft._originalQuality = qualityAttr.value;
-                    
-                    // set the displayed quality according to the current filter condition
-                    nft.normalizedQuality = currentQualityFilter;
-                    console.log(`NFT #${nft.tokenId} set quality to: "${currentQualityFilter}" (original value: "${qualityAttr.value}")`);
+        if (combinedText.includes('excellent') || combinedText.includes('excel')) {
+            quality = 'EXCELLENT';
+            debug.log(`Inferred quality from name/description: ${quality}`);
+            return quality;
+        }
+        
+        if (combinedText.includes('good') || combinedText.includes('uncommon')) {
+            quality = 'GOOD';
+            debug.log(`Inferred quality from name/description: ${quality}`);
+            return quality;
+        }
+        
+        // Priority 5: Try to infer from tokenId (some projects use tokenId ranges for different qualities)
+        if (nft.tokenId) {
+            const tokenIdNum = parseInt(nft.tokenId);
+            if (!isNaN(tokenIdNum)) {
+                // Example logic: higher tokenId might indicate higher quality
+                // This is just an example, adjust according to actual project rules
+                if (tokenIdNum >= 9000) {
+                    quality = 'LEGENDARY';
+                    debug.log(`Inferred quality from tokenId range: ${quality} (tokenId: ${tokenIdNum})`);
+                    return quality;
+                } else if (tokenIdNum >= 7000) {
+                    quality = 'RARE';
+                    debug.log(`Inferred quality from tokenId range: ${quality} (tokenId: ${tokenIdNum})`);
+                    return quality;
+                } else if (tokenIdNum >= 5000) {
+                    quality = 'EXCELLENT';
+                    debug.log(`Inferred quality from tokenId range: ${quality} (tokenId: ${tokenIdNum})`);
+                    return quality;
+                } else if (tokenIdNum >= 3000) {
+                    quality = 'GOOD';
+                    debug.log(`Inferred quality from tokenId range: ${quality} (tokenId: ${tokenIdNum})`);
+                    return quality;
                 }
             }
-            
-            // ensure the feedingInfo data (if exists) is preserved
-            if (nft.feedingInfo) {
-                console.log(`preserve the feeding info of NFT #${nft.tokenId}`);
-            }
-        });
+        }
         
-        // use the game mode pet card component to create the card
-        currentPageNFTs.forEach(nft => {
-            if (window.GamePetCard) {
-                console.log(`process the pet card creation of NFT #${nft.tokenId}...`);
-                
-                // use the game mode pet card component to create the card
-                const card = window.GamePetCard.appendCardToContainer(nft, petsGrid);
-                
-                // ensure the card has quality data attribute
-                if (card) {
-                    // record the original data to ensure correct restoration
-                    const originalRarity = card.dataset.rarity;
-                    const originalLevel = card.dataset.level;
-                    const originalFeedingHours = card.dataset.feedingHours;
-                    const originalAccumulatedFood = card.dataset.accumulatedFood;
-                    
-                    // actively set the quality data attribute, use the current filtered quality
-                    card.dataset.quality = currentQualityFilter;
-                    card.dataset.filteredQuality = currentQualityFilter;
-                    
-                    // check the quality displayed in the card element
-                    const rarityElement = card.querySelector('.game-pet-rarity');
-                    if (rarityElement) {
-                        // get the correct quality name
-                        const qualityName = getQualityName(currentQualityFilter);
-                        console.log(`NFT #${nft.tokenId} card quality name should be: "${qualityName}", current display: "${rarityElement.textContent}"`);
-                        
-                        // if the display is inconsistent, force update
-                        if (rarityElement.textContent !== qualityName) {
-                            rarityElement.textContent = qualityName;
-                            console.log(`NFT #${nft.tokenId} quality display has been corrected to: "${qualityName}"`);
-                        }
-                        
-                        // check and correct the card style class
-                        const correctClass = getQualityClass(currentQualityFilter);
-                        
-                        // remove all quality related classes
-                        ['common', 'good', 'excellent', 'purple-rare', 'legendary', 'uncommon'].forEach(cls => {
-                            if (card.classList.contains(cls)) {
-                                card.classList.remove(cls);
-                            }
-                        });
-                        
-                        // add the correct class
-                        card.classList.add(correctClass);
-                        console.log(`NFT #${nft.tokenId} card style class has been corrected to: "${correctClass}"`);
-                        
-                        // update the reward display
-                        let qualityRewards;
-                        
-                        // check if the getQualityRewards function is available
-                        if (window.GamePetCard && typeof window.GamePetCard.getQualityRewards === 'function') {
-                            qualityRewards = window.GamePetCard.getQualityRewards(currentQualityFilter);
-                        } else {
-                            // if not available, use a simple fallback plan
-                            console.log(`GamePetCard.getQualityRewards function is not available, use fallback plan`);
-                            const basicRewardMap = {
-                                'COMMON': { pwp: 1, pwb: 2 },
-                                'GOOD': { pwp: 10, pwb: 20 },
-                                'EXCELLENT': { pwp: 100, pwb: 200 },
-                                'RARE': { pwp: 800, pwb: 2000 },
-                                'LEGENDARY': { pwp: 5000, pwb: 15000 }
-                            };
-                            qualityRewards = basicRewardMap[currentQualityFilter] || basicRewardMap['COMMON'];
-                        }
-                        
-                        const pwpRewardElement = card.querySelector('.pwp-reward');
-                        const pwbRewardElement = card.querySelector('.pwb-reward');
-                        
-                        if (pwpRewardElement && qualityRewards && qualityRewards.pwp !== undefined) {
-                            // get the original level (from the card data)
-                            const nftLevel = parseInt(card.dataset.level) || 1;
-                            
-                            // calculate the level reward multiplier
-                            const levelMultiplier = nftLevel; // 1=1x, 2=2x, 3=3x, etc.
-                            
-                            // apply the level multiplier to calculate the final hourly reward
-                            const hourlyPwp = qualityRewards.pwp * levelMultiplier;
-                            const hourlyPwb = qualityRewards.pwb * levelMultiplier;
-                            
-                            pwpRewardElement.textContent = `${hourlyPwp} PWP`;
-                            pwbRewardElement.textContent = `${hourlyPwb} PWB`;
-                            
-                            console.log(`updated the reward display of NFT #${nft.tokenId}, calculation formula: base reward × level(${nftLevel})x:
-                            - PWP: ${qualityRewards.pwp} × ${nftLevel} = ${hourlyPwp}
-                            - PWB: ${qualityRewards.pwb} × ${nftLevel} = ${hourlyPwb}`);
-                        }
-                    }
-                    
-                    // ensure the level and other attributes remain unchanged
-                    if (originalLevel !== card.dataset.level) {
-                        console.log(`correct the level of NFT #${nft.tokenId} from ${card.dataset.level} to ${originalLevel}`);
-                        card.dataset.level = originalLevel;
-                        
-                        // update the level display
-                        const levelElement = card.querySelector('.game-pet-level');
-                        if (levelElement) {
-                            levelElement.textContent = `Lv.${originalLevel}`;
-                        }
-                    }
-                    
-                    // ensure the feeding hours remains unchanged
-                    if (originalFeedingHours !== card.dataset.feedingHours) {
-                        console.log(`correct the feeding hours of NFT #${nft.tokenId} from ${card.dataset.feedingHours} to ${originalFeedingHours}`);
-                        card.dataset.feedingHours = originalFeedingHours;
-                        
-                        // update the feeding hours display
-                        if (window.GamePetCard && typeof window.GamePetCard.updatePetSatiety === 'function') {
-                            window.GamePetCard.updatePetSatiety(card, parseInt(originalFeedingHours));
-                        } else {
-                            // simple fallback implementation
-                            console.log(`GamePetCard.updatePetSatiety function is not available, use fallback plan`);
-                            const MAX_FEEDING_HOURS = 168; // maximum feeding hours (7 days)
-                            const feedingHours = parseInt(originalFeedingHours);
-                            
-                            // calculate the satiety percentage
-                            const satietyPercent = Math.round((feedingHours / MAX_FEEDING_HOURS) * 100);
-                            
-                            // update the UI elements
-                            const healthBar = card.querySelector('.game-stat-health .game-stat-value');
-                            const healthNumber = card.querySelector('.game-stat-health .game-stat-number');
-                            
-                            if (healthBar) {
-                                healthBar.style.width = `${satietyPercent}%`;
-                            }
-                            
-                            if (healthNumber) {
-                                healthNumber.textContent = `${feedingHours}/${MAX_FEEDING_HOURS}h`;
-                            }
-                        }
-                    }
-                    
-                    // ensure the accumulated food remains unchanged
-                    if (originalAccumulatedFood !== card.dataset.accumulatedFood) {
-                        console.log(`correct the accumulated food of NFT #${nft.tokenId} from ${card.dataset.accumulatedFood} to ${originalAccumulatedFood}`);
-                        card.dataset.accumulatedFood = originalAccumulatedFood;
-                        
-                        // update the level progress display
-                        const levelProgressBar = card.querySelector('.game-stat-level .game-stat-value');
-                        const levelProgressText = card.querySelector('.game-stat-level .game-stat-number');
-                        
-                        if (levelProgressBar && levelProgressText) {
-                            let progress;
-                            
-                            // check if the calculateLevelProgress function is available
-                            if (window.GamePetCard && typeof window.GamePetCard.calculateLevelProgress === 'function') {
-                                progress = window.GamePetCard.calculateLevelProgress(
-                                    parseInt(originalLevel), 
-                                    parseInt(originalAccumulatedFood)
-                                );
-                            } else {
-                                // simple fallback implementation
-                                console.log(`GamePetCard.calculateLevelProgress function is not available, use fallback plan`);
-                                const level = parseInt(originalLevel);
-                                const accFood = parseInt(originalAccumulatedFood);
-                                
-                                // simplified level target calculation
-                                let target;
-                                if (level === 1) target = 1000;      // to level 2, need 1000
-                                else if (level === 2) target = 3000;  // to level 3, need 3000
-                                else if (level === 3) target = 10000; // to level 4, need 10000
-                                else if (level === 4) target = 30000; // to level 5, need 30000
-                                else target = 999999;                 // already at the highest level
-
-                                // calculate the progress percentage
-                                const percent = level >= 5 ? 100 : Math.min(100, Math.floor((accFood / target) * 100));
-                                
-                                progress = { target, percent };
-                            }
-                            
-                            levelProgressBar.style.width = `${progress.percent}%`;
-                            levelProgressText.textContent = `${originalAccumulatedFood}/${progress.target}`;
-                        }
-                    }
-                }
-            }
-        });
+        debug.log(`Using default quality: ${quality}`);
+        return quality;
     }
     
     /**
-     * check if the NFT quality matches the specified filter condition
+     * Check if NFT quality matches specified filter condition (Enhanced for game mode)
      * @param {string} nftQuality - NFT quality value
-     * @param {string} filterQuality - filter condition
-     * @returns {boolean} whether it matches
+     * @param {string} filterQuality - Filter condition
+     * @returns {boolean} Whether it matches
      */
     function matchesQuality(nftQuality, filterQuality) {
-        // normalize the quality value (convert to uppercase)
-        const normalizedNftQuality = String(nftQuality).toUpperCase();
-        const normalizedFilterQuality = String(filterQuality).toUpperCase();
+        // Normalize quality value (convert to uppercase)
+        const normalizedNftQuality = String(nftQuality).toUpperCase().trim();
+        const normalizedFilterQuality = String(filterQuality).toUpperCase().trim();
         
-        // exact match
+        debug.log(`Quality matching: NFT="${normalizedNftQuality}" vs Filter="${normalizedFilterQuality}"`);
+        
+        // Exact match
         if (normalizedNftQuality === normalizedFilterQuality) {
+            debug.log('Exact match found');
             return true;
         }
         
-        // match the alias
-        if (normalizedFilterQuality === 'LEGENDARY' && 
-            (normalizedNftQuality === 'LEGEND' || normalizedNftQuality === 'EPIC')) {
+        // Enhanced quality mapping for better compatibility
+        const qualityMappings = {
+            'LEGENDARY': ['LEGENDARY', 'LEGEND', 'EPIC', 'MYTHIC', 'DIVINE', 'SUPREME', '4', '5'],
+            'RARE': ['RARE', 'PURPLE', 'PURPLE-RARE', 'SPECIAL', 'ULTRA', '3'],
+            'EXCELLENT': ['EXCELLENT', 'EXCEL', 'GREAT', 'SUPERIOR', 'FINE', '2'],
+            'GOOD': ['GOOD', 'UNCOMMON', 'EXTRAORDINARY', 'DECENT', 'NICE', '1'],
+            'COMMON': ['COMMON', 'NORMAL', 'BASIC', 'STANDARD', 'REGULAR', '0']
+        };
+        
+        // Check if the NFT quality belongs to the filter quality category
+        if (qualityMappings[normalizedFilterQuality]) {
+            const matchFound = qualityMappings[normalizedFilterQuality].includes(normalizedNftQuality);
+            if (matchFound) {
+                debug.log(`Found match in quality mapping: ${normalizedNftQuality} -> ${normalizedFilterQuality}`);
+            return true;
+        }
+        }
+        
+        // Reverse mapping check - check if filter quality belongs to NFT quality category
+        for (const [category, variants] of Object.entries(qualityMappings)) {
+            if (variants.includes(normalizedNftQuality) && variants.includes(normalizedFilterQuality)) {
+                debug.log(`Found reverse match in quality mapping: ${normalizedNftQuality} <-> ${normalizedFilterQuality} (category: ${category})`);
+            return true;
+        }
+        }
+        
+        // Partial string matching for flexible quality recognition
+        if (normalizedFilterQuality === 'LEGENDARY') {
+            if (normalizedNftQuality.includes('LEGEND') || 
+                normalizedNftQuality.includes('EPIC') ||
+                normalizedNftQuality.includes('MYTHIC') ||
+                normalizedNftQuality.includes('DIVINE')) {
+                debug.log(`Found partial match for LEGENDARY: ${normalizedNftQuality}`);
+            return true;
+        }
+        }
+        
+        if (normalizedFilterQuality === 'RARE') {
+            if (normalizedNftQuality.includes('RARE') || 
+                normalizedNftQuality.includes('PURPLE') ||
+                normalizedNftQuality.includes('SPECIAL')) {
+                debug.log(`Found partial match for RARE: ${normalizedNftQuality}`);
+            return true;
+        }
+        }
+        
+        if (normalizedFilterQuality === 'EXCELLENT') {
+            if (normalizedNftQuality.includes('EXCEL') || 
+                normalizedNftQuality.includes('GREAT') ||
+                normalizedNftQuality.includes('SUPERIOR')) {
+                debug.log(`Found partial match for EXCELLENT: ${normalizedNftQuality}`);
+            return true;
+        }
+        }
+        
+        if (normalizedFilterQuality === 'GOOD') {
+            if (normalizedNftQuality.includes('GOOD') || 
+                normalizedNftQuality.includes('UNCOMMON') ||
+                normalizedNftQuality.includes('DECENT')) {
+                debug.log(`Found partial match for GOOD: ${normalizedNftQuality}`);
+            return true;
+        }
+        }
+        
+        if (normalizedFilterQuality === 'COMMON') {
+            if (normalizedNftQuality.includes('COMMON') || 
+                normalizedNftQuality.includes('NORMAL') ||
+                normalizedNftQuality.includes('BASIC') ||
+                normalizedNftQuality.includes('STANDARD')) {
+                debug.log(`Found partial match for COMMON: ${normalizedNftQuality}`);
+            return true;
+        }
+        }
+        
+        // Numeric quality matching with enhanced ranges
+        if (!isNaN(normalizedNftQuality) && !isNaN(normalizedFilterQuality)) {
+            const nftNum = parseFloat(normalizedNftQuality);
+            const filterNum = parseFloat(normalizedFilterQuality);
+            if (nftNum === filterNum) {
+                debug.log(`Found numeric match: ${nftNum} === ${filterNum}`);
+            return true;
+        }
+        }
+        
+        // Enhanced numeric range matching
+        if (!isNaN(normalizedNftQuality)) {
+            const nftNum = parseFloat(normalizedNftQuality);
+        
+            if (normalizedFilterQuality === 'LEGENDARY' && (nftNum >= 4 || nftNum >= 80)) {
+                debug.log(`Found numeric range match for LEGENDARY: ${nftNum}`);
             return true;
         }
         
-        if (normalizedFilterQuality === 'RARE' && 
-            (normalizedNftQuality === 'PURPLE' || normalizedNftQuality === 'PURPLE-RARE')) {
+            if (normalizedFilterQuality === 'RARE' && (nftNum >= 3 || (nftNum >= 60 && nftNum < 80))) {
+                debug.log(`Found numeric range match for RARE: ${nftNum}`);
             return true;
         }
         
-        if (normalizedFilterQuality === 'GOOD' && 
-            normalizedNftQuality === 'UNCOMMON') {
+            if (normalizedFilterQuality === 'EXCELLENT' && (nftNum >= 2 || (nftNum >= 40 && nftNum < 60))) {
+                debug.log(`Found numeric range match for EXCELLENT: ${nftNum}`);
             return true;
         }
         
-        if (normalizedFilterQuality === 'COMMON' && 
-            normalizedNftQuality === 'NORMAL') {
+            if (normalizedFilterQuality === 'GOOD' && (nftNum >= 1 || (nftNum >= 20 && nftNum < 40))) {
+                debug.log(`Found numeric range match for GOOD: ${nftNum}`);
             return true;
         }
         
-        // fuzzy match (only as a fallback option)
-        if (normalizedFilterQuality === 'LEGENDARY' && 
-            normalizedNftQuality.includes('LEGEND')) {
-            return true;
+            if (normalizedFilterQuality === 'COMMON' && (nftNum === 0 || nftNum < 20)) {
+                debug.log(`Found numeric range match for COMMON: ${nftNum}`);
+                return true;
+            }
         }
         
-        if (normalizedFilterQuality === 'RARE' && 
-            normalizedNftQuality.includes('RARE')) {
-            return true;
-        }
-        
-        if (normalizedFilterQuality === 'EXCELLENT' && 
-            normalizedNftQuality.includes('EXCEL')) {
-            return true;
-        }
-        
-        // number quality matching (if the quality is represented by a number)
-        if (normalizedFilterQuality === 'LEGENDARY' && 
-            (normalizedNftQuality === '4' || normalizedNftQuality === '5')) {
-            return true;
-        }
-        
-        if (normalizedFilterQuality === 'RARE' && normalizedNftQuality === '3') {
-            return true;
-        }
-        
-        if (normalizedFilterQuality === 'EXCELLENT' && normalizedNftQuality === '2') {
-            return true;
-        }
-        
-        if (normalizedFilterQuality === 'GOOD' && normalizedNftQuality === '1') {
-            return true;
-        }
-        
-        if (normalizedFilterQuality === 'COMMON' && normalizedNftQuality === '0') {
-            return true;
-        }
-        
+        debug.log(`No match found for: NFT="${normalizedNftQuality}" vs Filter="${normalizedFilterQuality}"`);
         return false;
     }
     
     /**
-     * get the quality name
-     * @param {string} qualityId - quality ID
-     * @returns {string} quality name
+     * Get quality name for display
+     * @param {string} qualityId - Quality ID
+     * @returns {string} Quality display name
      */
     function getQualityName(qualityId) {
-        const qualityMap = {
-            'COMMON': 'COMMON',
-            'GOOD': 'GOOD',
-            'EXCELLENT': 'EXCELLENT',
-            'RARE': 'RARE',
-            'LEGENDARY': 'LEGENDARY',
-            'all': 'all'
+        const qualityNames = {
+            'all': 'All',
+            'COMMON': 'Common',
+            'GOOD': 'Good',
+            'EXCELLENT': 'Excellent',
+            'RARE': 'Rare',
+            'LEGENDARY': 'Legendary'
         };
-        
-        return qualityMap[qualityId] || 'unknown';
+        return qualityNames[qualityId] || qualityId;
     }
     
     /**
-     * initialize the NFTFeedingManager contract
+     * Initialize NFTFeedingManager contract
      */
     function initNFTFeedingManagerContract() {
-        console.log('开始初始化NFTFeedingManager合约...');
+        debug.log('Initializing NFTFeedingManager contract...');
         
-        // check if the necessary components are loaded
-        if (!window.initNFTFeedingManagerContract) {
-            console.error('failed to initialize the NFTFeedingManager contract: initNFTFeedingManagerContract is not defined');
+        // check if the necessary components exist
+        if (typeof window.web3 === 'undefined') {
+            debug.error('Web3 is not available, cannot initialize NFTFeedingManager contract');
             return;
         }
         
-        if (!window.NFTFeedingManagerABI) {
-            console.error('failed to initialize the NFTFeedingManager contract: NFTFeedingManagerABI is not defined');
+        if (typeof window.NFTFeedingManagerABI === 'undefined') {
+            debug.error('NFTFeedingManagerABI is not available, cannot initialize NFTFeedingManager contract');
             return;
         }
         
-        if (!window.web3) {
-            console.error('failed to initialize the NFTFeedingManager contract: web3 is not defined');
+        if (typeof window.initNFTFeedingManagerContract === 'undefined') {
+            debug.error('initNFTFeedingManagerContract function is not available');
             return;
         }
         
         try {
-            // use the script provided Initialization function to create a contract instance
-            console.log('call window.initNFTFeedingManagerContract to initialize the contract...');
-            window.nftFeedingManagerContract = window.initNFTFeedingManagerContract(
-                window.web3, 
-                window.getContractAddress
-            );
+            // call the initialization function
+            const contract = window.initNFTFeedingManagerContract(window.web3, window.getContractAddress);
             
-            if (window.nftFeedingManagerContract) {
-                console.log('NFTFeedingManager contract initialized successfully, contract address:', 
-                    window.nftFeedingManagerContract.options.address);
+            if (contract) {
+                window.nftFeedingManagerContract = contract;
+                debug.log('NFTFeedingManager contract initialized successfully');
                 
-                // use the script provided getNFTFeedingInfo function
-                console.log('set the getNFTFeedingInfo function...');
-                if (typeof window.getNFTFeedingInfo === 'function') {
-                    // use the defined function
-                    console.log('use the script provided getNFTFeedingInfo function');
-                } else {
-                    // define the function to get the NFT feeding info
-                    window.getNFTFeedingInfo = async function(contract, tokenId) {
-                        try {
-                            console.log(`try to get the NFT #${tokenId} feeding info from the contract...`);
-                            
-                            // first try to use the nftFeeding mapping to get the info
-                            if (contract.methods.nftFeeding) {
-                                console.log(`use the nftFeeding(${tokenId}) method to get the info`);
-                                const feedingInfo = await contract.methods.nftFeeding(tokenId).call();
-                                console.log(`the original feeding data of NFT #${tokenId}:`, JSON.stringify(feedingInfo, null, 2));
-                                return feedingInfo;
-                            }
-                            
-                            // if there is no nftFeeding method, try to use the getNFTFeedingInfo method
-                            if (contract.methods.getNFTFeedingInfo) {
-                                console.log(`use the getNFTFeedingInfo(${tokenId}) method to get the info`);
-                                const feedingInfo = await contract.methods.getNFTFeedingInfo(tokenId).call();
-                                console.log(`the original feeding data of NFT #${tokenId}:`, JSON.stringify(feedingInfo, null, 2));
-                                return feedingInfo;
-                            }
-                            
-                            console.error(`failed to get the NFT #${tokenId} feeding info: the contract has no available query method`);
-                            return null;
-                        } catch (error) {
-                            console.error(`failed to get the NFT #${tokenId} feeding info:`, error);
-                            console.error('error stack:', error.stack);
-                            return null;
-                        }
-                    };
-                    console.log('the custom getNFTFeedingInfo function has been defined');
-                }
-                
-                // try to initialize the NFTFeedingManagerContract class instance
-                if (window.NFTFeedingManagerContract) {
-                    try {
-                        console.log('try to create the NFTFeedingManagerContract instance...');
-                        window.feedingManagerContract = new window.NFTFeedingManagerContract(window.web3);
-                        console.log('NFTFeedingManagerContract instance created successfully');
-                    } catch (contractError) {
-                        console.error('failed to create the NFTFeedingManagerContract instance:', contractError);
-                    }
-                } else {
-                    console.log('NFTFeedingManagerContract class is not available, check if NFTFeedingManager.js has been loaded');
-                    
-                    // check if NFTFeedingManager.js has been loaded, if not, try to load it
-                    if (!document.querySelector('script[src*="NFTFeedingManager.js"]')) {
-                        console.log('try to load the NFTFeedingManager.js dynamically...');
-                        const script = document.createElement('script');
-                        script.src = '../../scripts/contracts/NFTFeedingManager.js';
-                        script.onload = function() {
-                            console.log('NFTFeedingManager.js loaded successfully, try to create the instance');
-                            if (window.NFTFeedingManagerContract && window.web3) {
-                                try {
-                                    window.feedingManagerContract = new window.NFTFeedingManagerContract(window.web3);
-                                    console.log('successfully created the NFTFeedingManagerContract instance after delayed loading');
-                                } catch (delayedError) {
-                                    console.error('failed to create the NFTFeedingManagerContract instance after delayed loading:', delayedError);
-                                }
-                            } else {
-                                console.error('even though NFTFeedingManager.js has been loaded, the NFTFeedingManagerContract class is still not available');
-                            }
-                        };
-                        script.onerror = function() {
-                            console.error('failed to load the NFTFeedingManager.js');
-                        };
-                        document.head.appendChild(script);
-                    }
-                }
-                
-                // test if the contract can work normally
+                // test the contract
                 testNFTFeedingManagerContract();
             } else {
-                console.error('failed to initialize the NFTFeedingManager contract: return null');
+                debug.error('NFTFeedingManager contract initialization failed');
             }
         } catch (error) {
-            console.error('failed to initialize the NFTFeedingManager contract:', error);
-            console.error('error stack:', error.stack);
+            debug.error('Error initializing NFTFeedingManager contract:', error);
         }
     }
     
     /**
-     * test the NFTFeedingManager contract
+     * Test NFTFeedingManager contract
      */
     async function testNFTFeedingManagerContract() {
         if (!window.nftFeedingManagerContract) {
-            console.log('failed to test the NFTFeedingManager contract: the contract is not initialized');
+            debug.error('NFTFeedingManager contract is not initialized');
             return;
         }
         
         try {
-            // try to get some constants or status variables from the contract
-            console.log('test the NFTFeedingManager contract...');
+            // test calling a simple method
+            debug.log('Testing NFTFeedingManager contract...');
             
-            // get the default feeding hours
-            if (window.nftFeedingManagerContract.methods.DEFAULT_FEEDING_HOURS) {
-                const defaultHours = await window.nftFeedingManagerContract.methods.DEFAULT_FEEDING_HOURS().call();
-                console.log('DEFAULT_FEEDING_HOURS:', defaultHours);
-            } else {
-                console.log('DEFAULT_FEEDING_HOURS method is not available');
-            }
-            
-            // get the maximum feeding hours
-            if (window.nftFeedingManagerContract.methods.MAX_FEEDING_HOURS) {
-                const maxHours = await window.nftFeedingManagerContract.methods.MAX_FEEDING_HOURS().call();
-                console.log('MAX_FEEDING_HOURS:', maxHours);
-            } else {
-                console.log('MAX_FEEDING_HOURS method is not available');
-            }
-            
-            // list all the available methods
-            console.log('available contract methods:');
-            for (const methodName in window.nftFeedingManagerContract.methods) {
-                if (typeof window.nftFeedingManagerContract.methods[methodName] === 'function' && 
-                    methodName !== 'constructor' && !methodName.startsWith('0x')) {
-                    console.log(`- ${methodName}`);
-                }
-            }
-            
-            console.log('NFTFeedingManager contract test completed');
+            // you can add specific test calls here
+            debug.log('NFTFeedingManager contract test completed');
         } catch (error) {
-            console.error('failed to test the NFTFeedingManager contract:', error);
+            debug.error('NFTFeedingManager contract test failed:', error);
         }
     }
     
     /**
-     * load the NFT pet data
+     * Load NFT pets data
      */
-    function loadNFTPets() {
-        console.log('load the NFT pet data...');
+    async function loadNFTPets() {
+        debug.log('Loading NFT pets data...');
         
-        // get the user address
-        const userAddress = localStorage.getItem('walletAddress') || sessionStorage.getItem('walletAddress');
+        // Show loading message
+        updateLoadingMessage('Loading your pets...');
         
-        if (userAddress && window.PetNFTService) {
-            // show a more beautiful loading indicator
-            if (petsGrid) {
-                petsGrid.innerHTML = `
-                    <div class="loading-indicator">
-                        <div class="spinner"></div>
-                        <p>${window.i18n ? window.i18n.t('pets.loading') : 'loading your pets...'}</p>
-                        <p class="loading-subtext">${window.i18n ? window.i18n.t('pets.loadingHint') : 'the first loading may take a long time'}</p>
-                    </div>
-                `;
+        try {
+            // Priority 1: Try to get NFT data from parent window (home page)
+            if (window.parent && window.parent !== window) {
+                debug.log('Requesting NFT data from parent window...');
                 
-                // add styles to the loading-indicator
-                const loadingIndicator = petsGrid.querySelector('.loading-indicator');
-                if (loadingIndicator) {
-                    loadingIndicator.style.display = 'flex';
-                    loadingIndicator.style.flexDirection = 'column';
-                    loadingIndicator.style.alignItems = 'center';
-                    loadingIndicator.style.justifyContent = 'center';
-                    loadingIndicator.style.minHeight = '300px';
-                    loadingIndicator.style.width = '100%';
-                    loadingIndicator.style.padding = '20px';
-                    
-                    const spinner = loadingIndicator.querySelector('.spinner');
-                    if (spinner) {
-                        spinner.style.width = '50px';
-                        spinner.style.height = '50px';
-                        spinner.style.border = '5px solid #f3f3f3';
-                        spinner.style.borderTop = '5px solid #3498db';
-                        spinner.style.borderRadius = '50%';
-                        spinner.style.animation = 'spin 1s linear infinite';
-                        
-                        // add animation
-                        const styleSheet = document.createElement('style');
-                        styleSheet.textContent = `
-                            @keyframes spin {
-                                0% { transform: rotate(0deg); }
-                                100% { transform: rotate(360deg); }
-                            }
-                        `;
-                        document.head.appendChild(styleSheet);
-                    }
-                    
-                    const loadingSubtext = loadingIndicator.querySelector('.loading-subtext');
-                    if (loadingSubtext) {
-                        loadingSubtext.style.marginTop = '10px';
-                        loadingSubtext.style.fontSize = '0.9rem';
-                        loadingSubtext.style.color = '#777';
-                    }
-                }
-            }
-            
-            // try to get the data from the cache first
-            const cachedNFTs = window.PetNFTService.getCachedNFTs({
-                userAddress: userAddress
-            });
-            
-            if (cachedNFTs && cachedNFTs.length > 0) {
-                console.log(`loaded ${cachedNFTs.length} NFT pets from the cache`);
-                // preprocess and prepare the data
-                prepareNFTDataBeforeDisplay(cachedNFTs, true);
+                // Request NFT data from parent
+                window.parent.postMessage({
+                    type: 'requestNFTData',
+                    source: 'pets-page'
+                }, '*');
                 
-                // refresh the NFT data in the background
-                setTimeout(() => {
-                    console.log('refreshing the NFT data in the background...');
-                    window.PetNFTService.refreshNFTs(userAddress, { skipIntervalCheck: true })
-                        .then(result => {
-                            if (result.success && result.nfts && result.nfts.length > 0) {
-                                console.log(`refreshed the NFT data in the background, got ${result.nfts.length} NFTs`);
-                                prepareNFTDataBeforeDisplay(result.nfts, false);
+                // Wait for response from parent
+                const nftDataPromise = new Promise((resolve, reject) => {
+                    const timeout = setTimeout(() => {
+                        reject(new Error('Timeout waiting for NFT data from parent'));
+                    }, 10000); // 10 second timeout
+                    
+                    const messageHandler = (event) => {
+                        if (event.data && event.data.type === 'nftDataResponse') {
+                            clearTimeout(timeout);
+                            window.removeEventListener('message', messageHandler);
+                            resolve(event.data.nfts || []);
+                        }
+                    };
+                    
+                    window.addEventListener('message', messageHandler);
+                });
+                
+                try {
+                    const parentNFTs = await nftDataPromise;
+                    if (parentNFTs && parentNFTs.length > 0) {
+                        debug.log(`Received ${parentNFTs.length} NFTs from parent window`);
+        
+                        // Enhanced NFT data processing for game mode
+                        const processedNFTs = parentNFTs.map(nft => {
+                            // Create a copy of the NFT to avoid modifying the original
+                            const processedNFT = { ...nft };
+                            
+                            // Ensure quality information is properly extracted and stored
+                            if (!processedNFT.quality && !processedNFT.rarity) {
+                                const extractedQuality = extractNFTQuality(processedNFT);
+                                processedNFT.quality = extractedQuality;
+                                debug.log(`Enhanced NFT ${processedNFT.tokenId} with extracted quality: ${extractedQuality}`);
                             }
-                        })
-                        .catch(error => {
-                            console.error('failed to refresh the NFT data in the background:', error);
+                            
+                            // Ensure metadata structure is consistent
+                            if (!processedNFT.metadata) {
+                                processedNFT.metadata = {};
+                            }
+                            
+                            // Ensure attributes array exists
+                            if (!processedNFT.metadata.attributes) {
+                                processedNFT.metadata.attributes = [];
+                            }
+                            
+                            // Add quality to attributes if not present
+                            const hasQualityAttr = processedNFT.metadata.attributes.some(attr => {
+                                const traitType = String(attr.trait_type || '').toLowerCase();
+                                return traitType === 'quality' || traitType === 'rarity';
+                            });
+                            
+                            if (!hasQualityAttr && processedNFT.quality) {
+                                processedNFT.metadata.attributes.push({
+                                    trait_type: 'Quality',
+                                    value: processedNFT.quality
+                                });
+                                debug.log(`Added quality attribute to NFT ${processedNFT.tokenId}: ${processedNFT.quality}`);
+                            }
+                            
+                            return processedNFT;
                         });
-                }, 1000);
-            } else {
-                // no NFT data in the cache, refresh to get
-                console.log('no NFT data in the cache, refresh to get');
-                window.PetNFTService.refreshNFTs(userAddress)
-                    .then(result => {
-                        console.log('NFT refresh result:', result);
-                        if (result.success && result.nfts && result.nfts.length > 0) {
-                            console.log(`successfully got ${result.nfts.length} NFTs`);
-                            prepareNFTDataBeforeDisplay(result.nfts, true);
+                        
+                        // Update global variables with processed data
+                        petsData = processedNFTs;
+                        allNFTs = [...processedNFTs];
+                        originalNFTs = [...processedNFTs]; // Store original unfiltered data
+                        userNFTs = [...processedNFTs];
+                        window.userNFTs = [...processedNFTs]; // For PetRewards module compatibility
+                        totalNFTs = processedNFTs.length;
+                        currentPage = 1;
+                        
+                        debug.log(`Processed ${processedNFTs.length} NFTs with enhanced quality information`);
+                        
+                        // Apply quality filter if not 'all'
+                        if (currentQualityFilter !== 'all') {
+                            filterPetsByQuality();
                         } else {
-                            showNoNFTsMessage();
+                            displayPaginatedNFTs();
                         }
-                    })
-                    .catch(error => {
-                        console.error('failed to refresh the NFT data:', error);
-                        showNoNFTsMessage();
+                    return;
+                }
+                } catch (parentError) {
+                    debug.warn('Failed to get NFT data from parent:', parentError.message);
+                }
+            }
+            
+            // Priority 2: Try to get from PetNFTService cache
+            if (window.PetNFTService && typeof window.PetNFTService.getCachedNFTs === 'function') {
+                debug.log('Trying to get NFT data from PetNFTService cache...');
+                
+                const userAddress = getCurrentWalletAddress();
+                if (userAddress) {
+                    const cachedNFTs = window.PetNFTService.getCachedNFTs({
+                        userAddress: userAddress
                     });
+                    
+                    if (cachedNFTs && cachedNFTs.length > 0) {
+                        debug.log(`Found ${cachedNFTs.length} NFTs in cache`);
+                        
+                        // Enhanced processing for cached NFTs
+                        const processedCachedNFTs = cachedNFTs.map(nft => {
+                            const processedNFT = { ...nft };
+                            
+                            // Ensure quality information is properly extracted and stored
+                            if (!processedNFT.quality && !processedNFT.rarity) {
+                                const extractedQuality = extractNFTQuality(processedNFT);
+                                processedNFT.quality = extractedQuality;
+                                debug.log(`Enhanced cached NFT ${processedNFT.tokenId} with extracted quality: ${extractedQuality}`);
+                            }
+                            
+                            // Ensure metadata structure consistency
+                            if (!processedNFT.metadata) {
+                                processedNFT.metadata = {};
+                            }
+                            if (!processedNFT.metadata.attributes) {
+                                processedNFT.metadata.attributes = [];
+                            }
+                            
+                            // Add quality to attributes if not present
+                            const hasQualityAttr = processedNFT.metadata.attributes.some(attr => {
+                                const traitType = String(attr.trait_type || '').toLowerCase();
+                                return traitType === 'quality' || traitType === 'rarity';
+                            });
+                            
+                            if (!hasQualityAttr && processedNFT.quality) {
+                                processedNFT.metadata.attributes.push({
+                                    trait_type: 'Quality',
+                                    value: processedNFT.quality
+                                });
+                            }
+                            
+                            return processedNFT;
+                        });
+                        
+                        // Update global variables
+                        petsData = processedCachedNFTs;
+                        allNFTs = [...processedCachedNFTs];
+                        originalNFTs = [...processedCachedNFTs]; // Store original unfiltered data
+                        userNFTs = [...processedCachedNFTs];
+                        window.userNFTs = [...processedCachedNFTs]; // For PetRewards module compatibility
+                        totalNFTs = processedCachedNFTs.length;
+                        currentPage = 1;
+                        
+                        // Apply quality filter if not 'all'
+                        if (currentQualityFilter !== 'all') {
+                            filterPetsByQuality();
+                        } else {
+                            displayPaginatedNFTs();
+                        }
+                        return;
+                    }
+                }
             }
-        } else {
-            // the user wallet is not connected or the PetNFTService is not available
-            console.log('the user wallet is not connected or the PetNFTService is not available');
-            if (petsGrid) {
-                showWalletNotConnectedMessage();
-            }
-        }
-    }
-    
-    /**
-     * preprocess the NFT data, then display
-     * @param {Array} nfts - NFT data array
-     * @param {boolean} applyFilter - whether to apply the quality filter, default is true
-     */
-    function prepareNFTDataBeforeDisplay(nfts, applyFilter = true) {
-        console.log(`start to preprocess ${nfts.length} NFT data...`);
-        
-        // show the loading status
-        updateLoadingMessage('preparing the NFT data...');
-        
-        // build a promise array, for processing the data preparation of each NFT
-        const preparePromises = nfts.map(async (nft, index) => {
+            
+            // Priority 3: Try to load from localStorage cache
+            debug.log('Trying to get NFT data from localStorage...');
             try {
-                // preload the metadata image resource for each NFT
-                if (nft.metadata && nft.metadata.image) {
-                    try {
-                        // preload the image
-                        await preloadImage(nft.metadata.image);
-                        console.log(`NFT #${nft.tokenId} image preloaded`);
-                    } catch (imgError) {
-                        console.warn(`NFT #${nft.tokenId} image preload failed:`, imgError);
-                        // continue to process, not block the display
-                    }
-                }
-                
-                // get the feeding info
-                if (!nft.feedingInfo && window.getNFTFeedingInfo && window.nftFeedingManagerContract) {
-                    try {
-                        // update the loading message
-                        if (index === 0 || index === Math.floor(nfts.length / 2)) {
-                            updateLoadingMessage(`getting the feeding info of the pet (${index+1}/${nfts.length})...`);
-                        }
+                const savedCache = localStorage.getItem('nftCache');
+                if (savedCache) {
+                    const parsedCache = JSON.parse(savedCache);
+                    if (parsedCache.allNfts && parsedCache.allNfts.length > 0) {
+                        debug.log(`Found ${parsedCache.allNfts.length} NFTs in localStorage`);
                         
-                        // get the pet feeding info
-                        const feedingInfo = await window.getNFTFeedingInfo(
-                            window.nftFeedingManagerContract, 
-                            nft.tokenId
-                        );
+                        // Enhanced processing for localStorage cached NFTs
+                        const processedStorageNFTs = parsedCache.allNfts.map(nft => {
+                            const processedNFT = { ...nft };
+                            
+                            // Ensure quality information is properly extracted and stored
+                            if (!processedNFT.quality && !processedNFT.rarity) {
+                                const extractedQuality = extractNFTQuality(processedNFT);
+                                processedNFT.quality = extractedQuality;
+                                debug.log(`Enhanced localStorage NFT ${processedNFT.tokenId} with extracted quality: ${extractedQuality}`);
+                            }
+                            
+                            // Ensure metadata structure consistency
+                            if (!processedNFT.metadata) {
+                                processedNFT.metadata = {};
+                            }
+                            if (!processedNFT.metadata.attributes) {
+                                processedNFT.metadata.attributes = [];
+                            }
+                            
+                            // Add quality to attributes if not present
+                            const hasQualityAttr = processedNFT.metadata.attributes.some(attr => {
+                                const traitType = String(attr.trait_type || '').toLowerCase();
+                                return traitType === 'quality' || traitType === 'rarity';
+                            });
+                            
+                            if (!hasQualityAttr && processedNFT.quality) {
+                                processedNFT.metadata.attributes.push({
+                                    trait_type: 'Quality',
+                                    value: processedNFT.quality
+                                });
+                            }
+                            
+                            return processedNFT;
+                        });
                         
-                        if (feedingInfo) {
-                            nft.feedingInfo = feedingInfo;
-                            console.log(`successfully got the feeding info of NFT #${nft.tokenId}`);
+                        // Update global variables
+                        petsData = processedStorageNFTs;
+                        allNFTs = [...processedStorageNFTs];
+                        originalNFTs = [...processedStorageNFTs]; // Store original unfiltered data
+                        userNFTs = [...processedStorageNFTs];
+                        window.userNFTs = [...processedStorageNFTs]; // For PetRewards module compatibility
+                        totalNFTs = processedStorageNFTs.length;
+                        currentPage = 1;
+                        
+                        // Apply quality filter if not 'all'
+                        if (currentQualityFilter !== 'all') {
+                            filterPetsByQuality();
+                } else {
+                            displayPaginatedNFTs();
                         }
-                    } catch (feedingError) {
-                        console.warn(`failed to get the feeding info of NFT #${nft.tokenId}:`, feedingError);
-                        // continue to process, not block the display
-                    }
+                    return;
                 }
-                
-                return nft;
-            } catch (error) {
-                console.error(`failed to process NFT #${nft.tokenId || index}:`, error);
-                return nft; // even if there is an error, return the original NFT
             }
-        });
-        
-        // wait for all the preprocess to complete
-        Promise.all(preparePromises)
-            .then(preparedNFTs => {
-                console.log(`all the NFT data preprocess completed, ready to display ${preparedNFTs.length} pets`);
-                updateLoadingMessage('ready to display the pets...');
+            } catch (cacheError) {
+                debug.warn('Error reading from localStorage cache:', cacheError);
+            }
+            
+            // Priority 4: Try to use PetNFTService to refresh data (fallback)
+            const userAddress = getCurrentWalletAddress();
+            debug.log('User address for NFT loading:', userAddress);
+            
+            // Ensure Web3 is set up from WalletNetworkManager if needed
+            if (walletNetworkManager && isWalletNetworkManagerReady && !window.web3) {
+                debug.log('Setting up Web3 from WalletNetworkManager...');
                 
-                // after the preprocess is completed, display the NFT
-                setTimeout(() => {
-                    displayNFTPets(preparedNFTs, applyFilter);
-                }, 300); // a brief delay to ensure the UI update
-            })
-            .catch(error => {
-                console.error('failed to preprocess the NFT data:', error);
-                // even if there is an error, still try to display the NFT
-                displayNFTPets(nfts, applyFilter);
+                const managerWeb3 = walletNetworkManager.getWeb3();
+                if (managerWeb3) {
+                    window.web3 = managerWeb3;
+                    debug.log('Web3 set from WalletNetworkManager for NFT loading');
+                } else {
+                    debug.warn('WalletNetworkManager Web3 not available for NFT loading');
+                }
+            }
+            
+            if (userAddress && window.PetNFTService && typeof window.PetNFTService.refreshNFTs === 'function') {
+                debug.log('Attempting to refresh NFT data using PetNFTService...');
+                updateLoadingMessage('Refreshing pet data...');
+                
+                try {
+                    const result = await window.PetNFTService.refreshNFTs(userAddress, {
+                        forceUpdate: false,
+                refreshInterval: 300000, // 5 minutes
+                        skipIntervalCheck: false
             });
-    }
-    
-    /**
-     * preload the image
-     * @param {string} url - the image URL
-     * @returns {Promise} the image loading Promise
-     */
-    function preloadImage(url) {
-        return new Promise((resolve, reject) => {
-            const img = new Image();
-            img.onload = () => resolve(img);
-            img.onerror = () => reject(new Error(`Failed to load image: ${url}`));
-            img.src = url;
-        });
-    }
-    
-    /**
-     * update the loading message
-     * @param {string} message - the loading message
-     */
-    function updateLoadingMessage(message) {
-        const loadingIndicator = document.querySelector('.loading-indicator');
-        if (loadingIndicator) {
-            const messageElement = loadingIndicator.querySelector('p:not(.loading-subtext)');
-            if (messageElement) {
-                messageElement.textContent = message;
-            }
-        }
-    }
-    
-    /**
-     * display the NFT pet card
-     * @param {Array} nfts - the NFT data array
-     * @param {boolean} applyFilter - whether to apply the quality filter, default is true
-     */
-    function displayNFTPets(nfts, applyFilter = true) {
-        // remove the loading indicator
-        const loadingIndicator = petsGrid.querySelector('.loading-indicator');
-        if (loadingIndicator) {
-            loadingIndicator.style.opacity = '0';
-            setTimeout(() => {
-                if (loadingIndicator.parentNode) {
-                    loadingIndicator.parentNode.removeChild(loadingIndicator);
+            
+                    if (result.success && result.nfts && result.nfts.length > 0) {
+                        debug.log(`Successfully refreshed ${result.nfts.length} NFTs`);
+                        
+                        // Enhanced processing for refreshed NFTs
+                        const processedRefreshedNFTs = result.nfts.map(nft => {
+                            const processedNFT = { ...nft };
+                            
+                            // Ensure quality information is properly extracted and stored
+                            if (!processedNFT.quality && !processedNFT.rarity) {
+                                const extractedQuality = extractNFTQuality(processedNFT);
+                                processedNFT.quality = extractedQuality;
+                                debug.log(`Enhanced refreshed NFT ${processedNFT.tokenId} with extracted quality: ${extractedQuality}`);
+                            }
+                            
+                            // Ensure metadata structure consistency
+                            if (!processedNFT.metadata) {
+                                processedNFT.metadata = {};
+                            }
+                            if (!processedNFT.metadata.attributes) {
+                                processedNFT.metadata.attributes = [];
+                            }
+                            
+                            // Add quality to attributes if not present
+                            const hasQualityAttr = processedNFT.metadata.attributes.some(attr => {
+                                const traitType = String(attr.trait_type || '').toLowerCase();
+                                return traitType === 'quality' || traitType === 'rarity';
+                            });
+                            
+                            if (!hasQualityAttr && processedNFT.quality) {
+                                processedNFT.metadata.attributes.push({
+                                    trait_type: 'Quality',
+                                    value: processedNFT.quality
+                                });
+                            }
+                            
+                            return processedNFT;
+                        });
+                
+                // Update global variables
+                        petsData = processedRefreshedNFTs;
+                        allNFTs = [...processedRefreshedNFTs];
+                        originalNFTs = [...processedRefreshedNFTs]; // Store original unfiltered data
+                        userNFTs = [...processedRefreshedNFTs];
+                        window.userNFTs = [...processedRefreshedNFTs]; // For PetRewards module compatibility
+                        totalNFTs = processedRefreshedNFTs.length;
+                currentPage = 1;
+                
+                // Apply quality filter if not 'all'
+                if (currentQualityFilter !== 'all') {
+                    filterPetsByQuality();
+                } else {
+                    displayPaginatedNFTs();
                 }
-            }, 300);
+                        return;
+                    }
+                } catch (refreshError) {
+                    debug.error('Error refreshing NFT data:', refreshError);
+                }
+            }
+            
+            // If all methods fail, show appropriate message
+            if (!userAddress) {
+                debug.log('No wallet address available, showing wallet connection message');
+                showWalletNotConnectedMessage();
+            } else {
+                debug.log('No NFTs found for user');
+                showNoNFTsMessage();
+            }
+            
+        } catch (error) {
+            debug.error('Error loading NFTs:', error);
+            updateLoadingMessage('Error loading pets. Please try again.');
+            setTimeout(() => {
+                showNoNFTsMessage();
+            }, 2000);
         }
-        
-        if (!nfts || nfts.length === 0) {
+    }
+    
+    /**
+     * Display paginated NFTs
+     */
+    function displayPaginatedNFTs() {
+        if (!allNFTs || allNFTs.length === 0) {
             showNoNFTsMessage();
             return;
         }
         
-        // sort the NFTs (if there is a selected sorting method)
-        if (sortSelect && sortSelect.value) {
-            nfts = sortNFTs(nfts, sortSelect.value);
-        }
-        
-        // save all the NFT data
-        allNFTs = [...nfts];
-        totalNFTs = nfts.length;
-        
-        // if there is a saved quality filter and need to apply the filter, then apply the filter
-        if (applyFilter && currentQualityFilter !== 'all') {
-            console.log(`apply the saved quality filter: ${currentQualityFilter}`);
-            filterPetsByQuality();
-            return; // filterPetsByQuality will handle the display and pagination
-        }
-        
-        // display the NFTs in pagination
-        displayPaginatedNFTs();
-        
-        // update the pagination controls
-        updatePaginationControls();
-    }
-    
-    /**
-     * display the NFTs in the current page
-     */
-    function displayPaginatedNFTs() {
-        // clear the existing pet cards
-        petsGrid.innerHTML = '';
-        
-        // calculate the NFTs in the current page
         const startIndex = (currentPage - 1) * pageSize;
         const endIndex = Math.min(startIndex + pageSize, totalNFTs);
         const currentPageNFTs = allNFTs.slice(startIndex, endIndex);
         
-        console.log(`display the NFTs in the current page ${currentPage}, got ${currentPageNFTs.length} pets, current quality filter: ${currentQualityFilter}`);
+        debug.log(`Displaying page ${currentPage}, showing ${currentPageNFTs.length} pets (${startIndex + 1}-${endIndex} of ${totalNFTs})`);
         
-        // use the game mode pet card to create the pet cards
-        currentPageNFTs.forEach(nft => {
-            if (window.GamePetCard) {
-                console.log(`processing the pet card creation of NFT #${nft.tokenId}...`);
-                
-                // preprocess the quality information, ensure the card and the filter logic use the same quality value
-                let correctQuality = 'COMMON'; // default quality
-                if (nft.metadata && nft.metadata.attributes) {
-                    const qualityAttr = nft.metadata.attributes.find(attr => 
-                        attr.trait_type === 'Quality' || 
-                        attr.trait_type === 'Rarity' || 
-                        attr.trait_type === 'quality' || 
-                        attr.trait_type === 'rarity'
-                    );
-                    if (qualityAttr) {
-                        correctQuality = String(qualityAttr.value).toUpperCase();
-                        // record the current NFT's quality information
-                        console.log(`NFT #${nft.tokenId} original quality value: "${qualityAttr.value}", normalized: "${correctQuality}"`);
-                    }
-                }
-                
-                // temporary save the correct quality to the NFT object, ensure the card creation use the correct quality
-                // note: use the NFT's original quality in the all mode, and apply the current filter quality in the specific quality filter mode
-                nft.normalizedQuality = currentQualityFilter !== 'all' ? currentQualityFilter : correctQuality;
-                
-                // check if there is feeding info, if not, try to get from the NFTFeedingManager contract
-                if (!nft.feedingInfo && window.getNFTFeedingInfo && window.nftFeedingManagerContract) {
-                    console.log(`NFT #${nft.tokenId} has no feeding info, try to get from the contract...`);
-                    
-                    try {
-                        // get the feeding info asynchronously, but not block the UI rendering
-                        window.getNFTFeedingInfo(window.nftFeedingManagerContract, nft.tokenId)
-                            .then(feedingInfo => {
-                                if (feedingInfo) {
-                                    console.log(`successfully got the feeding info of NFT #${nft.tokenId}:`, feedingInfo);
-                                    
-                                    // add the feeding info to the NFT data
-                                    nft.feedingInfo = feedingInfo;
-                                    console.log(`successfully added the feeding info to the NFT #${nft.tokenId} data`);
-                                    
-                                    // find the corresponding card and update the feeding hours display
-                                    const petCards = document.querySelectorAll('.game-pet-card');
-                                    console.log(`find the corresponding card of NFT #${nft.tokenId}, got ${petCards.length} cards`);
-                                    
-                                    let found = false;
-                                    for (const card of petCards) {
-                                        if (card.dataset.tokenId === nft.tokenId) {
-                                            console.log(`find the corresponding card of NFT #${nft.tokenId}, start to update the feeding hours`);
-                                            found = true;
-                                            
-                                            // calculate the real feeding hours
-                                            // note: not use the non-existent method, use the feedingInfo.feedingHours directly
-                                            const realFeedingHours = parseInt(feedingInfo.feedingHours) || 0;
-                                            console.log(`NFT #${nft.tokenId} real feeding hours: ${realFeedingHours} hours`);
-                                            
-                                            // update the feeding hours display
-                                            window.GamePetCard.updatePetSatiety(card, realFeedingHours);
-                                            console.log(`NFT #${nft.tokenId} feeding hours display updated to ${realFeedingHours} hours`);
-                                        }
-                                    }
-                                    
-                                    if (!found) {
-                                        console.log(`cannot find the corresponding card of NFT #${nft.tokenId}, cannot update the feeding hours`);
-                                    }
-                                } else {
-                                    console.log(`cannot get the valid feeding info of NFT #${nft.tokenId}`);
-                                }
-                            })
-                            .catch(error => {
-                                console.error(`failed to get the feeding info of NFT #${nft.tokenId}:`, error);
-                            });
-                    } catch (error) {
-                        console.error(`failed to process the feeding info of NFT #${nft.tokenId}:`, error);
-                    }
-                } else if (nft.feedingInfo) {
-                    console.log(`NFT #${nft.tokenId} already has the feeding info:`, nft.feedingInfo);
-                } else {
-                    console.log(`NFT #${nft.tokenId} cannot get the feeding info, the contract or the method is not available`);
-                }
-                
-                // use the game mode pet card component
-                const card = window.GamePetCard.appendCardToContainer(nft, petsGrid);
-                console.log(`NFT #${nft.tokenId} pet card created and added to the page`);
-                
-                // ensure the card has the quality data attribute, for filtering
-                if (card) {
-                    // set the quality data attribute
-                    // in the all mode, use the NFT's original quality, in the specific quality filter mode, use the current filter quality
-                    const qualityToUse = currentQualityFilter !== 'all' ? currentQualityFilter : correctQuality;
-                    card.dataset.quality = qualityToUse;
-                    
-                    // check if the displayed quality in the card element is consistent with the expected quality
-                    const rarityElement = card.querySelector('.game-pet-rarity');
-                    if (rarityElement) {
-                        const displayedQuality = rarityElement.textContent;
-                        
-                        // get the expected quality name according to the quality to use
-                        const expectedQualityName = getQualityName(qualityToUse);
-                        
-                        console.log(`NFT #${nft.tokenId} card displayed quality: "${displayedQuality}", expected: "${expectedQualityName}"`);
-                        
-                        // if the displayed quality is not consistent with the expected quality, force update
-                        if (displayedQuality !== expectedQualityName) {
-                            rarityElement.textContent = expectedQualityName;
-                            console.log(`NFT #${nft.tokenId} quality display updated to: "${expectedQualityName}"`);
-                        }
-                        
-                        // handle the case of inconsistent quality class styles
-                        const rarityClass = card.className.split(' ').find(cls => 
-                            ['common', 'good', 'excellent', 'purple-rare', 'legendary', 'uncommon'].includes(cls)
-                        );
-                        
-                        // get the correct style class
-                        const correctClass = getQualityClass(qualityToUse);
-                        
-                        // if the style class is not matched, update the style class
-                        if (rarityClass !== correctClass) {
-                            console.log(`NFT #${nft.tokenId} card style class not matched: current="${rarityClass}", expected="${correctClass}"`);
-                            
-                            // remove all the quality related classes
-                            ['common', 'good', 'excellent', 'purple-rare', 'legendary', 'uncommon'].forEach(cls => {
-                                if (card.classList.contains(cls)) {
-                                    card.classList.remove(cls);
-                                }
-                            });
-                            
-                            // add the correct class
-                            card.classList.add(correctClass);
-                            console.log(`NFT #${nft.tokenId} card style class updated to: "${correctClass}"`);
-                        }
-                    }
-                    
-                    console.log(`NFT #${nft.tokenId} card data attributes:`, {
-                        tokenId: card.dataset.tokenId,
-                        feedingHours: card.dataset.feedingHours,
-                        contractAddress: card.dataset.contractAddress,
-                        quality: card.dataset.quality
-                    });
-                }
-            } else {
-                console.error('GamePetCard component is not available');
-            }
+        // Render current page NFTs (async)
+        renderPets(currentPageNFTs).catch(error => {
+            debug.error('Error rendering pets:', error);
         });
         
-        // remove the code that applies the quality filter again after the page is flipped, this will cause the quality display problem in the all quality mode after flipping the page
-        // if the quality filter is needed, it will be handled by the filterPetsByQuality function when the page quality tag is clicked
-        // if (currentQualityFilter !== 'all') {
-        //     filterPetsByQuality();
-        // }
+        // Update pagination controls
+        updatePaginationControls();
     }
     
     /**
-     * update the pagination controls
+     * Update loading message
+     * @param {string} message - Loading message
+     */
+    function updateLoadingMessage(message) {
+        if (petsGrid) {
+            if (message && message.trim()) {
+            petsGrid.innerHTML = `<div class="loading-message">${message}</div>`;
+            } else {
+                // Clear loading message but don't clear the grid content
+                const loadingElement = petsGrid.querySelector('.loading-message');
+                if (loadingElement) {
+                    loadingElement.remove();
+                }
+            }
+        }
+    }
+    
+    /**
+     * Update pagination controls
      */
     function updatePaginationControls() {
-        // calculate the total pages
         const totalPages = Math.ceil(totalNFTs / pageSize);
         
-        // update the page number information
+        // Update pagination info
         if (paginationInfo) {
             const startIndex = (currentPage - 1) * pageSize + 1;
-            const endIndex = Math.min(startIndex + pageSize - 1, totalNFTs);
-            paginationInfo.textContent = `${startIndex}-${endIndex} / ${totalNFTs}`;
+            const endIndex = Math.min(currentPage * pageSize, totalNFTs);
+            paginationInfo.textContent = `Showing ${startIndex}-${endIndex} of ${totalNFTs} pets`;
         }
         
-        // update the page number links
+        // Update previous button
+        if (prevPageBtn) {
+            prevPageBtn.disabled = currentPage <= 1;
+            prevPageBtn.classList.toggle('disabled', currentPage <= 1);
+        }
+        
+        // Update next button
+        if (nextPageBtn) {
+            nextPageBtn.disabled = currentPage >= totalPages;
+            nextPageBtn.classList.toggle('disabled', currentPage >= totalPages);
+        }
+        
+        // Update pagination links
         if (paginationLinks) {
             paginationLinks.innerHTML = '';
             
-            // decide which pages to display
-            let startPage = Math.max(1, currentPage - 2);
-            let endPage = Math.min(totalPages, startPage + 4);
+            // Show page numbers
+            const maxVisiblePages = 5;
+            let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+            let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
             
-            // adjust, ensure always display 5 pages (if there are enough pages)
-            if (endPage - startPage < 4 && totalPages > 4) {
-                startPage = Math.max(1, endPage - 4);
+            // Adjust start page if we're near the end
+            if (endPage - startPage + 1 < maxVisiblePages) {
+                startPage = Math.max(1, endPage - maxVisiblePages + 1);
             }
             
-            console.log(`pagination controls: total pages=${totalPages}, current page=${currentPage}, displayed page range=${startPage}-${endPage}`);
+            // Add first page and ellipsis if needed
+            if (startPage > 1) {
+                addPageLink(1);
+                if (startPage > 2) {
+                    const ellipsis = document.createElement('span');
+                    ellipsis.textContent = '...';
+                    ellipsis.className = 'pagination-ellipsis';
+                    paginationLinks.appendChild(ellipsis);
+                }
+            }
             
-            // generate the page number links
+            // Add visible page numbers
             for (let i = startPage; i <= endPage; i++) {
-                const pageItem = document.createElement('span');
-                pageItem.className = `page-item${i === currentPage ? ' active' : ''}`;
-                
-                const pageLink = document.createElement('a');
-                pageLink.className = 'page-link';
-                pageLink.textContent = i;
-
-                pageLink.addEventListener('click', () => {
-                    console.log(`click the page number button: ${i}, current quality filter: ${currentQualityFilter}`);
-                    currentPage = i;
-                    
-                    // decide what to display based on whether the current is in the filtering mode
-                    if (currentQualityFilter !== 'all' && window.filteredNFTsByQuality) {
-                        displayFilteredNFTs();
-                    } else {
-                        displayPaginatedNFTs();
-                    }
-                    
-                    updatePaginationControls();
-                });
-                
-                pageItem.appendChild(pageLink);
-                paginationLinks.appendChild(pageItem);
+                addPageLink(i);
             }
-        }
-        
-        // update the previous and next page button status
-        if (prevPageBtn && prevPageBtn.parentElement) {
-            if (currentPage <= 1) {
-                prevPageBtn.parentElement.classList.add('disabled');
-            } else {
-                prevPageBtn.parentElement.classList.remove('disabled');
-            }
-        }
-        
-        if (nextPageBtn && nextPageBtn.parentElement) {
-            if (currentPage >= totalPages) {
-                nextPageBtn.parentElement.classList.add('disabled');
-            } else {
-                nextPageBtn.parentElement.classList.remove('disabled');
-            }
-        }
-
-        if (prevPageBtn) {
-            // remove the existing event listener
-            prevPageBtn.replaceWith(prevPageBtn.cloneNode(true));
-            // get the button reference again
-            prevPageBtn = document.getElementById('prevPageBtn');
             
-            // add the new event listener
-            prevPageBtn.addEventListener('click', function() {
-                if (currentPage > 1) {
-                    currentPage--;
-                    console.log(`click the previous page button, jump to the page ${currentPage}, current quality filter: ${currentQualityFilter}`);
-                    
-                    // decide what to display based on whether the current is in the filtering mode
-                    if (currentQualityFilter !== 'all' && window.filteredNFTsByQuality) {
-                        displayFilteredNFTs();
-                    } else {
-                        displayPaginatedNFTs();
-                    }
-                    
-                    updatePaginationControls();
+            // Add last page and ellipsis if needed
+            if (endPage < totalPages) {
+                if (endPage < totalPages - 1) {
+                    const ellipsis = document.createElement('span');
+                    ellipsis.textContent = '...';
+                    ellipsis.className = 'pagination-ellipsis';
+                    paginationLinks.appendChild(ellipsis);
                 }
-            });
+                addPageLink(totalPages);
+            }
         }
         
-        if (nextPageBtn) {
-            // remove the existing event listener
-            nextPageBtn.replaceWith(nextPageBtn.cloneNode(true));
-            // get the button reference again
-            nextPageBtn = document.getElementById('nextPageBtn');
-            
-            // add the new event listener
-            nextPageBtn.addEventListener('click', function() {
-                const totalPages = Math.ceil(totalNFTs / pageSize);
-                if (currentPage < totalPages) {
-                    currentPage++;
-                    console.log(`click the next page button, jump to the page ${currentPage}, current quality filter: ${currentQualityFilter}`);
-                    
-                    // decide what to display based on whether the current is in the filtering mode
-                    if (currentQualityFilter !== 'all' && window.filteredNFTsByQuality) {
-                        displayFilteredNFTs();
-                    } else {
-                        displayPaginatedNFTs();
-                    }
-                    
-                    updatePaginationControls();
-                }
-            });
-        }
-        
-        // display/hide the pagination controls
+        // Show or hide pagination controls
         const paginationContainer = document.querySelector('.pagination-container');
         if (paginationContainer) {
-            if (totalNFTs <= pageSize) {
-                paginationContainer.style.display = 'none';
-                console.log('hide the pagination controls - not enough data for one page');
-            } else {
-                paginationContainer.style.display = 'flex';
-                console.log('display the pagination controls - multiple pages of data');
-            }
-        } else {
-            console.error('cannot find the pagination container element');
+            paginationContainer.style.display = totalPages > 1 ? 'flex' : 'none';
         }
     }
     
     /**
-     * sort the NFTs by the type
-     * @param {Array} nfts - the NFT data array
-     * @param {string} sortType - the sort type
-     * @returns {Array} the sorted NFT array
+     * Add page link to pagination
+     * @param {number} pageNum - Page number
+     */
+    function addPageLink(pageNum) {
+        const link = document.createElement('button');
+        link.textContent = pageNum;
+        link.className = 'pagination-btn';
+        if (pageNum === currentPage) {
+            link.classList.add('active');
+        }
+        
+        link.addEventListener('click', () => {
+            if (pageNum !== currentPage) {
+                currentPage = pageNum;
+                displayPaginatedNFTs();
+                    updatePaginationControls();
+                }
+            });
+        
+        paginationLinks.appendChild(link);
+    }
+    
+    /**
+     * Sort NFTs
+     * @param {Array} nfts - NFT array
+     * @param {string} sortType - Sort type
+     * @returns {Array} Sorted NFT array
      */
     function sortNFTs(nfts, sortType) {
-        return [...nfts].sort((a, b) => {
+        if (!nfts || !Array.isArray(nfts)) return [];
+        
+        const sortedNfts = [...nfts];
+        
         switch (sortType) {
-            case 'level-desc':
-                    return (getAttributeValue(b, 'level') || 0) - (getAttributeValue(a, 'level') || 0);
+            case 'id_asc':
+                return sortedNfts.sort((a, b) => {
+                    const idA = parseInt(a.token_id || a.tokenId || 0);
+                    const idB = parseInt(b.token_id || b.tokenId || 0);
+                    return idA - idB;
+                });
                 
-            case 'level-asc':
-                    return (getAttributeValue(a, 'level') || 0) - (getAttributeValue(b, 'level') || 0);
+            case 'id_desc':
+                return sortedNfts.sort((a, b) => {
+                    const idA = parseInt(a.token_id || a.tokenId || 0);
+                    const idB = parseInt(b.token_id || b.tokenId || 0);
+                    return idB - idA;
+                });
                 
-            case 'rarity-desc':
-                    return getRarityValue(b) - getRarityValue(a);
+            case 'rarity_asc':
+                return sortedNfts.sort((a, b) => {
+                    const rarityA = getRarityValue(a);
+                    const rarityB = getRarityValue(b);
+                    return rarityA - rarityB;
+                });
                 
-            case 'rarity-asc':
-                    return getRarityValue(a) - getRarityValue(b);
+            case 'rarity_desc':
+                return sortedNfts.sort((a, b) => {
+                    const rarityA = getRarityValue(a);
+                    const rarityB = getRarityValue(b);
+                    return rarityB - rarityA;
+                });
                     
                 default:
-                    return 0;
-            }
-        });
+                return sortedNfts;
+        }
     }
     
     /**
-     * get the attribute value from the NFT
-     * @param {Object} nft - the NFT data
-     * @param {string} traitType - the attribute type
-     * @returns {number|null} the attribute value
+     * Get attribute value from NFT
+     * @param {Object} nft - NFT object
+     * @param {string} traitType - Trait type
+     * @returns {string} Attribute value
      */
     function getAttributeValue(nft, traitType) {
-        if (!nft.metadata || !nft.metadata.attributes) return null;
+        if (!nft.metadata || !nft.metadata.attributes) return '';
         
-        const attribute = nft.metadata.attributes.find(
-            attr => attr.trait_type.toLowerCase() === traitType.toLowerCase()
+        const attr = nft.metadata.attributes.find(attr => 
+            attr.trait_type === traitType || 
+            attr.trait_type === traitType.toLowerCase()
         );
         
-        return attribute ? parseInt(attribute.value) : null;
+        return attr ? String(attr.value) : '';
     }
     
     /**
-     * get the rarity value from the NFT
-     * @param {Object} nft - the NFT data
-     * @returns {number} the rarity value
+     * Get rarity value for sorting
+     * @param {Object} nft - NFT object
+     * @returns {number} Rarity value
      */
     function getRarityValue(nft) {
-        if (!nft.metadata || !nft.metadata.attributes) return 1;
+        const quality = getAttributeValue(nft, 'Quality') || getAttributeValue(nft, 'Rarity');
+        const qualityUpper = quality.toUpperCase();
         
-        const rarityAttr = nft.metadata.attributes.find(attr => 
-            attr.trait_type.toLowerCase() === 'rarity' || 
-            attr.trait_type.toLowerCase() === 'quality'
-        );
+        const rarityMap = {
+            'COMMON': 1,
+            'GOOD': 2,
+            'EXCELLENT': 3,
+            'RARE': 4,
+            'LEGENDARY': 5,
+            'NORMAL': 1,
+            'UNCOMMON': 2,
+            'EPIC': 5,
+            'LEGEND': 5
+        };
         
-        if (!rarityAttr) return 1;
-        
-        const value = rarityAttr.value.toLowerCase();
-        if (value.includes('legendary') || value.includes('Legendary')) return 4;
-        if (value.includes('rare') || value.includes('Rare')) return 3;
-        if (value.includes('uncommon') || value.includes('Uncommon')) return 2;
-        return 1;
+        return rarityMap[qualityUpper] || 0;
     }
     
     /**
-     * show the no NFT message
+     * Show no NFTs message
      */
     function showNoNFTsMessage() {
-        // remove the loading indicator
-        const loadingIndicator = petsGrid.querySelector('.loading-indicator');
-        if (loadingIndicator) {
-            petsGrid.removeChild(loadingIndicator);
-        }
-        
-        // clear the pet grid
-        petsGrid.innerHTML = '';
-        
-        // create the no NFT message
-        const noNFTsMessage = document.createElement('div');
-        noNFTsMessage.className = 'no-pets-message';
-        noNFTsMessage.innerHTML = `
+        if (petsGrid) {
+            petsGrid.innerHTML = `
+                <div class="no-pets-message">
             <div class="no-pets-icon">🐾</div>
-            <h3>${window.i18n ? window.i18n.t('pets.noPets') : 'You have no pets yet'}</h3>
-            <p>${window.i18n ? window.i18n.t('pets.noPetsDesc') : 'Visit the shop to buy your first pet NFT!'}</p>
-            <a href="shop.html" class="adopt-pet-btn">${window.i18n ? window.i18n.t('navigation.shop') : 'Visit the shop'}</a>
-        `;
-        petsGrid.appendChild(noNFTsMessage);
-        
-        // hide the pagination controls
+                    <h3>You have no pets</h3>
+                    <p>Visit the store to buy your first pet NFT!</p>
+                    <button class="get-pet-btn" onclick="handleAdoptButtonClick()">Visit the store</button>
+                </div>
+            `;
+        }
         hidePaginationControls();
-        
-        // reset the pagination variables
-        totalNFTs = 0;
-        allNFTs = [];
     }
     
     /**
-     * show the wallet not connected message
+     * Show wallet not connected message
      */
     function showWalletNotConnectedMessage() {
-        // remove the loading indicator
-        const loadingIndicator = petsGrid.querySelector('.loading-indicator');
-        if (loadingIndicator) {
-            petsGrid.removeChild(loadingIndicator);
+        if (petsGrid) {
+            // Check if private key wallet is available but locked
+            let message = 'Wallet not connected';
+            let description = 'Please connect your wallet to view your pets.';
+            let buttonText = 'Connect Wallet';
+            let buttonAction = 'connectWallet()';
+            
+            if (window.SecureWalletManager) {
+                const keyCount = window.SecureWalletManager.getKeyCount();
+                const isLocked = window.SecureWalletManager.isWalletLocked();
+                const isReady = window.SecureWalletManager.isWalletReady();
+                const isAuthenticated = window.SecureWalletManager.isUserAuthenticated();
+                
+                debug.log('Wallet status for message:', { keyCount, isLocked, isReady, isAuthenticated });
+                
+                if (keyCount > 0 && isLocked) {
+                    message = 'Private key wallet is locked';
+                    description = 'Please unlock your private key wallet to view your pets.';
+                    buttonText = 'Unlock Wallet';
+                    buttonAction = 'unlockPrivateKeyWallet()';
+                } else if (keyCount > 0 && !isAuthenticated) {
+                    message = 'Private key wallet needs authentication';
+                    description = 'Please authenticate your private key wallet in settings.';
+                    buttonText = 'Open Settings';
+                    buttonAction = 'window.parent.postMessage({type: \'openSettings\'}, \'*\')';
+                } else if (keyCount > 0 && !isReady) {
+                    message = 'Private key wallet is not ready';
+                    description = 'Please wait for the private key wallet to initialize.';
+                    buttonText = 'Refresh';
+                    buttonAction = 'location.reload()';
+                } else if (keyCount === 0) {
+                    message = 'No wallet found';
+                    description = 'Please set up a private key wallet or connect an external wallet.';
+                    buttonText = 'Setup Wallet';
+                    buttonAction = 'setupWallet()';
+                }
+            }
+            
+            petsGrid.innerHTML = `
+                <div class="wallet-not-connected-message">
+                    <div class="wallet-icon">👛</div>
+                    <h3>${message}</h3>
+                    <p>${description}</p>
+                    <button class="connect-wallet-btn" onclick="${buttonAction}">${buttonText}</button>
+                </div>
+            `;
         }
-        
-        // clear the pet grid
-        petsGrid.innerHTML = '';
-        
-        // create the not connected wallet message
-        const notConnectedMessage = document.createElement('div');
-        notConnectedMessage.className = 'no-pets-message';
-        notConnectedMessage.innerHTML = `
-            <img src="../../resources/images/wallet/wallet_disconnected.png" alt="${window.i18n ? window.i18n.t('wallet.notConnected') : 'Wallet not connected'}" />
-            <h3>${window.i18n ? window.i18n.t('wallet.notConnected') : 'Wallet not connected'}</h3>
-            <p>${window.i18n ? window.i18n.t('wallet.connectToView') : 'Connect your wallet to view your pet NFTs'}</p>
-            <button class="connect-wallet-btn-large">${window.i18n ? window.i18n.t('wallet.connect') : 'Connect wallet'}</button>
-        `;
-        
-        // bind the connect wallet button click event
-        const connectButton = notConnectedMessage.querySelector('.connect-wallet-btn-large');
-        if (connectButton) {
-            connectButton.addEventListener('click', () => {
-                // send the connect wallet request to the parent page
-                window.parent.postMessage({
-                    type: 'action',
-                    action: 'connectWallet'
-                }, '*');
-            });
-        }
-        
-        petsGrid.appendChild(notConnectedMessage);
-        
-        // hide the pagination controls
         hidePaginationControls();
-        
-        // reset the pagination variables
-        totalNFTs = 0;
-        allNFTs = [];
     }
     
     /**
-     * hide the pagination controls
+     * Hide pagination controls
      */
     function hidePaginationControls() {
         const paginationContainer = document.querySelector('.pagination-container');
         if (paginationContainer) {
             paginationContainer.style.display = 'none';
-            console.log('hide the pagination controls - no matching pets');
         }
     }
     
     /**
-     * bind the game pet card events
+     * Bind pet card events
      */
     function bindPetCardEvents() {
-        // use the GamePetCard component to bind the global events
-        if (window.GamePetCard) {
-            window.GamePetCard.bindGlobalEvents({
-                onAction: function(data) {
-                    console.log('pet action:', data);
-                    
-                    // execute the corresponding action based on the action type
-                    switch (data.action) {
+        debug.log('Binding pet card events...');
+        
+        // Use event delegation for dynamic content
+        if (petsGrid) {
+            petsGrid.addEventListener('click', function(event) {
+                const petCard = event.target.closest('.pet-card');
+                if (!petCard) return;
+                
+                const action = event.target.closest('[data-action]');
+                if (!action) return;
+                
+                const actionType = action.getAttribute('data-action');
+                const petId = petCard.getAttribute('data-pet-id') || petCard.getAttribute('data-token-id');
+                const contractAddress = petCard.getAttribute('data-contract-address');
+                
+                switch (actionType) {
                             case 'feed':
-                            handleFeedAction(data.tokenId, data.contractAddress, data.element);
+                        handleFeedAction(petId, contractAddress, petCard);
+                        break;
+                    case 'claim':
+                        handleClaimAction(petId, contractAddress, petCard);
+                        break;
+                    case 'details':
+                        handleDetailsAction(petId, contractAddress, petCard);
                                 break;
-                    }
                 }
             });
         }
     }
     
     /**
-     * handle the feed action
-     * this function now interacts with the NFTFeedingManager.sol contract, using the real blockchain feeding function
+     * Bind global pet card action events
+     */
+    function bindGlobalPetCardEvents() {
+        debug.log('Binding global pet card action events...');
+        
+        // Listen for custom events from pet cards
+        document.addEventListener('gamepetcard.action', async function(event) {
+            const eventData = event.detail;
+            debug.log('Received pet card action event:', eventData);
+            
+            if (eventData.action === 'feed') {
+                // Handle single pet feeding
+                await handleSinglePetFeedingEvent(eventData);
+            } else if (eventData.action === 'claim') {
+                // Handle single pet reward claim
+                await handleSinglePetClaimEvent(eventData);
+            }
+        });
+    }
+    
+    /**
+     * Handle single pet feeding event from pet card
+     * @param {Object} eventData - Event data from pet card
+     */
+    async function handleSinglePetFeedingEvent(eventData) {
+        const { tokenId, feedHours, element, contractAddress } = eventData;
+        debug.log(`Handling single pet feeding event: TokenID=${tokenId}, FeedHours=${feedHours}`);
+        
+        try {
+            // Ensure PetFeeding module is loaded
+            if (!window.PetFeeding || typeof window.handlePetFeeding !== 'function') {
+                debug.log('Loading PetFeeding module...');
+                await loadFunctionPackage('../../scripts/functionPackages/PetFeeding.js');
+                
+                if (!window.PetFeeding || typeof window.handlePetFeeding !== 'function') {
+                    throw new Error('Failed to load PetFeeding module');
+                }
+            }
+            
+            // Prepare feeding data
+            const feedData = {
+                tokenId: tokenId,
+                feedHours: feedHours,
+                element: element,
+                contractAddress: contractAddress
+            };
+            
+            // Call the feeding function
+            await window.handlePetFeeding(feedData);
+            
+            // Refresh the pet display after successful feeding
+            setTimeout(() => {
+                loadNFTPets();
+            }, 2000);
+            
+        } catch (error) {
+            debug.error('Error handling single pet feeding event:', error);
+            showGameMessage('Feeding failed: ' + (error.message || 'Unknown error'), 'error');
+        }
+    }
+    
+    /**
+     * Handle single pet claim event from pet card
+     * @param {Object} eventData - Event data from pet card
+     */
+    async function handleSinglePetClaimEvent(eventData) {
+        const { tokenId, element, contractAddress } = eventData;
+        debug.log(`Handling single pet claim event: TokenID=${tokenId}`);
+        
+        try {
+            // Ensure PetRewards module is loaded
+            if (!window.PetRewards || typeof window.handlePetRewardClaim !== 'function') {
+                debug.log('Loading PetRewards module...');
+                await loadFunctionPackage('../../scripts/functionPackages/PetRewards.js');
+                
+                if (!window.PetRewards || typeof window.handlePetRewardClaim !== 'function') {
+                    throw new Error('Failed to load PetRewards module');
+                }
+            }
+            
+            // Prepare claim data
+            const claimData = {
+                tokenId: tokenId,
+                element: element,
+                contractAddress: contractAddress
+            };
+            
+            // Call the claim function
+            await window.handlePetRewardClaim(claimData);
+            
+            // Refresh the pet display after successful claim
+            setTimeout(() => {
+                loadNFTPets();
+            }, 2000);
+            
+        } catch (error) {
+            debug.error('Error handling single pet claim event:', error);
+            showGameMessage('Claim failed: ' + (error.message || 'Unknown error'), 'error');
+        }
+    }
+    
+    /**
+     * Handle feed action
+     * @param {string} petId - Pet ID
+     * @param {string} contractAddress - Contract address
+     * @param {HTMLElement} petCard - Pet card element
      */
     function handleFeedAction(petId, contractAddress, petCard) {
-        console.log(`feed the pet: ${petId} (contract: ${contractAddress})`);
+        debug.log('Handle feed action for pet:', petId);
         
-        if (!petCard || !window.GamePetCard) return;
+        // For single pet feeding, we should let the pet card handle the feeding process
+        // The pet card will show a dialog to get feeding hours and then trigger the feeding
+        // We just need to ensure the PetFeeding module is loaded
         
-        // get the current feeding hours and the user input feed hours
-        const currentFeedingHours = parseInt(petCard.dataset.feedingHours) || 0;
-        const feedHours = parseInt(petCard.dataset.feedHours) || 0; // modify: remove the default 24 hours, only use the user input feed hours
-        
-        console.log(`current feeding hours: ${currentFeedingHours}, feed hours: ${feedHours}`);
-        
-        // calculate the maximum feedable hours
-        const maxFeedingHours = window.GamePetCard.MAX_FEEDING_HOURS;
-        const maxFeedHours = maxFeedingHours - currentFeedingHours;
-        const actualFeedHours = Math.min(feedHours, maxFeedHours);
-        
-        // if the pet has reached the maximum feeding time or there is no actual feeding, do not execute the operation
-        if (maxFeedHours <= 0 || actualFeedHours <= 0) {
-            console.log("the pet is full, cannot feed anymore!");
-            window.GamePetCard.showFeedingMessage(petCard, "the pet is full, cannot feed anymore!", "error");
-            return;
-        }
-        
-        console.log(`prepare to feed: ${actualFeedHours} hours, max feeding hours: ${maxFeedingHours}`);
-        
-        // get the user address
-        const userAddress = localStorage.getItem('walletAddress') || sessionStorage.getItem('walletAddress');
-        if (!userAddress) {
-            console.error('feed failed: wallet not connected');
-            window.GamePetCard.showFeedingMessage(petCard, "feed failed: wallet not connected", "error");
-            return;
-        }
-        
-        // check if the NFTFeedingManager contract is initialized
-        if (!window.nftFeedingManagerContract) {
-            console.error('feed failed: NFTFeedingManager contract not initialized');
-            window.GamePetCard.showFeedingMessage(petCard, "feed failed: contract not initialized", "error");
-            return;
-        }
-        
-        // show the processing message
-        window.GamePetCard.showFeedingMessage(petCard, "processing the feed request...", "info");
-        
-        // first check if the NFTFeedingManagerContract class instance exists
-        if (!window.feedingManagerContract) {
-            console.log('NFTFeedingManagerContract instance does not exist, try to initialize');
-            if (window.NFTFeedingManagerContract && window.web3) {
-                try {
-                    window.feedingManagerContract = new window.NFTFeedingManagerContract(window.web3);
-                    console.log('successfully created the NFTFeedingManagerContract instance');
-                } catch (error) {
-                    console.error('failed to create the NFTFeedingManagerContract instance:', error);
-                    window.GamePetCard.showFeedingMessage(petCard, "failed to create the contract instance", "error");
-                    return;
-                }
-            } else {
-                // try to load the NFTFeedingManagerContract class dynamically
-                console.log('try to load the NFTFeedingManagerContract class dynamically');
-                try {
-                    // check if the script has been loaded
-                    if (!document.querySelector('script[src*="NFTFeedingManager.js"]')) {
-                        // create and load the script
-                        const script = document.createElement('script');
-                        script.src = '../../scripts/contracts/NFTFeedingManager.js';
-                        script.onload = function() {
-                            console.log('NFTFeedingManager.js loaded successfully, try to create the instance');
-                            if (window.NFTFeedingManagerContract && window.web3) {
-                                try {
-                                    window.feedingManagerContract = new window.NFTFeedingManagerContract(window.web3);
-                                    // trigger the feed action again
-                                    handleFeedAction(petId, contractAddress, petCard);
-                                } catch (error) {
-                                    console.error('failed to create the NFTFeedingManagerContract instance:', error);
-                                    window.GamePetCard.showFeedingMessage(petCard, "failed to create the contract instance", "error");
-                                }
-                                return;
-                            } else {
-                                window.GamePetCard.showFeedingMessage(petCard, "failed to initialize the feed contract", "error");
-                            }
-                        };
-                        script.onerror = function() {
-                            console.error('failed to load the NFTFeedingManager.js');
-                            window.GamePetCard.showFeedingMessage(petCard, "failed to load the feed contract", "error");
-                        };
-                        document.head.appendChild(script);
-                        return; // wait for the script to be loaded
+        // Load PetFeeding module if not available
+        if (!window.PetFeeding || typeof window.handlePetFeeding !== 'function') {
+            debug.log('Loading PetFeeding module for single pet feeding...');
+            loadFunctionPackage('../../scripts/functionPackages/PetFeeding.js')
+                .then(() => {
+                    debug.log('PetFeeding module loaded successfully');
+                    // Trigger the feed button click on the pet card to show the feeding dialog
+                    const feedButton = petCard.querySelector('.feed-btn');
+                    if (feedButton) {
+                        feedButton.click();
                     } else {
-                        // the script has been loaded but the class does not exist, create a temporary wrapper object
-                        console.log('use the initialized basic contract instance, create a temporary wrapper object');
-                        window.feedingManagerContract = {
-                            feedNFT: async function(tokenId, hours, userAddress) {
-                                try {
-                                    // check if the approval is needed
-                                    if (window.ContractApprovalManager) {
-                                        // get the PWFOOD token contract
-                                        const pwfoodAddress = window.getContractAddress('PwFood');
-                                        if (!pwfoodAddress) {
-                                            return { success: false, error: 'failed to get the PWFOOD contract address' };
-                                        }
-                                        
-                                        // create the PWFOOD contract instance
-                                        const erc20ABI = window.GENERIC_ERC20_ABI || [
-                                            {
-                                                "constant": true,
-                                                "inputs": [{"name": "owner", "type": "address"}],
-                                                "name": "balanceOf",
-                                                "outputs": [{"name": "", "type": "uint256"}],
-                                                "type": "function"
-                                            },
-                                            {
-                                                "constant": false,
-                                                "inputs": [{"name": "spender", "type": "address"}, {"name": "value", "type": "uint256"}],
-                                                "name": "approve",
-                                                "outputs": [{"name": "", "type": "bool"}],
-                                                "type": "function"
-                                            },
-                                            {
-                                                "constant": true,
-                                                "inputs": [{"name": "owner", "type": "address"}, {"name": "spender", "type": "address"}],
-                                                "name": "allowance",
-                                                "outputs": [{"name": "", "type": "uint256"}],
-                                                "type": "function"
-                                            }
-                                        ];
-                                        
-                                        const pwfoodContract = new window.web3.eth.Contract(erc20ABI, pwfoodAddress);
-                                        
-                                        // check the approval and balance status
-                                        const approvalStatus = await window.ContractApprovalManager.checkIfApprovalNeeded(
-                                            pwfoodContract,
-                                            userAddress,
-                                            window.nftFeedingManagerContract.options.address,
-                                            hours.toString()
-                                        );
-                                        
-                                        // check the balance
-                                        if (approvalStatus.sufficientFunds === false) {
-                                            return {
-                                                success: false,
-                                                error: 'PWFOOD token balance is insufficient',
-                                                requiredAmount: hours,
-                                                balance: approvalStatus.balance
-                                            };
-                                        }
-                                        
-                                        // check the approval
-                                        if (approvalStatus.needsApproval) {
-                                            return {
-                                                success: false,
-                                                needApproval: true,
-                                                error: 'need to approve the PWFOOD token',
-                                                requiredAmount: hours,
-                                                allowance: approvalStatus.currentAllowance,
-                                                pwfoodContract: pwfoodContract,
-                                                feedingManagerAddress: window.nftFeedingManagerContract.options.address
-                                            };
-                                        }
-                                    }
-                                    
-                                    // directly call the feedNFT method of the contract
-                                    const gasEstimate = await window.nftFeedingManagerContract.methods.feedNFT(tokenId, hours).estimateGas({
-                                        from: userAddress
-                                    });
-                                    
-                                    const transaction = await window.nftFeedingManagerContract.methods.feedNFT(tokenId, hours).send({
-                                        from: userAddress,
-                                        gas: Math.floor(gasEstimate * 1.5) // increase 50% of the gas as a buffer
-                                    });
-                                    
-                                    // after the feed is successful, get the latest feeding information
-                                    let updatedFeedingInfo = null;
-                                    try {
-                                        if (window.getNFTFeedingInfo) {
-                                            updatedFeedingInfo = await window.getNFTFeedingInfo(window.nftFeedingManagerContract, tokenId);
-                                        }
-                                    } catch (infoError) {
-                                        console.error('failed to get the latest feeding information:', infoError);
-                                    }
-                                    
-                                    return {
-                                        success: true,
-                                        transaction: transaction,
-                                        tokenId: tokenId,
-                                        hours: hours,
-                                        feedingInfo: updatedFeedingInfo
-                                    };
-                                } catch (error) {
-                                    console.error(`failed to feed the NFT(ID:${tokenId}):`, error);
-                                    
-                                    // extract the error message
-                                    let errorMessage = error.message || 'failed to feed the NFT';
-                                    
-                                    // handle the common errors
-                                    if (errorMessage.includes('execution reverted')) {
-                                        if (error.data) {
-                                            errorMessage = `failed to execute the contract: ${error.data}`;
-                                        } else {
-                                            errorMessage = "failed to execute the contract, possible reasons: 1) the NFT is not registered 2) the maximum feeding limit is exceeded";
-                                        }
-                                    } else if (errorMessage.includes('insufficient funds')) {
-                                        errorMessage = 'the account balance is insufficient to pay the Gas fee';
-                                    }
-                                    
-                                    return { success: false, error: errorMessage };
-                                }
-                            }
-                        };
+                        showGameMessage('Feed button not found on pet card', 'error');
                     }
-                } catch (loadError) {
-                    console.error('failed to load or initialize the NFTFeedingManagerContract:', loadError);
-                    window.GamePetCard.showFeedingMessage(petCard, "failed to initialize the feed contract", "error");
-                    return;
-                }
-            }
-        }
-        
-        // use the feedingManagerContract to feed the NFT
-        window.feedingManagerContract.feedNFT(petId, actualFeedHours, userAddress)
-            .then(result => {
-                console.log('feed result:', result);
-                
-                if (result.success) {
-                    // feed successfully, update the UI
-                    console.log('feed successfully!');
-                    
-                    // get the latest feeding information
-                    const newFeedingHours = result.feedingInfo ? 
-                        parseInt(result.feedingInfo.feedingHours) : 
-                        (currentFeedingHours + actualFeedHours);
-                    
-                    // update the satiety display
-                    window.GamePetCard.updatePetSatiety(petCard, newFeedingHours);
-                    
-                    // update the feeding information in the NFT data
-                    const nftIndex = allNFTs.findIndex(nft => nft.tokenId === petId);
-                    if (nftIndex !== -1) {
-                        const nft = allNFTs[nftIndex];
-                        if (result.feedingInfo) {
-                            nft.feedingInfo = result.feedingInfo;
-                        } else if (nft.feedingInfo) {
-                            nft.feedingInfo.feedingHours = newFeedingHours;
-                            nft.feedingInfo.lastFeedTime = Math.floor(Date.now() / 1000);
-                        }
-                    }
-                    
-                    // show the success message
-                    window.GamePetCard.showFeedingMessage(petCard, `feed successfully for ${actualFeedHours} hours`, "success");
-                    
-                    // send the event to the parent page
-                    window.parent.postMessage({
-                        type: 'petAction',
-                        action: 'feed',
-                        petId: petId,
-                        contractAddress: contractAddress,
-                        feedHours: actualFeedHours,
-                        newFeedingHours: newFeedingHours,
-                        transaction: result.transaction
-                    }, '*');
-                } else {
-                    // handle different error cases
-                    console.error('failed to feed:', result.error);
-                    
-                    if (result.needApproval) {
-                        // need to approve the token
-                        window.GamePetCard.showFeedingMessage(petCard, "need to approve the PWFOOD token, please confirm in the wallet", "info");
-                        
-                        // try to approve the token
-                        if (result.pwfoodContract && result.feedingManagerAddress && window.ContractApprovalManager) {
-                            window.ContractApprovalManager.approveERC20Token(
-                                result.pwfoodContract, 
-                                result.feedingManagerAddress, 
-                                result.requiredAmount, 
-                                userAddress,
-                                true // use the maximum approval
-                            ).then(approveResult => {
-                                if (approveResult.success) {
-                                    window.GamePetCard.showFeedingMessage(petCard, "approve successfully, please try to feed again", "success");
-                                } else {
-                                    window.GamePetCard.showFeedingMessage(petCard, "failed to approve: " + (approveResult.error || "unknown error"), "error");
-                                }
-                            }).catch(error => {
-                                console.error('failed to approve:', error);
-                                window.GamePetCard.showFeedingMessage(petCard, "failed to approve: " + (error || "unknown error"), "error");
-                            });
-                        } else {
-                            window.GamePetCard.showFeedingMessage(petCard, "failed to execute the approval operation", "error");
-                        }
-                    } else if (result.error.includes('PWFOOD token balance is insufficient')) {
-                        window.GamePetCard.showFeedingMessage(petCard, "PWFOOD token balance is insufficient", "error");
-                    } else {
-                        window.GamePetCard.showFeedingMessage(petCard, "failed to feed: " + result.error, "error");
-                    }
-                }
-            })
-            .catch(error => {
-                console.error('failed to feed:', error);
-                window.GamePetCard.showFeedingMessage(petCard, "failed to feed: " + (error || "unknown error"), "error");
-            });
-    }
-    
-    /**
-     * update the pet stats
-     */
-    function updatePetStats(data) {
-        const { petId, newStats } = data;
-        if (!petId || !newStats) return;
-        
-        // update the data in allNFTs
-        const nftIndex = allNFTs.findIndex(nft => nft.tokenId === petId);
-        if (nftIndex !== -1) {
-            // update the data in memory
-            if (newStats.health !== undefined && allNFTs[nftIndex].metadata && allNFTs[nftIndex].metadata.attributes) {
-                const healthAttr = allNFTs[nftIndex].metadata.attributes.find(attr => attr.trait_type.toLowerCase() === 'health');
-                if (healthAttr) {
-                    healthAttr.value = newStats.health;
-                } else {
-                    allNFTs[nftIndex].metadata.attributes.push({ trait_type: 'Health', value: newStats.health });
-                }
-            }
-            
-            if (newStats.energy !== undefined && allNFTs[nftIndex].metadata && allNFTs[nftIndex].metadata.attributes) {
-                const energyAttr = allNFTs[nftIndex].metadata.attributes.find(attr => attr.trait_type.toLowerCase() === 'energy');
-                if (energyAttr) {
-                    energyAttr.value = newStats.energy;
-                } else {
-                    allNFTs[nftIndex].metadata.attributes.push({ trait_type: 'Energy', value: newStats.energy });
-                }
-            }
-            
-            if (newStats.mood !== undefined && allNFTs[nftIndex].metadata && allNFTs[nftIndex].metadata.attributes) {
-                const moodAttr = allNFTs[nftIndex].metadata.attributes.find(attr => attr.trait_type.toLowerCase() === 'mood');
-                if (moodAttr) {
-                    moodAttr.value = newStats.mood;
-                } else {
-                    allNFTs[nftIndex].metadata.attributes.push({ trait_type: 'Mood', value: newStats.mood });
-                }
-            }
-        }
-        
-        // find the corresponding pet card
-        const petCards = document.querySelectorAll('.game-pet-card');
-        let targetCard = null;
-        
-        petCards.forEach(card => {
-            if (card.dataset.tokenId === petId) {
-                targetCard = card;
-            }
-        });
-        
-        // if the card is found and the GamePetCard component is available, update the stats
-        if (targetCard && window.GamePetCard) {
-            window.GamePetCard.updatePetStats(targetCard, newStats);
-        }
-    }
-    
-    /**
-     * handle the pet level up
-     */
-    function handlePetLevelUp(data) {
-        const { petId, newLevel } = data;
-        if (!petId || !newLevel) return;
-        
-        // update the data in allNFTs
-        const nftIndex = allNFTs.findIndex(nft => nft.tokenId === petId);
-        if (nftIndex !== -1 && allNFTs[nftIndex].metadata && allNFTs[nftIndex].metadata.attributes) {
-            const levelAttr = allNFTs[nftIndex].metadata.attributes.find(attr => attr.trait_type.toLowerCase() === 'level');
-            if (levelAttr) {
-                levelAttr.value = newLevel;
+                })
+                .catch(error => {
+                    debug.error('Failed to load PetFeeding module:', error);
+                    showGameMessage('Failed to load feeding module, please refresh the page', 'error');
+                });
+        } else {
+            // PetFeeding module is already loaded, trigger the feed button click
+            const feedButton = petCard.querySelector('.feed-btn');
+            if (feedButton) {
+                feedButton.click();
             } else {
-                allNFTs[nftIndex].metadata.attributes.push({ trait_type: 'Level', value: newLevel });
+                showGameMessage('Feed button not found on pet card', 'error');
             }
-            
-            // if the level sorting is used, it may need to be sorted again
-            if (sortSelect && (sortSelect.value === 'level-desc' || sortSelect.value === 'level-asc')) {
-                allNFTs = sortNFTs(allNFTs, sortSelect.value);
-                // if the current page needs to be displayed again, update the pagination
-                displayPaginatedNFTs();
-                updatePaginationControls();
-            }
-        }
-        
-        // find the corresponding pet card
-        const petCards = document.querySelectorAll('.game-pet-card');
-        let targetCard = null;
-        
-        petCards.forEach(card => {
-            if (card.dataset.tokenId === petId) {
-                targetCard = card;
-            }
-        });
-        
-        // if the card is found and the GamePetCard component is available, update the level
-        if (targetCard && window.GamePetCard) {
-            window.GamePetCard.updatePetLevel(targetCard, newLevel);
         }
     }
     
     /**
-     * handle the adopt button click
+     * Handle claim action
+     * @param {string} petId - Pet ID
+     * @param {string} contractAddress - Contract address
+     * @param {HTMLElement} petCard - Pet card element
      */
-    function handleAdoptButtonClick() {
-        // send the adopt request to the parent page
-        window.parent.postMessage({
-            type: 'petAction',
-            action: 'adopt'
-        }, '*');
+    function handleClaimAction(petId, contractAddress, petCard) {
+        debug.log('Handle claim action for pet:', petId);
+        
+        // Check if handlePetRewardClaim function is available
+        if (typeof window.handlePetRewardClaim === 'function') {
+            const claimData = {
+                tokenId: petId,
+                contractAddress: contractAddress,
+                petCard: petCard
+            };
+            window.handlePetRewardClaim(claimData);
+                } else {
+            debug.warn('handlePetRewardClaim function not available');
+            showGameMessage('Pet reward claim function is not available, please refresh the page', 'error');
+        }
     }
     
     /**
-     * localize the content
+     * Handle details action
+     * @param {string} petId - Pet ID
+     * @param {string} contractAddress - Contract address
+     * @param {HTMLElement} petCard - Pet card element
+     */
+    function handleDetailsAction(petId, contractAddress, petCard) {
+        debug.log('Handle details action for pet:', petId);
+        // Implement pet details view
+        showGameMessage(`Viewing details for pet #${petId}`, 'info');
+    }
+    
+    /**
+     * Localize content
      */
     function localizeContent() {
-        // only execute when i18n is available
-        if (!window.i18n) return;
+        debug.log('Localizing content...');
         
-        // update the page title
-        document.title = i18n.t('pets.title') || '我的宠物 - 宠物世界';
-        
-        // update the text using the data-i18n attribute
+        // Update elements with data-i18n attribute
         const i18nElements = document.querySelectorAll('[data-i18n]');
         i18nElements.forEach(el => {
             const key = el.getAttribute('data-i18n');
-            let translation = i18n.t(key);
-            
-            // check if there are parameters
-            const argsAttr = el.getAttribute('data-i18n-args');
-            if (argsAttr) {
-                try {
-                    const args = JSON.parse(argsAttr);
-                    // handle the parameter replacement
-                    Object.keys(args).forEach(argKey => {
-                        translation = translation.replace(`{${argKey}}`, args[argKey]);
-                    });
-                } catch (e) {
-                    console.error('failed to parse the data-i18n-args:', e);
-                }
-            }
-            
+            if (window.i18n && typeof window.i18n.t === 'function') {
+                const translation = window.i18n.t(key);
             if (translation) {
-                if (el.tagName === 'TITLE') {
-                    document.title = translation;
-                } else {
                     el.textContent = translation;
                 }
             }
@@ -2171,39 +2307,39 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     /**
-     * bind the batch action buttons
+     * Initialize batch action buttons
      */
     function initBatchActionButtons() {
+        debug.log('Initializing batch action buttons...');
+        
         const feedAllBtn = document.getElementById('feedAllPetsBtn');
         const claimAllBtn = document.getElementById('claimAllRewardsBtn');
         
         if (feedAllBtn) {
             feedAllBtn.addEventListener('click', handleFeedAllPets);
-            console.log('Batch feed button bound');
         } else {
-            console.error('batch feed button not found');
+            debug.error('Batch feed button not found');
         }
         
         if (claimAllBtn) {
             claimAllBtn.addEventListener('click', handleClaimAllRewards);
-            console.log('Batch claim rewards button bound');
         } else {
-            console.error('batch claim rewards button not found');
+            debug.error('Batch claim button not found');
         }
     }
     
     /**
-     * preload the ModalDialog component
+     * Load modal dialog component
      */
     function loadModalDialogComponent() {
         if (!window.ModalDialog) {
             const script = document.createElement('script');
             script.src = '../../scripts/other/modalDialog.js';
             script.onload = function() {
-                console.log('ModalDialog module loaded successfully');
+                debug.log('ModalDialog module loaded successfully');
             };
             script.onerror = function() {
-                console.error('ModalDialog module loading failed');
+                debug.error('ModalDialog module loading failed');
             };
             document.head.appendChild(script);
         }
@@ -2228,227 +2364,371 @@ document.addEventListener('DOMContentLoaded', () => {
      * batch feed all pets
      */
     async function handleFeedAllPets() {
-        console.log('start to handle the batch feed...');
+        debug.log('Starting batch feed process...');
         
-        // check the current account and NFT data
-        if (!window.web3 || !window.ethereum) {
-            showGameMessage('please connect the wallet first', 'error');
-            return;
-        }
+        // Check wallet connection status using WalletNetworkManager
+        const userAddress = getCurrentWalletAddress();
         
-        // check if there is a connected account
-        try {
-            const accounts = await window.ethereum.request({ method: 'eth_accounts' });
-            if (!accounts || accounts.length === 0) {
-                showGameMessage('please connect the wallet first', 'error');
-                return;
+        if (!userAddress) {
+            if (window.ModalDialog) {
+                await window.ModalDialog.alert('Please connect your wallet first', {
+                    title: 'Wallet Required'
+                });
+            } else {
+                showGameMessage('Please connect your wallet first', 'error');
             }
-        } catch (error) {
-            console.error('failed to get the account:', error);
-            showGameMessage('failed to get the wallet account', 'error');
             return;
         }
         
-        // check if there are NFTs
-        if (!allNFTs || allNFTs.length === 0) {
-            showGameMessage('you have no pets to feed', 'error');
+        debug.log('Using WalletNetworkManager address for batch feeding:', userAddress);
+        
+        // Get user NFTs from multiple sources
+        let currentUserNFTs = null;
+        
+        // Priority 1: Try to get from global userNFTs variable
+        if (typeof userNFTs !== 'undefined' && userNFTs && userNFTs.length > 0) {
+            currentUserNFTs = userNFTs;
+            debug.log('Using global userNFTs variable for feeding:', currentUserNFTs.length, 'NFTs');
+        }
+        // Priority 2: Try to get from window.userNFTs
+        else if (window.userNFTs && window.userNFTs.length > 0) {
+            currentUserNFTs = window.userNFTs;
+            debug.log('Using window.userNFTs for feeding:', currentUserNFTs.length, 'NFTs');
+        }
+        // Priority 3: Try to get from allNFTs
+        else if (allNFTs && allNFTs.length > 0) {
+            currentUserNFTs = allNFTs;
+            debug.log('Using allNFTs for feeding:', currentUserNFTs.length, 'NFTs');
+        }
+        // Priority 4: Try to get from PetNFTService cache
+        else if (window.PetNFTService && typeof window.PetNFTService.getCachedNFTs === 'function') {
+            currentUserNFTs = window.PetNFTService.getCachedNFTs();
+            debug.log('Using PetNFTService cached NFTs for feeding:', currentUserNFTs ? currentUserNFTs.length : 0, 'NFTs');
+        }
+        
+        // Check if there are any NFTs
+        if (!currentUserNFTs || currentUserNFTs.length === 0) {
+            if (window.ModalDialog) {
+                await window.ModalDialog.alert('You have no pets to feed. Please make sure your pets are loaded first.', {
+                    title: 'No Pets Found'
+                });
+            } else {
+                showGameMessage('You have no pets to feed', 'error');
+            }
             return;
         }
         
-        // load the PetFeeding module
+        // Load pet feeding module
         try {
             if (!window.PetFeeding) {
-                console.log('loading the PetFeeding module...');
+                debug.log('Loading PetFeeding module...');
                 await loadFunctionPackage('../../scripts/functionPackages/PetFeeding.js');
                 
                 if (!window.PetFeeding) {
-                    throw new Error('failed to load the PetFeeding module');
+                    throw new Error('Failed to load PetFeeding module');
                 }
             }
         } catch (error) {
-            console.error('failed to load the PetFeeding module:', error);
-            showGameMessage('failed to load the feed module, please refresh the page and try again', 'error');
-            return;
-        }
-        
-        // ensure the ModalDialog is loaded
-        let promptFn = window.prompt;
-        let confirmFn = window.confirm;
-        let alertFn = window.alert;
-        
+            debug.error('Failed to load PetFeeding module:', error);
         if (window.ModalDialog) {
-            promptFn = async (message, defaultValue) => {
-                try {
-                    const result = await window.ModalDialog.prompt({
-                        title: 'feed time',
-                        content: message,
-                        inputValue: defaultValue || '',
-                        confirmText: 'confirm',
-                        cancelText: 'cancel',
-                        inputType: 'number'
+                await window.ModalDialog.alert('Failed to load pet feeding module. Please refresh the page and try again.', {
+                    title: 'Module Load Error'
                     });
-                    
-                    if (result.action === 'confirm') {
-                        return result.value;
+            } else {
+                showGameMessage('Failed to load feeding module, please refresh the page', 'error');
+            }
+            return;
+        }
+        
+        // Load ModalDialog module (if not loaded yet)
+        if (!window.ModalDialog) {
+                try {
+                await loadFunctionPackage('../../scripts/other/modalDialog.js');
+                if (!window.ModalDialog) {
+                    debug.error('Failed to load ModalDialog module');
+                    // Fall back to simple prompts
+                    return handleFeedAllPetsLegacy();
+                }
+                } catch (error) {
+                debug.error('Failed to load ModalDialog module:', error);
+                // Fall back to simple prompts
+                return handleFeedAllPetsLegacy();
+                }
+        }
+        
+        // Use ModalDialog to prompt the user to enter the feeding time
+        try {
+            const promptResult = await window.ModalDialog.prompt({
+                title: 'Batch Feed Pets',
+                content: 'Please specify the duration you want to feed each pet',
+                inputLabel: 'Feeding time (hours)',
+                inputType: 'number',
+                inputValue: '24',
+                placeholder: 'Enter a number between 1 and 1000',
+                confirmText: 'Confirm Feed',
+                cancelText: 'Cancel',
+                validator: (value) => {
+                    const hours = parseInt(value);
+                    if (isNaN(hours) || hours <= 0 || hours > 1000) {
+                        return 'Please enter a valid feeding time (1-1000 hours)';
                     }
-                    return null;
-                } catch (error) {
-                    console.error('modal error:', error);
-                    return window.prompt(message, defaultValue);
+                    return null; // Return null to indicate validation passed
                 }
-            };
+            });
             
-            confirmFn = async (message) => {
-                try {
-                    const result = await window.ModalDialog.confirm(message, {
-                        title: 'confirm operation',
-                        confirmText: 'confirm',
-                        cancelText: 'cancel'
-                    });
-                    return result.action === 'confirm';
-                } catch (error) {
-                    console.error('modal error:', error);
-                    return window.confirm(message);
-                }
-            };
-            
-            alertFn = async (message) => {
-                try {
-                    await window.ModalDialog.alert(message, {
-                        title: 'prompt'
-                    });
-                } catch (error) {
-                    console.error('modal error:', error);
-                    window.alert(message);
-                }
-            };
-        }
-        
-        // prompt the user to input the feed time
-        let feedingHoursPerNFT = 24; // default feed 24 hours
-        const userInputHours = await promptFn('please input the feed time for each pet (hours):', '24');
-        
-        if (userInputHours === null) {
-            // the user cancelled the input
-            showGameMessage('the feed operation is cancelled', 'info');
+            // The user cancelled the operation
+            if (promptResult.action === 'cancel' || promptResult.action === 'close' || 
+                promptResult.action === 'backdrop' || promptResult.action === 'esc') {
+                showGameMessage('Feeding operation cancelled', 'info');
             return;
         }
         
-        const parsedHours = parseInt(userInputHours);
-        if (isNaN(parsedHours) || parsedHours <= 0 || parsedHours > 1000) {
-            showGameMessage('please input a valid feed time (1-1000 hours)', 'error');
-            return;
-        }
+            // Get the inputted feeding time
+            const feedingHoursPerNFT = parseInt(promptResult.value);
         
-        feedingHoursPerNFT = parsedHours;
-        
-        // show the processing message
-        showGameMessage(`preparing to batch feed (${feedingHoursPerNFT} hours/pet)...`, 'info');
+            // Show processing message
+            showGameMessage(`Preparing batch feed (${feedingHoursPerNFT} hours/pet)...`, 'info');
         
         try {
-            // set the maximum feed time limit option
+                // Set the maximum feeding time limit options
             const options = {
-                maxFeedingHours: 168 // default maximum feed time is 7 days (168 hours)
+                    maxFeedingHours: 168 // Default maximum feeding time is 7 days (168 hours)
             };
             
-            // use the PetFeeding.feedAllPets function to batch feed
-            const feedingResult = await window.PetFeeding.feedAllPets(allNFTs, feedingHoursPerNFT, options);
+                // Use the PetFeeding.feedAllPets function to batch feed
+            const feedingResult = await window.PetFeeding.feedAllPets(currentUserNFTs, feedingHoursPerNFT, options);
             
             if (!feedingResult.success) {
-                // check if the authorization is needed
+                    // Check if authorization is needed
                 if (feedingResult.needApproval) {
-                    const doApprove = await confirmFn(`you need to authorize the PWFOOD token to the contract, do you want to authorize? \nneed to authorize: at least ${feedingResult.requiredAmount} PWFOOD`);
-                    
-                    if (doApprove) {
                         try {
-                            // execute the authorization
-                            showGameMessage('authorizing the PWFOOD token...', 'info');
+                            // Execute authorization automatically without user confirmation
+                            showGameMessage('Authorizing PWFOOD token automatically...', 'info');
+                        debug.log('Auto-authorizing PWFOOD token for game page batch feeding');
                             
-                            // check if the ContractApprovalManager is available
+                            // Check if ContractApprovalManager is available
                             if (!window.ContractApprovalManager) {
-                                console.log('ContractApprovalManager is not available, trying to load...');
+                                debug.log('ContractApprovalManager is not available, trying to load...');
                                 try {
                                     await loadFunctionPackage('../../scripts/other/ContractApprovalManager.js');
                                 } catch (error) {
-                                    console.error('failed to load the ContractApprovalManager:', error);
-                                    throw new Error('failed to load the authorization manager');
+                                    debug.error('Failed to load ContractApprovalManager:', error);
+                                    throw new Error('Failed to load authorization manager');
                                 }
                             }
-                            
-                            // get the current connected account
-                            const accounts = await window.ethereum.request({ method: 'eth_accounts' });
-                            const currentAddress = accounts[0];
                             
                             const approvalResult = await window.ContractApprovalManager.approveERC20Token(
                                 feedingResult.pwfoodContract,
                                 feedingResult.feedingManagerAddress,
-                                '115792089237316195423570985008687907853269984665640564039457584007913129639935', // max uint256
-                                currentAddress,
+                                '115792089237316195423570985008687907853269984665640564039457584007913129639935', // Max uint256
+                                userAddress,
                                 true
                             );
                             
                             if (approvalResult.success) {
-                                showGameMessage('authorization successful, starting to batch feed', 'success');
-                                // try to batch feed again
+                                showGameMessage('Authorization successful, starting batch feed', 'success');
+                            debug.log('PWFOOD authorization successful, retrying game page batch feed');
+                                // Try batch feed again
                                 setTimeout(async () => {
                                     await handleFeedAllPets();
                                 }, 1000);
                             } else {
-                                showGameMessage('failed to authorize: ' + (approvalResult.error || 'unknown error'), 'error');
+                                showGameMessage('Authorization failed: ' + (approvalResult.error || 'Unknown error'), 'error');
+                            debug.error('PWFOOD authorization failed:', approvalResult.error);
                             }
                         } catch (approvalError) {
-                            console.error('failed to authorize:', approvalError);
-                            showGameMessage('failed to authorize: ' + (approvalError.message || 'unknown error'), 'error');
-                        }
-                    } else {
-                        showGameMessage('the authorization is cancelled', 'info');
+                            debug.error('Authorization process error:', approvalError);
+                            showGameMessage('Authorization process error: ' + (approvalError.message || 'Unknown error'), 'error');
                     }
                     return;
                 }
                 
-                // the balance is insufficient
-                if (feedingResult.error && feedingResult.error.includes('balance is insufficient')) {
-                    showGameMessage(`PWFOOD balance is insufficient, need ${feedingResult.requiredAmount} PWFOOD, current balance ${feedingResult.balance} PWFOOD`, 'error');
-                    await alertFn(`your PWFOOD balance is insufficient to feed all pets! \nneed: ${feedingResult.requiredAmount} PWFOOD\ncurrent balance: ${feedingResult.balance} PWFOOD`);
+                    // Insufficient balance
+                    if (feedingResult.error && feedingResult.error.includes('Insufficient balance')) {
+                        showGameMessage(`PWFOOD balance is insufficient, you need ${feedingResult.requiredAmount} PWFOOD, current balance ${feedingResult.balance} PWFOOD`, 'error');
+                        
+                        await window.ModalDialog.alert(
+                            `<div style="color: #e53935;">
+                                <strong>PWFOOD balance is insufficient!</strong><br><br>
+                                Required: ${feedingResult.requiredAmount} PWFOOD<br>
+                                Current balance: ${feedingResult.balance} PWFOOD
+                            </div>`,
+                            {
+                                title: 'Insufficient Balance'
+                            }
+                        );
                     return;
                 }
                 
-                // display the information for the invalid NFTs
+                    // Display information for invalid NFTs
                 if (feedingResult.invalidNfts && feedingResult.invalidNfts.length > 0) {
-                    const message = `there are ${feedingResult.invalidNfts.length} pets that are skipped because of the feed time limit`;
+                        const message = `There are ${feedingResult.invalidNfts.length} pets that have been skipped because the feeding time exceeds the limit`;
                     showGameMessage(message, 'warning');
-                    console.log('skipped pets:', feedingResult.invalidNfts);
+                        debug.log('Skipped pets:', feedingResult.invalidNfts);
                 }
                 
-                // other errors
-                showGameMessage('failed to batch feed: ' + feedingResult.error, 'error');
+                    // Other errors
+                    showGameMessage('Batch feed failed: ' + feedingResult.error, 'error');
                 return;
             }
             
-            // display the success result
+                // Display success results
             if (feedingResult.successCount > 0) {
-                let message = `successfully fed ${feedingResult.successCount} pets, each ${feedingHoursPerNFT} hours`;
+                    let message = `Successfully fed ${feedingResult.successCount} pets, each ${feedingHoursPerNFT} hours`;
                 
                 if (feedingResult.failCount > 0) {
                     message += `, failed ${feedingResult.failCount} pets`;
                 }
                 
                 if (feedingResult.skippedCount > 0) {
-                    message += `, skipped ${feedingResult.skippedCount} pets (exceed the limit)`;
+                        message += `, skipped ${feedingResult.skippedCount} pets (exceeds limit)`;
                 }
                 
                 showGameMessage(message, 'success');
                 
-                // refresh the NFT display
+                    await window.ModalDialog.alert(
+                        `<div style="color: #4caf50;">
+                            <strong>Successfully fed!</strong><br><br>
+                            ✅ Successfully fed: ${feedingResult.successCount} pets<br>
+                            ${feedingResult.failCount > 0 ? `❌ Failed: ${feedingResult.failCount} pets<br>` : ''}
+                            ${feedingResult.skippedCount > 0 ? `⚠️ Skipped: ${feedingResult.skippedCount} pets (exceeds limit)<br>` : ''}
+                            ⏱️ Each pet feeding time: ${feedingHoursPerNFT} hours<br>
+                            💰 Consumed PWFOOD: ${feedingResult.totalFood || 'N/A'}
+                        </div>`,
+                        {
+                            title: 'Feeding Results'
+                        }
+                    );
+                    
+                    // Refresh NFT display
                 setTimeout(() => {
                     loadNFTPets();
-                }, 2000);
+                    }, 1000);
             } else if (feedingResult.failCount > 0) {
-                showGameMessage(`all feed attempts failed, please check the PWFOOD balance or network status`, 'error');
+                    showGameMessage(`All feeding attempts failed, please check the PWFOOD balance or network status`, 'error');
+                    
+                    await window.ModalDialog.alert(
+                        `<div style="color: #e53935;">
+                            <strong>Feeding failed!</strong><br><br>
+                            All ${feedingResult.failCount} pets' feeding attempts failed.<br>
+                            Please check your PWFOOD balance or network status and try again.
+                        </div>`,
+                        {
+                            title: 'Feeding Failed'
+                        }
+                    );
             }
         } catch (error) {
-            console.error('failed to batch feed:', error);
-            showGameMessage('failed to batch feed: ' + (error.message || 'unknown error'), 'error');
+                debug.error('Batch feed process error:', error);
+                showGameMessage('Batch feed failed: ' + (error.message || 'Unknown error'), 'error');
+                
+                await window.ModalDialog.alert(
+                    `<div style="color: #e53935;">
+                        <strong>Feeding process error</strong><br><br>
+                        ${error.message || 'Unknown error'}
+                    </div>`,
+                    {
+                        title: 'Feeding Failed'
+                    }
+                );
+            }
+        } catch (error) {
+            debug.error('Batch feed process error:', error);
+            showGameMessage('Batch feed failed: ' + (error.message || 'Unknown error'), 'error');
+            
+            if (window.ModalDialog) {
+                await window.ModalDialog.alert(
+                    `<div style="color: #e53935;">
+                        <strong>Feeding process error</strong><br><br>
+                        ${error.message || 'Unknown error'}
+                    </div>`,
+                    {
+                        title: 'Feeding Failed'
+                    }
+                );
+            }
+        }
+    }
+    
+    /**
+     * Legacy batch feed all pets (fallback when ModalDialog is not available)
+     */
+    async function handleFeedAllPetsLegacy() {
+        debug.log('Using legacy batch feed method...');
+        
+        const userAddress = getCurrentWalletAddress();
+        
+        if (!userAddress) {
+            alert('Please connect your wallet first');
+            return;
+        }
+        
+        // Get user NFTs
+        let currentUserNFTs = null;
+        
+        if (typeof userNFTs !== 'undefined' && userNFTs && userNFTs.length > 0) {
+            currentUserNFTs = userNFTs;
+        } else if (window.userNFTs && window.userNFTs.length > 0) {
+            currentUserNFTs = window.userNFTs;
+        } else if (allNFTs && allNFTs.length > 0) {
+            currentUserNFTs = allNFTs;
+        } else if (window.PetNFTService && typeof window.PetNFTService.getCachedNFTs === 'function') {
+            currentUserNFTs = window.PetNFTService.getCachedNFTs();
+        }
+        
+        if (!currentUserNFTs || currentUserNFTs.length === 0) {
+            alert('You have no pets to feed');
+            return;
+        }
+        
+        // Prompt for feeding time
+        const userInputHours = prompt('Please input the feed time for each pet (hours):', '24');
+        
+        if (userInputHours === null) {
+            showGameMessage('Feeding operation cancelled', 'info');
+            return;
+        }
+        
+        const parsedHours = parseInt(userInputHours);
+        if (isNaN(parsedHours) || parsedHours <= 0 || parsedHours > 1000) {
+            alert('Please input a valid feed time (1-1000 hours)');
+            return;
+        }
+        
+        showGameMessage(`Preparing batch feed (${parsedHours} hours/pet)...`, 'info');
+        
+        try {
+            const options = {
+                maxFeedingHours: 168
+            };
+            
+            const feedingResult = await window.PetFeeding.feedAllPets(currentUserNFTs, parsedHours, options);
+            
+            if (feedingResult.success && feedingResult.successCount > 0) {
+                let message = `Successfully fed ${feedingResult.successCount} pets, each ${parsedHours} hours`;
+                if (feedingResult.failCount > 0) {
+                    message += `, failed ${feedingResult.failCount} pets`;
+                }
+                if (feedingResult.skippedCount > 0) {
+                    message += `, skipped ${feedingResult.skippedCount} pets`;
+                }
+                
+                showGameMessage(message, 'success');
+                alert(message);
+                
+                setTimeout(() => {
+                    loadNFTPets();
+                }, 1000);
+            } else {
+                const errorMsg = feedingResult.error || 'Unknown error';
+                showGameMessage('Batch feed failed: ' + errorMsg, 'error');
+                alert('Batch feed failed: ' + errorMsg);
+            }
+        } catch (error) {
+            debug.error('Legacy batch feed error:', error);
+            const errorMsg = error.message || 'Unknown error';
+            showGameMessage('Batch feed failed: ' + errorMsg, 'error');
+            alert('Batch feed failed: ' + errorMsg);
         }
     }
     
@@ -2456,129 +2736,226 @@ document.addEventListener('DOMContentLoaded', () => {
      * batch claim all pet rewards
      */
     async function handleClaimAllRewards() {
-        console.log('start to handle the batch claim...');
+        debug.log('Starting batch claim process...');
         
-        // check the current account and NFT data
-        if (!window.web3 || !window.ethereum) {
-            showGameMessage('please connect the wallet first', 'error');
-            return;
-        }
+        // Check wallet connection status using WalletNetworkManager
+        const userAddress = getCurrentWalletAddress();
         
-        // check if there is a connected account
-        try {
-            const accounts = await window.ethereum.request({ method: 'eth_accounts' });
-            if (!accounts || accounts.length === 0) {
-                showGameMessage('please connect the wallet first', 'error');
-                return;
+        if (!userAddress) {
+            if (window.ModalDialog) {
+                await window.ModalDialog.alert('Please connect your wallet first', {
+                    title: 'Wallet Required'
+                });
+            } else {
+                showGameMessage('Please connect your wallet first', 'error');
             }
-        } catch (error) {
-            console.error('failed to get the account:', error);
-            showGameMessage('failed to get the wallet account', 'error');
             return;
         }
         
-        // check if there are NFTs
-        if (!allNFTs || allNFTs.length === 0) {
-            showGameMessage('you have no pets to claim rewards', 'error');
-            return;
-        }
+        debug.log('Using WalletNetworkManager address for batch claiming:', userAddress);
         
-        // load the PetRewards module
+        // Load pet rewards module first
         try {
             if (!window.PetRewards) {
-                console.log('loading the PetRewards module...');
+                debug.log('Loading PetRewards module...');
                 await loadFunctionPackage('../../scripts/functionPackages/PetRewards.js');
                 
                 if (!window.PetRewards) {
-                    throw new Error('failed to load the PetRewards module');
+                    throw new Error('Failed to load PetRewards module');
                 }
             }
         } catch (error) {
-            console.error('failed to load the PetRewards module:', error);
-            showGameMessage('failed to load the reward module, please refresh the page and try again', 'error');
+            debug.error('Failed to load PetRewards module:', error);
+            if (window.ModalDialog) {
+                await window.ModalDialog.alert('Failed to load pet rewards module. Please refresh the page and try again.', {
+                    title: 'Module Load Error'
+                });
+            } else {
+                showGameMessage('Failed to load reward module, please refresh the page', 'error');
+            }
             return;
         }
         
-        // ensure the ModalDialog is loaded
-        let confirmFn = window.confirm;
-        
-        if (window.ModalDialog) {
-            confirmFn = async (message) => {
-                try {
-                    const result = await window.ModalDialog.confirm(message, {
-                        title: 'confirm operation',
-                        confirmText: 'confirm',
-                        cancelText: 'cancel'
-                    });
-                    return result.action === 'confirm';
-                } catch (error) {
-                    console.error('modal error:', error);
-                    return window.confirm(message);
+        // Load ModalDialog module (if not loaded yet)
+        if (!window.ModalDialog) {
+            try {
+                await loadFunctionPackage('../../scripts/other/modalDialog.js');
+                if (!window.ModalDialog) {
+                    debug.error('Failed to load ModalDialog module');
+                    // Fall back to simple confirm
+                    return handleClaimAllRewardsLegacy();
                 }
-            };
+            } catch (error) {
+                debug.error('Failed to load ModalDialog module:', error);
+                // Fall back to simple confirm
+                return handleClaimAllRewardsLegacy();
+            }
         }
         
-        // display the processing message
-        showGameMessage('preparing to claim rewards, please wait...', 'info');
+        // Check if the PetRewards module has the handleClaimAllRewards function
+        if (typeof window.handleClaimAllRewards === 'function') {
+            debug.log('Using PetRewards module handleClaimAllRewards function for game mode');
+            
+            // Debug: Show available NFT data sources
+            debug.log('Available NFT data sources:');
+            debug.log('- userNFTs:', typeof userNFTs !== 'undefined' ? userNFTs?.length : 'undefined');
+            debug.log('- window.userNFTs:', window.userNFTs?.length || 'undefined');
+            debug.log('- allNFTs:', allNFTs?.length || 'undefined');
+            debug.log('- petsData:', petsData?.length || 'undefined');
+            
+            if (window.PetNFTService && typeof window.PetNFTService.getCachedNFTs === 'function') {
+                const cachedNFTs = window.PetNFTService.getCachedNFTs();
+                debug.log('- PetNFTService cache:', cachedNFTs?.length || 'undefined');
+            }
+            
+            // Check if we need to enrich NFT data with feeding information
+            let needsFeedingEnrichment = false;
+            if (window.userNFTs && window.userNFTs.length > 0) {
+                // Check if NFTs have feeding information
+                const sampleNFT = window.userNFTs[0];
+                if (!sampleNFT.feedingInfo && !sampleNFT.isActive && typeof sampleNFT.lastClaimTime === 'undefined') {
+                    needsFeedingEnrichment = true;
+                    debug.log('NFT data lacks feeding information, will enrich data before claiming rewards');
+                }
+            }
+            
+            // If we need to enrich data, get feeding status from contract
+            if (needsFeedingEnrichment && window.userNFTs && window.userNFTs.length > 0) {
+                try {
+                    debug.log('Enriching NFT data with feeding status information...');
+                    showGameMessage('Getting latest pet feeding status...', 'info');
+                    
+                    const enrichedNFTs = await enrichNFTsWithFeedingStatus(window.userNFTs);
+                    
+                    if (enrichedNFTs && enrichedNFTs.length > 0) {
+                        debug.log(`Successfully enriched ${enrichedNFTs.length} NFTs with feeding status`);
+                        
+                        // Update all NFT data variables with enriched data
+                        petsData = enrichedNFTs;
+                        allNFTs = [...enrichedNFTs];
+                        userNFTs = [...enrichedNFTs];
+                        window.userNFTs = [...enrichedNFTs];
+                        
+                        debug.log('Updated NFT data with feeding status information');
+                    } else {
+                        debug.warn('Failed to enrich NFT data with feeding status, proceeding with existing data');
+                    }
+                } catch (enrichError) {
+                    debug.error('Error enriching NFT data with feeding status:', enrichError);
+                    debug.log('Proceeding with existing NFT data despite enrichment failure');
+                }
+            }
+            
+            try {
+                // Use the same function as normal mode for consistency
+                await window.handleClaimAllRewards();
+                
+                // Refresh the NFT display after successful claim
+                setTimeout(() => {
+                    loadNFTPets();
+                }, 1000);
+                } catch (error) {
+                debug.error('Error using PetRewards handleClaimAllRewards:', error);
+                showGameMessage('Claim failed: ' + (error.message || 'Unknown error'), 'error');
+            }
+        } else {
+            debug.warn('PetRewards handleClaimAllRewards function not available, using fallback implementation');
+            // Fallback to legacy implementation
+            return handleClaimAllRewardsLegacy();
+                }
+        }
         
-        // use the new reward module to handle the claim of all NFTs
-        const nftIds = allNFTs.map(nft => nft.token_id);
-        console.log(`preparing to claim ${nftIds.length} NFTs' rewards`);
+    /**
+     * Legacy batch claim all rewards (fallback when ModalDialog is not available)
+     */
+    async function handleClaimAllRewardsLegacy() {
+        debug.log('Using legacy batch claim method...');
         
-        // confirm the user operation
-        const confirmMessage = `are you sure to claim ${nftIds.length} pets' rewards?`;
-        const userConfirmed = await confirmFn(confirmMessage);
+        const userAddress = getCurrentWalletAddress();
+        
+        if (!userAddress) {
+            alert('Please connect your wallet first');
+            return;
+        }
+        
+        // Get user NFTs
+        let currentUserNFTs = null;
+        
+        if (typeof userNFTs !== 'undefined' && userNFTs && userNFTs.length > 0) {
+            currentUserNFTs = userNFTs;
+        } else if (window.userNFTs && window.userNFTs.length > 0) {
+            currentUserNFTs = window.userNFTs;
+        } else if (allNFTs && allNFTs.length > 0) {
+            currentUserNFTs = allNFTs;
+        } else if (window.PetNFTService && typeof window.PetNFTService.getCachedNFTs === 'function') {
+            currentUserNFTs = window.PetNFTService.getCachedNFTs();
+        }
+        
+        if (!currentUserNFTs || currentUserNFTs.length === 0) {
+            alert('You have no pets to claim rewards');
+            return;
+        }
+        
+        // Extract tokenIds with comprehensive fallback logic
+        const nftIds = currentUserNFTs.map(nft => {
+            // Try multiple possible field names for tokenId
+            const id = nft.tokenId || nft.token_id || nft.id || nft.ID || nft;
+            
+            // Ensure it's a valid number
+            const parsedId = parseInt(id);
+            if (isNaN(parsedId)) {
+                debug.warn('Invalid tokenId found:', nft);
+                return null;
+            }
+            
+            return parsedId;
+        }).filter(id => id !== null); // Remove invalid entries
+        
+        if (nftIds.length === 0) {
+            alert('No valid NFT IDs found');
+            return;
+        }
+        
+        const userConfirmed = confirm(`Are you sure you want to claim rewards for ${nftIds.length} pets?`);
         
         if (!userConfirmed) {
-            console.log('the user cancelled the claim operation');
-            showGameMessage('the claim operation is cancelled', 'info');
+            showGameMessage('Claim operation cancelled', 'info');
             return;
         }
         
+        showGameMessage('Preparing to claim rewards, please wait...', 'info');
+        
         try {
-            // call the claimAllRewards method of the PetRewards module
-            const result = await window.PetRewards.claimAllRewards(allNFTs);
+            const result = await window.PetRewards.claimAllRewards(currentUserNFTs);
             
             if (result.success) {
-                const pwp = result.pwpotRewards || result.totalPwpotRewards || 0;
-                const pwb = result.pwbotRewards || result.totalPwbotRewards || 0;
+                const actualPwp = result.totalPwpotRewards || result.pwpotRewards || 0;
+                const actualPwb = result.totalPwbotRewards || result.pwbotRewards || 0;
                 
-                // if there are NFTs that are filtered out, display more detailed information
-                let successMessage = '';
-                if (result.filteredOutCount && result.filteredOutCount > 0) {
-                    successMessage = `successfully claimed rewards! got ${pwp} PWP and ${pwb} PWB (filtered out ${result.filteredOutCount} pets without rewards)`;
-                } else {
-                    successMessage = `successfully claimed rewards! got ${pwp} PWP and ${pwb} PWB`;
+                let successMessage = `Successfully claimed rewards! Got ${actualPwp} PWP and ${actualPwb} PWB`;
+                if (result.filteredOutCount > 0) {
+                    successMessage += ` (filtered out ${result.filteredOutCount} pets without rewards)`;
                 }
                 
                 showGameMessage(successMessage, 'success');
+                alert(successMessage);
                 
-                // update the UI display
-                console.log('the claim operation is successful:', result);
-                
-                // refresh the NFT display
                 setTimeout(() => {
                     loadNFTPets();
-                }, 2000);
+                }, 1000);
             } else {
-                if (result.error && result.error.includes('no rewards to claim')) {
-                    // maybe provide more detailed information
-                    if (result.filteredInfo) {
-                        showGameMessage(`current no rewards to claim, checked ${result.filteredInfo.totalChecked} pets`, 'warning');
-                        console.log('no rewards to claim, detailed information:', result.filteredInfo);
-                    } else {
-                        showGameMessage('current no rewards to claim', 'warning');
-                    }
-                } else {
-                    showGameMessage(`failed to claim rewards: ${result.error}`, 'error');
-                }
-                console.error('failed to claim rewards:', result.error);
+                const errorMsg = result.error || 'Unknown error';
+                showGameMessage('Claim failed: ' + errorMsg, 'error');
+                alert('Claim failed: ' + errorMsg);
             }
         } catch (error) {
-            console.error('failed to claim rewards:', error);
-            showGameMessage(`failed to claim rewards: ${error.message || 'unknown error'}`, 'error');
+            debug.error('Legacy batch claim error:', error);
+            const errorMsg = error.message || 'Unknown error';
+            showGameMessage('Claim failed: ' + errorMsg, 'error');
+            alert('Claim failed: ' + errorMsg);
         }
     }
+
     
     /**
      * display the game message
@@ -2618,11 +2995,52 @@ document.addEventListener('DOMContentLoaded', () => {
         
         if (!message || typeof message !== 'object') return;
         
+        debug.log('Receive message from parent window:', message);
+        
         switch (message.type) {
             case 'petsData':
                 // received the pets data
                 petsData = message.data;
-                renderPets(petsData);
+                allNFTs = [...petsData]; // Update allNFTs for filtering and pagination
+                userNFTs = [...petsData]; // Update userNFTs for batch operations
+                
+                // Also set global window.userNFTs for PetRewards module compatibility
+                window.userNFTs = [...petsData];
+                
+                totalNFTs = petsData.length;
+                currentPage = 1; // Reset to first page
+                
+                debug.log(`Received ${petsData.length} pets data from parent, updated all NFT variables`);
+                
+                // Apply quality filter if not 'all'
+                if (currentQualityFilter !== 'all') {
+                    filterPetsByQuality();
+                } else {
+                    displayPaginatedNFTs();
+                }
+                break;
+                
+            case 'walletData':
+                // Handle wallet data from parent (similar to shop.js)
+                const { connected, address, web3Instance } = message.data;
+                
+                if (web3Instance && !window.web3) {
+                    window.web3 = web3Instance;
+                    debug.log('Web3 instance received from parent');
+                }
+                
+                if (connected && address) {
+                    window.currentAddress = address;
+                    debug.log('Wallet data received:', { connected, address });
+                    
+                    if (window.web3) {
+                        initContracts();
+                    }
+                    
+                    setTimeout(() => {
+                        loadNFTPets();
+                    }, 1000);
+                }
                 break;
                 
             case 'petStatsUpdated':
@@ -2634,127 +3052,410 @@ document.addEventListener('DOMContentLoaded', () => {
                 // pet level up
                 handlePetLevelUp(message.data);
                 break;
-        }
-    }
-    
-    /**
-     * render the pets list
-     * @param {Array} pets - the pets data (if provided)
-     */
-    function renderPets(pets) {
-        if (!petsGrid) return;
-        
-        // clear the existing content
-        petsGrid.innerHTML = '';
-        
-        // display the loading indicator
-        const loadingIndicator = document.createElement('div');
-        loadingIndicator.className = 'loading-indicator';
-        loadingIndicator.innerHTML = `
-            <div class="spinner"></div>
-            <p>${window.i18n ? window.i18n.t('pets.loading') : 'loading pets...'}</p>
-        `;
-        petsGrid.appendChild(loadingIndicator);
-        
-        // try to use PetNFTService to load the NFT pets data
-        if (window.PetNFTService) {
-            console.log('using PetNFTService to load the NFT pets data');
-            
-            // get the user address (from localStorage or sessionStorage)
-            const userAddress = localStorage.getItem('walletAddress') || sessionStorage.getItem('walletAddress');
-            
-            if (userAddress) {
-                // Initializing PetNFTService
-                window.PetNFTService.init().then(success => {
-                    if (success) {
-                        console.log('PetNFTService initialized successfully');
-                        
-                        // try to get the NFTs from the cache first
-                        let cachedNFTs = window.PetNFTService.getCachedNFTs({
-                            userAddress: userAddress
-                        });
-                        
-                        if (cachedNFTs && cachedNFTs.length > 0) {
-                            console.log(`loaded ${cachedNFTs.length} NFT pets from the cache`);
-                            displayNFTPets(cachedNFTs, true);
-                        } else {
-                            // if there is no NFTs in the cache, refresh to get the latest data
-                            console.log('no NFTs in the cache, trying to refresh to get the latest data');
-                            window.PetNFTService.refreshNFTs(userAddress)
-                                .then(result => {
-                                    console.log('NFT pets loading result:', result);
-                                    if (result.success && result.nfts && result.nfts.length > 0) {
-                                        console.log(`successfully loaded ${result.nfts.length} NFT pets`);
-                                        displayNFTPets(result.nfts, true);
-                                    } else {
-                                        showNoNFTsMessage();
-                                    }
-                                })
-                                .catch(error => {
-                                    console.error('failed to load the NFT pets:', error);
-                                    showNoNFTsMessage();
-                                });
-                        }
-                    } else {
-                        console.error('failed to initialize PetNFTService');
-                        showNoNFTsMessage();
-                    }
-                });
-            } else {
-                console.log('no user address found, showing the wallet not connected message');
+                
+            case 'walletUnlocked':
+                // private key wallet was unlocked
+                debug.log('Private key wallet unlocked, refreshing pets...');
+                showGameMessage('Wallet unlocked successfully!', 'success');
+                
+                // Re-initialize wallet connection
+                checkStoredWalletConnection();
+                
+                setTimeout(() => {
+                    loadNFTPets();
+                }, 1000);
+                break;
+                
+            case 'walletLocked':
+                // private key wallet was locked
+                debug.log('Private key wallet locked');
+                showGameMessage('Wallet has been locked', 'warning');
                 showWalletNotConnectedMessage();
-            }
-        } else {
-            console.error('PetNFTService is not available');
-            showNoNFTsMessage();
+                break;
+                
+            case 'walletConnected':
+                // external wallet connected
+                debug.log('External wallet connected, refreshing pets...');
+                showGameMessage('Wallet connected successfully!', 'success');
+                
+                // Re-initialize wallet connection
+                checkStoredWalletConnection();
+                
+                setTimeout(() => {
+                    loadNFTPets();
+                }, 1000);
+                break;
+                
+            case 'walletDisconnected':
+                // wallet disconnected
+                debug.log('Wallet disconnected');
+                showGameMessage('Wallet disconnected', 'warning');
+                window.currentAddress = null;
+                showWalletNotConnectedMessage();
+                break;
         }
     }
     
     /**
-     * get the CSS class name for the quality
-     * @param {string} qualityId - the quality ID
-     * @returns {string} the CSS class name
+     * Get real feeding info for an NFT
+     * @param {Object} nft - NFT data object
+     * @returns {Promise<Object>} NFT with updated feeding info
      */
-    function getQualityClass(qualityId) {
-        const classMap = {
-            'COMMON': 'common',
-            'GOOD': 'good',
-            'EXCELLENT': 'excellent',
-            'RARE': 'purple-rare',
-            'LEGENDARY': 'legendary',
-            'all': ''
-        };
-        
-        return classMap[qualityId] || 'common';
+    async function enrichNFTWithFeedingInfo(nft) {
+        try {
+            // Skip if feeding info already exists
+            if (nft.feedingInfo) {
+                debug.log(`NFT #${nft.tokenId} already has feeding info, skipping enrichment`);
+                return nft;
+            }
+            
+            // Check if PetFeeding module is available
+            if (!window.PetFeeding || typeof window.PetFeeding.getNFTFeedingInfo !== 'function') {
+                debug.warn(`PetFeeding module not available for NFT #${nft.tokenId}`);
+                return nft;
+            }
+            
+            debug.log(`Getting real feeding info for NFT #${nft.tokenId}...`);
+            
+            // Get feeding info from contract
+            const feedingInfo = await window.PetFeeding.getNFTFeedingInfo(nft.tokenId);
+            
+            if (feedingInfo) {
+                // Add feeding info to NFT data
+                nft.feedingInfo = feedingInfo;
+                debug.log(`Successfully enriched NFT #${nft.tokenId} with feeding info:`, feedingInfo);
+            } else {
+                debug.warn(`No feeding info returned for NFT #${nft.tokenId}`);
+            }
+            
+            return nft;
+        } catch (error) {
+            debug.error(`Error getting feeding info for NFT #${nft.tokenId}:`, error);
+            return nft; // Return original NFT if enrichment fails
+        }
     }
+    
+    /**
+     * Enrich multiple NFTs with feeding info
+     * @param {Array} pets - Array of NFT data objects
+     * @returns {Promise<Array>} Array of NFTs with updated feeding info
+     */
+    async function enrichNFTsWithFeedingInfo(pets) {
+        if (!pets || pets.length === 0) {
+            return pets;
+        }
+        
+        debug.log(`Enriching ${pets.length} NFTs with real feeding data...`);
+        
+        // Process NFTs in batches to avoid overwhelming the contract
+        const batchSize = 5;
+        const enrichedPets = [];
+        
+        for (let i = 0; i < pets.length; i += batchSize) {
+            const batch = pets.slice(i, i + batchSize);
+            
+            // Process batch concurrently
+            const enrichedBatch = await Promise.all(
+                batch.map(nft => enrichNFTWithFeedingInfo(nft))
+            );
+            
+            enrichedPets.push(...enrichedBatch);
+            
+            // Small delay between batches to avoid rate limiting
+            if (i + batchSize < pets.length) {
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
+        }
+        
+        debug.log(`Successfully enriched ${enrichedPets.length} NFTs with feeding data`);
+        return enrichedPets;
+    }
+    
+    /**
+     * Render pets
+     * @param {Array} pets - Pet data array
+     */
+    async function renderPets(pets) {
+        if (!pets || pets.length === 0) {
+            showNoNFTsMessage();
+            return;
+        }
+        
+        debug.log(`Rendering ${pets.length} pets`);
+        
+        // Clear existing content
+        if (petsGrid) {
+            petsGrid.innerHTML = '';
+        }
+        
+        // Check if createGamePetCard function is available
+        if (typeof window.createGamePetCard !== 'function') {
+            debug.error('createGamePetCard function not available');
+            showNoNFTsMessage();
+            return;
+        }
+        
+        // Show loading message while enriching data
+        updateLoadingMessage('Loading pet feeding data...');
+        
+        try {
+            // Enrich NFTs with real feeding info
+            const enrichedPets = await enrichNFTsWithFeedingInfo(pets);
+            
+            // Clear loading message
+            updateLoadingMessage('');
+        
+        // Create and append pet cards
+            enrichedPets.forEach(nft => {
+                try {
+                    const petCard = window.createGamePetCard(nft);
+                    if (petCard && petsGrid) {
+                        petsGrid.appendChild(petCard);
+                    }
+                } catch (error) {
+                    debug.error('Error creating pet card:', error, nft);
+                }
+            });
+            
+            debug.log(`Successfully rendered ${enrichedPets.length} pet cards with real feeding data`);
+        } catch (error) {
+            debug.error('Error enriching pets with feeding data:', error);
+            
+            // Fallback: render pets without enriched data
+        pets.forEach(nft => {
+            try {
+                const petCard = window.createGamePetCard(nft);
+                if (petCard && petsGrid) {
+                    petsGrid.appendChild(petCard);
+                }
+            } catch (error) {
+                debug.error('Error creating pet card:', error, nft);
+            }
+        });
+        
+            debug.log(`Rendered ${pets.length} pet cards without enriched feeding data`);
+        }
+    }
+    
+    /**
+     * Update pet stats
+     * @param {Object} data - Pet stats data
+     */
+    function updatePetStats(data) {
+        debug.log('Updating pet stats:', data);
+        
+        // Find and update the specific pet card
+        const petCard = document.querySelector(`[data-pet-id="${data.petId}"]`);
+        if (petCard) {
+            // Update stats display in the pet card
+            const statsElement = petCard.querySelector('.pet-stats');
+            if (statsElement) {
+                // Update individual stat elements
+                const levelElement = statsElement.querySelector('.level');
+                const expElement = statsElement.querySelector('.experience');
+                const healthElement = statsElement.querySelector('.health');
+                
+                if (levelElement) levelElement.textContent = data.level;
+                if (expElement) expElement.textContent = data.experience;
+                if (healthElement) healthElement.textContent = data.health;
+            }
+        }
+    }
+    
+    /**
+     * Handle pet level up
+     * @param {Object} data - Pet level up data
+     */
+    function handlePetLevelUp(data) {
+        debug.log('Pet level up:', data);
+        
+        // Show level up animation/message
+        showGameMessage(`🎉 Pet #${data.petId} leveled up to level ${data.newLevel}!`, 'success');
+        
+        // Update pet stats
+        updatePetStats(data);
+    }
+    
+    /**
+     * Handle adopt button click
+     */
+    function handleAdoptButtonClick() {
+        debug.log('Navigate to adoption page');
+        // Navigate to the shop or adoption page
+        if (window.parent && window.parent.postMessage) {
+            window.parent.postMessage({
+                type: 'navigate',
+                page: 'shop'
+            }, '*');
+        } else {
+            // Fallback navigation
+            window.location.href = '../shop.html';
+        }
+    }
+    
+    /**
+     * Connect wallet function
+     */
+    function connectWallet() {
+        debug.log('Attempting to connect wallet');
+        if (window.parent && window.parent.postMessage) {
+            window.parent.postMessage({
+                type: 'connectWallet'
+            }, '*');
+        } else {
+            showGameMessage('Please connect your wallet through the main application', 'info');
+        }
+    }
+    
+    /**
+     * Unlock private key wallet function
+     */
+    function unlockPrivateKeyWallet() {
+        debug.log('Attempting to unlock private key wallet');
+        if (window.parent && window.parent.postMessage) {
+            window.parent.postMessage({
+                type: 'unlockPrivateKeyWallet'
+            }, '*');
+        } else if (window.SecureWalletManager && typeof window.SecureWalletManager.showUnlockDialog === 'function') {
+            window.SecureWalletManager.showUnlockDialog();
+        } else {
+            showGameMessage('Please unlock your private key wallet through the main application', 'info');
+        }
+    }
+    
+    /**
+     * Setup wallet function
+     */
+    function setupWallet() {
+        debug.log('Attempting to setup wallet');
+        if (window.parent && window.parent.postMessage) {
+            window.parent.postMessage({
+                type: 'setupWallet'
+            }, '*');
+        } else {
+            showGameMessage('Please setup your wallet through the main application', 'info');
+        }
+    }
+    
+
+    
+    // Expose functions to global scope for HTML onclick handlers
+    window.connectWallet = connectWallet;
+    window.unlockPrivateKeyWallet = unlockPrivateKeyWallet;
+    window.setupWallet = setupWallet;
+    window.handleAdoptButtonClick = handleAdoptButtonClick;
     
     /**
      * handle the click of the feed friend NFT button
      */
     function handleFeedFriendNFTClick() {
-        console.log('opening the feed friend NFT dialog');
+        debug.log('opening the feed friend NFT dialog');
         // check if the FeedFriendDialog module is loaded
         if (window.FeedFriendDialog) {
             window.FeedFriendDialog.show();
         } else {
-            console.log('FeedFriendDialog module is not loaded, trying to load...');
+            debug.log('FeedFriendDialog module is not loaded, trying to load...');
             // try to load the FeedFriendDialog module
             const script = document.createElement('script');
             script.src = '../../scripts/other/feedFriendDialog.js';
             script.onload = function() {
-                console.log('FeedFriendDialog module loaded successfully, showing the dialog');
+                debug.log('FeedFriendDialog module loaded successfully, showing the dialog');
                 if (window.FeedFriendDialog) {
                     window.FeedFriendDialog.show();
                 } else {
-                    console.error('FeedFriendDialog module loaded successfully but not initialized correctly');
+                    debug.error('FeedFriendDialog module loaded successfully but not initialized correctly');
                     showGameMessage('failed to open the feed dialog, please refresh the page and try again', 'error');
                 }
             };
             script.onerror = function() {
-                console.error('failed to load the FeedFriendDialog module');
+                debug.error('failed to load the FeedFriendDialog module');
                 showGameMessage('failed to load the feed dialog, please refresh the page and try again', 'error');
             };
             document.head.appendChild(script);
         }
+    }
+
+    /**
+     * Get feeding information for NFTs to supplement data from parent page
+     * @param {Array} nfts - Array of NFT objects
+     * @returns {Promise<Array>} NFTs with feeding information
+     */
+    async function enrichNFTsWithFeedingStatus(nfts) {
+        if (!nfts || nfts.length === 0) {
+            debug.log('No NFTs to enrich with feeding status');
+            return nfts;
+        }
+        
+        debug.log(`Enriching ${nfts.length} NFTs with feeding status information...`);
+        
+        // Check if NFTFeedingManager contract is available
+        if (!window.nftFeedingManagerContract || !window.nftFeedingManagerContract.methods) {
+            debug.warn('NFTFeedingManager contract not available, cannot get feeding status');
+            return nfts;
+        }
+        
+        const enrichedNFTs = [];
+        
+        // Process NFTs in batches to avoid overwhelming the contract
+        const batchSize = 5;
+        for (let i = 0; i < nfts.length; i += batchSize) {
+            const batch = nfts.slice(i, i + batchSize);
+            
+            const batchPromises = batch.map(async (nft) => {
+                try {
+                    const tokenId = nft.tokenId || nft.token_id;
+                    if (!tokenId) {
+                        debug.warn('NFT missing tokenId, skipping feeding status enrichment:', nft);
+                        return nft;
+                    }
+                    
+                    debug.log(`Getting feeding status for NFT #${tokenId}...`);
+                    
+                    // Get feeding data from contract
+                    const feedingData = await window.nftFeedingManagerContract.methods.nftFeeding(tokenId).call();
+                    
+                    if (feedingData) {
+                        // Add feeding information to NFT
+                        const enrichedNFT = {
+                            ...nft,
+                            feedingInfo: feedingData,
+                            isActive: feedingData.isActive,
+                            lastClaimTime: parseInt(feedingData.lastClaimTime || 0),
+                            feedingHours: parseInt(feedingData.feedingHours || 0),
+                            quality: parseInt(feedingData.quality || 0),
+                            accumulatedCycles: parseInt(feedingData.accumulatedCycles || 0),
+                            lastFeedTime: parseInt(feedingData.lastFeedTime || 0)
+                        };
+                        
+                        debug.log(`Successfully enriched NFT #${tokenId} with feeding status:`, {
+                            isActive: enrichedNFT.isActive,
+                            lastClaimTime: enrichedNFT.lastClaimTime,
+                            feedingHours: enrichedNFT.feedingHours,
+                            quality: enrichedNFT.quality,
+                            accumulatedCycles: enrichedNFT.accumulatedCycles
+                        });
+                        
+                        return enrichedNFT;
+                    } else {
+                        debug.warn(`No feeding data found for NFT #${tokenId}`);
+                        return nft;
+                    }
+                } catch (error) {
+                    debug.error(`Error getting feeding status for NFT #${nft.tokenId || nft.token_id}:`, error);
+                    return nft; // Return original NFT if enrichment fails
+                }
+            });
+            
+            const batchResults = await Promise.all(batchPromises);
+            enrichedNFTs.push(...batchResults);
+            
+            // Small delay between batches to avoid rate limiting
+            if (i + batchSize < nfts.length) {
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
+        }
+        
+        debug.log(`Successfully enriched ${enrichedNFTs.length} NFTs with feeding status`);
+        return enrichedNFTs;
     }
 }); 

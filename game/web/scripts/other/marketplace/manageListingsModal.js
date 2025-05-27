@@ -244,13 +244,24 @@
             // hide the empty message
             emptyMessage.style.display = 'none';
             
+            // Check if using private key wallet
+            const usingPrivateKey = window.SecureWalletManager && window.SecureWalletManager.shouldUsePrivateKeyWallet();
+            console.log('Using private key wallet for loading user listings:', usingPrivateKey);
+            
             // get the current user address
-            const accounts = await web3.eth.getAccounts();
-            const userAddress = accounts[0];
+            let userAddress;
+            if (usingPrivateKey) {
+                userAddress = window.SecureWalletManager.getAddress();
+            } else {
+                const accounts = await web3.eth.getAccounts();
+                userAddress = accounts[0];
+            }
             
             if (!userAddress) {
                 throw new Error('Wallet not connected');
             }
+            
+            console.log('Loading listings for user address:', userAddress);
             
             // load the user's all listed NFTs
             userListings = await loadUserListedNFTs(userAddress);
@@ -648,9 +659,18 @@
      */
     async function handleCancelListing(listing) {
         try {
+            // Check if using private key wallet
+            const usingPrivateKey = window.SecureWalletManager && window.SecureWalletManager.shouldUsePrivateKeyWallet();
+            console.log('Using private key wallet for cancel listing:', usingPrivateKey);
+            
             // get the current user address
-            const accounts = await web3.eth.getAccounts();
-            const userAddress = accounts[0];
+            let userAddress;
+            if (usingPrivateKey) {
+                userAddress = window.SecureWalletManager.getAddress();
+            } else {
+                const accounts = await web3.eth.getAccounts();
+                userAddress = accounts[0];
+            }
             
             if (!userAddress) {
                 throw new Error('Wallet not connected');
@@ -660,10 +680,24 @@
             showStatus('Preparing to delist the NFT...', 'info');
             
             // send the delist transaction
-            const transaction = await marketplaceContract.methods.cancelListing(listing.tokenId).send({
-                from: userAddress,
-                gas: 200000
-            });
+            let transaction;
+            if (usingPrivateKey) {
+                // Use private key wallet for cancel listing transaction
+                transaction = await window.SecureWalletManager.sendContractTransaction(
+                    marketplaceContract,
+                    'cancelListing',
+                    [listing.tokenId],
+                    {
+                        gas: 200000
+                    }
+                );
+            } else {
+                // Use connected wallet
+                transaction = await marketplaceContract.methods.cancelListing(listing.tokenId).send({
+                    from: userAddress,
+                    gas: 200000
+                });
+            }
             
             // show the success information
             showStatus('NFT delisted successfully!', 'success');
@@ -795,9 +829,18 @@
                 throw new Error('Please enter a valid price');
             }
             
+            // Check if using private key wallet
+            const usingPrivateKey = window.SecureWalletManager && window.SecureWalletManager.shouldUsePrivateKeyWallet();
+            console.log('Using private key wallet for price update:', usingPrivateKey);
+            
             // get the current user address
-            const accounts = await web3.eth.getAccounts();
-            const userAddress = accounts[0];
+            let userAddress;
+            if (usingPrivateKey) {
+                userAddress = window.SecureWalletManager.getAddress();
+            } else {
+                const accounts = await web3.eth.getAccounts();
+                userAddress = accounts[0];
+            }
             
             if (!userAddress) {
                 throw new Error('Wallet not connected');
@@ -810,13 +853,27 @@
             const priceInWei = web3.utils.toWei(newPriceStr, 'ether');
             
             // send the update price transaction
-            const transaction = await marketplaceContract.methods.updateListingPrice(
-                listing.tokenId,
-                priceInWei
-            ).send({
-                from: userAddress,
-                gas: 200000
-            });
+            let transaction;
+            if (usingPrivateKey) {
+                // Use private key wallet for price update transaction
+                transaction = await window.SecureWalletManager.sendContractTransaction(
+                    marketplaceContract,
+                    'updateListingPrice',
+                    [listing.tokenId, priceInWei],
+                    {
+                        gas: 200000
+                    }
+                );
+            } else {
+                // Use connected wallet
+                transaction = await marketplaceContract.methods.updateListingPrice(
+                    listing.tokenId,
+                    priceInWei
+                ).send({
+                    from: userAddress,
+                    gas: 200000
+                });
+            }
             
             // show the success information
             showStatus('Price updated successfully!', 'success');
@@ -841,15 +898,7 @@
             window.dispatchEvent(event);
         } catch (error) {
             console.error('Failed to update the price:', error);
-            
-            // check if the error is because of the cooldown
-            if (error.message.includes('cooldown') || 
-                error.message.includes('Cooldown') || 
-                error.message.includes('period not passed')) {
-                showStatus('Failed to update the price: the price update operation is in the cooldown period, please try again later', 'error');
-            } else {
-                showStatus('Failed to update the price: ' + error.message, 'error');
-            }
+            showStatus('Failed to update the price: ' + error.message, 'error');
         }
     }
     

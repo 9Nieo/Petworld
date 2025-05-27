@@ -301,12 +301,64 @@ const GamePetCard = (function() {
         // If there is no image, use a random emoji
         const fallbackEmoji = getRandomPetEmoji();
         
-        // Extract pet attributes
+        // Extract pet attributes with enhanced quality detection
         let rarity = 'common';
         let health = 100;
         let feedingHours = DEFAULT_FEEDING_HOURS; // Default feeding hours
         let level = 1; // Default level is 1
         let accumulatedFood = 0; // Default accumulated feeding amount is 0
+        
+        // Enhanced quality extraction logic
+        // Priority 1: Check if quality is directly stored in the NFT object
+        if (nft.quality) {
+            rarity = String(nft.quality).toLowerCase();
+            console.log(`Found quality in nft.quality: ${rarity}`);
+        } else if (nft.rarity) {
+            rarity = String(nft.rarity).toLowerCase();
+            console.log(`Found quality in nft.rarity: ${rarity}`);
+        } else if (metadata?.quality) {
+            rarity = String(metadata.quality).toLowerCase();
+            console.log(`Found quality in metadata.quality: ${rarity}`);
+        } else if (metadata?.rarity) {
+            rarity = String(metadata.rarity).toLowerCase();
+            console.log(`Found quality in metadata.rarity: ${rarity}`);
+        } else if (metadata?.attributes && Array.isArray(metadata.attributes)) {
+            // Priority 2: Check metadata attributes with enhanced trait type matching
+            const qualityAttr = metadata.attributes.find(attr => {
+                const traitType = String(attr.trait_type || '').toLowerCase();
+                return traitType === 'quality' || 
+                       traitType === 'rarity' || 
+                       traitType === 'grade' ||
+                       traitType === 'tier' ||
+                       traitType === 'rank';
+            });
+            
+            if (qualityAttr && qualityAttr.value !== undefined) {
+                rarity = String(qualityAttr.value).toLowerCase();
+                console.log(`Found quality in metadata attributes: ${rarity} (trait: ${qualityAttr.trait_type})`);
+            } else {
+                // Priority 3: Try to infer quality from pet name or description
+                const petName = (metadata?.name || nft.name || '').toLowerCase();
+                const petDescription = (metadata?.description || nft.description || '').toLowerCase();
+                const combinedText = `${petName} ${petDescription}`;
+                
+                if (combinedText.includes('legendary') || combinedText.includes('legend') || combinedText.includes('epic')) {
+                    rarity = 'legendary';
+                    console.log(`Inferred quality from name/description: ${rarity}`);
+                } else if (combinedText.includes('rare') || combinedText.includes('purple')) {
+                    rarity = 'rare';
+                    console.log(`Inferred quality from name/description: ${rarity}`);
+                } else if (combinedText.includes('excellent') || combinedText.includes('excel')) {
+                    rarity = 'excellent';
+                    console.log(`Inferred quality from name/description: ${rarity}`);
+                } else if (combinedText.includes('good') || combinedText.includes('uncommon')) {
+                    rarity = 'good';
+                    console.log(`Inferred quality from name/description: ${rarity}`);
+                } else {
+                    console.log(`Using default quality: ${rarity}`);
+                }
+            }
+        }
         
         // Check if there is contract feeding information
         if (nft.feedingInfo) {
@@ -327,9 +379,7 @@ const GamePetCard = (function() {
             // Otherwise, try to get it from the metadata
             metadata.attributes.forEach(attr => {
                 const traitType = attr.trait_type?.toLowerCase();
-                if (traitType === 'rarity' || traitType === 'quality') {
-                    rarity = attr.value;
-                } else if (traitType === 'health' || traitType === 'hunger') {
+                if (traitType === 'health' || traitType === 'hunger') {
                     health = parseInt(attr.value) || 100;
                 } else if (traitType === 'feedinghours') {
                     feedingHours = parseInt(attr.value) || DEFAULT_FEEDING_HOURS;
@@ -482,6 +532,16 @@ const GamePetCard = (function() {
      * @param {string} type - Message type (success/error/info)
      */
     function showFeedingMessage(card, message, type = 'info') {
+        // For success messages, use ModalDialog to be consistent with normal mode
+        if (type === 'success' && window.ModalDialog) {
+            window.ModalDialog.alert(message, {
+                title: 'Feeding Success',
+                confirmText: 'OK'
+            });
+            return;
+        }
+        
+        // For other message types (error, info), use the card-based message
         // Create message element
         const msgElement = document.createElement('div');
         msgElement.className = `game-feeding-message ${type}`;
@@ -849,9 +909,21 @@ const GamePetCard = (function() {
                                         }
                                     }
                                     
-                                    // Get the user address
+                                    // Get the user address - prioritize private key wallet
+                                    let userAddress;
+                                    
+                                    // Priority 1: Check private key wallet
+                                    if (window.SecureWalletManager && 
+                                        window.SecureWalletManager.shouldUsePrivateKeyForTransactions &&
+                                        window.SecureWalletManager.shouldUsePrivateKeyForTransactions()) {
+                                        userAddress = window.SecureWalletManager.getAddress();
+                                        console.log('Using private key wallet for reward claim:', userAddress);
+                                    } else {
+                                        // Priority 2: Check connected wallet
                                     const accounts = await window.web3.eth.getAccounts();
-                                    const userAddress = accounts[0];
+                                        userAddress = accounts[0];
+                                        console.log('Using connected wallet for reward claim:', userAddress);
+                                    }
                                     
                                     if (!userAddress) {
                                         return { success: false, message: 'Please connect your wallet to claim rewards' };
@@ -926,11 +998,9 @@ const GamePetCard = (function() {
                                         if (window.web3.utils.toBN(allowance).lt(window.web3.utils.toBN(requiredAmount))) {
                                             console.log('Need to authorize PwPoint tokens...');
                                             
-                                            // Pop up the authorization confirmation dialog
-                                            const approveConfirm = window.confirm("Need to authorize PwPoint tokens to claim rewards. Click OK to authorize.");
-                                            if (!approveConfirm) {
-                                                return { success: false, message: 'Authorization operation cancelled' };
-                                            }
+                                            // For private key wallets, auto-approve without confirmation dialog
+                                            // For connected wallets, auto-approve as well for smoother experience
+                                            console.log('Auto-approving PwPoint tokens for smoother experience...');
                                             
                                             try {
                                                 // Execute the authorization
@@ -941,13 +1011,27 @@ const GamePetCard = (function() {
                                                     from: userAddress
                                                 });
                                                 
-                                                const approveTransaction = await pwPointContract.methods.approve(
+                                                let approveTransaction;
+                                                if (window.SecureWalletManager && 
+                                                    window.SecureWalletManager.shouldUsePrivateKeyForTransactions &&
+                                                    window.SecureWalletManager.shouldUsePrivateKeyForTransactions()) {
+                                                    // Use private key wallet for transaction
+                                                    approveTransaction = await window.SecureWalletManager.sendContractTransaction(
+                                                        pwPointContract,
+                                                        'approve',
+                                                        [pwPointManagerAddress, "115792089237316195423570985008687907853269984665640564039457584007913129639935"],
+                                                        { gas: Math.floor(gasEstimate * 1.5) }
+                                                    );
+                                                } else {
+                                                    // Use connected wallet for transaction
+                                                    approveTransaction = await pwPointContract.methods.approve(
                                                     pwPointManagerAddress, 
                                                     "115792089237316195423570985008687907853269984665640564039457584007913129639935" // 最大值
                                                 ).send({
                                                     from: userAddress,
                                                     gas: Math.floor(gasEstimate * 1.5) // Add 50% gas as a buffer
                                                 });
+                                                }
                                                 
                                                 console.log('PwPoint authorization successful:', approveTransaction);
                                             } catch (approveError) {
@@ -963,16 +1047,57 @@ const GamePetCard = (function() {
                                     
                                     // Display the claim in progress prompt
                                     console.log('Starting reward claim...');
-                                    showFeedingMessage(card, "Claiming rewards...", "info");
                                     
                                     // Call the contract to claim rewards
-                                    const tx = await window.nftFeedingManagerContract.methods.claimRewards([tokenId]).send({
+                                    // Check if using private key wallet for transactions
+                                    const shouldUsePrivateKey = window.SecureWalletManager && 
+                                                               window.SecureWalletManager.shouldUsePrivateKeyForTransactions &&
+                                                               window.SecureWalletManager.shouldUsePrivateKeyForTransactions();
+                                    
+                                    let tx;
+                                    if (shouldUsePrivateKey) {
+                                        // Use private key wallet for transaction
+                                        tx = await window.SecureWalletManager.sendContractTransaction(
+                                            window.nftFeedingManagerContract,
+                                            'claimRewards',
+                                            [[tokenId]],
+                                            { gas: 300000 }
+                                        );
+                                    } else {
+                                        // Use connected wallet for transaction
+                                        tx = await window.nftFeedingManagerContract.methods.claimRewards([tokenId]).send({
                                         from: userAddress,
                                         gas: 300000
                                     });
+                                    }
                                     
-                                    console.log("Reward claim successful:", tx);
-                                    showFeedingMessage(card, "Reward claim successful!", "success");
+                                    // Extract actual reward amounts from transaction receipt
+                                    let actualRewards = { pwpotAmount: 0, pwbotAmount: 0 };
+                                    if (window.RewardNotification && window.RewardNotification.extractRewardAmountsFromTransaction) {
+                                        actualRewards = window.RewardNotification.extractRewardAmountsFromTransaction(tx);
+                                    }
+                                    
+                                    // Show reward notification
+                                    if (window.RewardNotification && window.RewardNotification.showRewardClaimed) {
+                                        window.RewardNotification.showRewardClaimed({
+                                            pwpotAmount: actualRewards.pwpotAmount,
+                                            pwbotAmount: actualRewards.pwbotAmount,
+                                            transactionHash: tx.transactionHash,
+                                            tokenId: tokenId,
+                                            nftName: card.querySelector('.game-pet-header h3').textContent || `NFT #${tokenId}`
+                                        });
+                                    } else {
+                                        // Fallback notification if RewardNotification is not available
+                                        const pwpotFormatted = actualRewards.pwpotAmount > 0 ? Math.floor(actualRewards.pwpotAmount).toString() : '0';
+                                        const pwbotFormatted = actualRewards.pwbotAmount > 0 ? Math.floor(actualRewards.pwbotAmount).toString() : '0';
+                                        
+                                        if (window.showNotification) {
+                                            window.showNotification(
+                                                `🎉 Rewards Claimed!\nPWPOT: ${pwpotFormatted}\nPWBOT: ${pwbotFormatted}`, 
+                                                'success'
+                                            );
+                                        }
+                                    }
                                     
                                     // Update the feeding information
                                     try {
@@ -1006,7 +1131,12 @@ const GamePetCard = (function() {
                 });
                                     card.dispatchEvent(claimEvent);
                                     
-                                    return { success: true };
+                                    return { 
+                                        success: true, 
+                                        actualRewards: actualRewards,
+                                        transactionHash: tx.transactionHash || tx.hash,
+                                        transaction: tx
+                                    };
                                 } catch (error) {
                                     console.error("Reward claim failed:", error);
                                     showFeedingMessage(card, "Reward claim failed: " + (error.message || "Unknown error"), "error");
@@ -1066,7 +1196,7 @@ const GamePetCard = (function() {
                                 
                                 // If the claim callback is defined, call it
                                 if (window.onRewardClaimConfirm) {
-                                    showFeedingMessage(card, 'Processing reward claim request...', 'info');
+                                    // Removed processing message for smoother experience
                                     window.onRewardClaimConfirm(nftData)
                                         .then(function(result) {
                                             if (!result || !result.success) {
@@ -1091,7 +1221,7 @@ const GamePetCard = (function() {
                                     });
                 
                                     card.dispatchEvent(actionEvent);
-                                    showFeedingMessage(card, 'Processing reward claim request...', 'info');
+                                    // Removed processing message for smoother experience
                                 }
                             }
                         })
@@ -1640,4 +1770,6 @@ if (typeof module !== 'undefined' && module.exports) {
     module.exports = GamePetCard;
 } else {
     window.GamePetCard = GamePetCard;
+    // Also expose createGamePetCard directly for backward compatibility
+    window.createGamePetCard = GamePetCard.createGamePetCard;
 } 

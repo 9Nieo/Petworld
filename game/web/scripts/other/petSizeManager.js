@@ -13,16 +13,16 @@ class PetSizeManager {
             scaleFactor: {
                 default: 0.08,   // Default scale for unspecified pets
                 egg: 0.04,       // Eggs are slightly smaller
-                duck: 0.06,     
+                duck: 0.06,      // Ducks
                 chicken: 0.06,   // Chickens
-                cat: 0.1,      // Cats
-                dog: 0.1,      // Dogs
+                cat: 0.1,        // Cats
+                dog: 0.1,        // Dogs
                 dragon: 0.41,    // Dragons are large
-                unicorn: 0.3,   // Unicorns
-                'white tiger': 0.3,    // Tigers
-                'white lion': 0.2,     // Lions
-                'black panther': 0.2,    // Panthers
-                'moonlit wolf': 0.2,    // Wolves  
+                unicorn: 0.3,    // Unicorns
+                'white tiger': 0.3,    // White Tigers
+                'white lion': 0.2,     // White Lions
+                'black panther': 0.2,  // Black Panthers
+                'moonlit wolf': 0.2,   // Moonlit Wolves
             },
             
             // Fixed dimensions for certain pets (if preferred over scaling)
@@ -44,7 +44,15 @@ class PetSizeManager {
                 default: 2,  // 2x the container size for better quality
                 egg: 2,
                 duck: 2,
-                dragon: 3
+                chicken: 2,
+                cat: 2,
+                dog: 2,
+                dragon: 3,
+                unicorn: 3,
+                'white tiger': 3,
+                'white lion': 3,
+                'black panther': 3,
+                'moonlit wolf': 3
             }
         };
         
@@ -70,7 +78,10 @@ class PetSizeManager {
      * @returns {Object} Applied size data
      */
     setSize(element, petType, options = {}) {
-        if (!element) return null;
+        if (!element) {
+            this.log('setSize called with null element');
+            return null;
+        }
         
         // Normalize pet type to lowercase
         petType = (petType || '').toLowerCase();
@@ -79,7 +90,7 @@ class PetSizeManager {
             petType = this.detectPetType(element);
         }
         
-        this.log(`Setting size for ${petType} pet`);
+        this.log(`Setting size for ${petType} pet, element:`, element.className);
         
         // Get appropriate scale factor for this pet type
         const scaleFactor = this.getScaleFactor(petType, options);
@@ -100,11 +111,20 @@ class PetSizeManager {
             containerWidth = options.containerWidth;
             containerHeight = options.containerHeight;
         } else {
-            // Use parent dimensions if available, otherwise element dimensions
-            const parent = element.parentElement;
-            containerWidth = parent ? parent.offsetWidth : element.offsetWidth || 100;
-            containerHeight = parent ? parent.offsetHeight : element.offsetHeight || 100;
+            // Find the farm container specifically for proper sizing
+            const farmContainer = document.getElementById('farm-animals-container');
+            if (farmContainer) {
+                containerWidth = farmContainer.offsetWidth || 800;
+                containerHeight = farmContainer.offsetHeight || 600;
+            } else {
+                // Fallback to parent dimensions
+                const parent = element.parentElement;
+                containerWidth = parent ? parent.offsetWidth : 800;
+                containerHeight = parent ? parent.offsetHeight : 600;
+            }
         }
+        
+        this.log(`Container dimensions for ${petType}: ${containerWidth}x${containerHeight}`);
         
         let width, height;
         
@@ -112,17 +132,23 @@ class PetSizeManager {
             // Use fixed size
             width = fixedSize.width;
             height = fixedSize.height;
+            this.log(`Using fixed size for ${petType}: ${width}x${height}`);
         } else {
             // Calculate based on scale factor
             // Use the smaller dimension to ensure pet fits within container
             const baseDimension = Math.min(containerWidth, containerHeight);
             width = baseDimension * scaleFactor;
             height = baseDimension * scaleFactor;
+            this.log(`Calculated size for ${petType}: ${width.toFixed(1)}x${height.toFixed(1)} (scale: ${scaleFactor})`);
         }
         
-        // Apply size to element
-        element.style.width = `${width}px`;
-        element.style.height = `${height}px`;
+        // Apply size to element with important flag to override other styles
+        element.style.setProperty('width', `${width}px`, 'important');
+        element.style.setProperty('height', `${height}px`, 'important');
+        element.style.setProperty('min-width', `${width}px`, 'important');
+        element.style.setProperty('min-height', `${height}px`, 'important');
+        
+        this.log(`Applied size to ${petType}: ${width.toFixed(1)}x${height.toFixed(1)}px`);
         
         // If we need to adjust position
         if (posAdjust && (posAdjust.x !== 0 || posAdjust.y !== 0)) {
@@ -313,12 +339,17 @@ class PetSizeManager {
      * @param {HTMLElement} container - The container to search in (default: document)
      */
     applyToAll(container = document) {
-        const petElements = container.querySelectorAll('.animal, .egg-nft, .duck-nft, [data-type]');
+        const petElements = container.querySelectorAll(
+            '.animal, .nft-animal, .egg-nft, .duck-nft, .chicken-nft, .cat-nft, .dog-nft, ' +
+            '.dragon-nft, .unicorn-nft, .white-tiger-nft, .white-lion-nft, ' +
+            '.black-panther-nft, .moonlit-wolf-nft, [data-type]'
+        );
         
         this.log(`Found ${petElements.length} pet elements to size`);
         
         petElements.forEach(element => {
             const petType = this.detectPetType(element);
+            this.log(`Applying size to element with type: ${petType}, classes: ${element.className}`);
             this.setSize(element, petType);
         });
     }

@@ -344,29 +344,24 @@ const PetCard = (function() {
                     // Continue to try other methods
                 }
                 
-                // Try to use the NFTFeedingManagerContract class (if available)
-                if (window.NFTFeedingManagerContract) {
+                // Try to use the PetFeeding module (if available)
+                if (window.PetFeeding && typeof window.PetFeeding.getNFTFeedingInfo === 'function') {
                     try {
-                        console.log(`Attempting to use the NFTFeedingManagerContract to get the feeding information...`);
-                        const feedingManagerContract = new window.NFTFeedingManagerContract(window.web3);
+                        console.log(`Attempting to use PetFeeding.getNFTFeedingInfo to get the feeding information...`);
+                        feedingInfo = await window.PetFeeding.getNFTFeedingInfo(tokenId);
                         
-                        if (feedingManagerContract && typeof feedingManagerContract.getNFTFeedingInfo === 'function') {
-                            console.log(`Calling NFTFeedingManagerContract.getNFTFeedingInfo(${tokenId})...`);
-                            feedingInfo = await feedingManagerContract.getNFTFeedingInfo(tokenId);
-                            
-                            if (feedingInfo) {
-                                console.log(`Obtained the information from the NFTFeedingManagerContract:`, feedingInfo);
-                                // Calculate the actual feeding hours and update
-                                feedingInfo.realFeedingHours = calculateRealFeedingHours(feedingInfo);
-                                return feedingInfo;
-                            }
+                        if (feedingInfo) {
+                            console.log(`Obtained the information from PetFeeding module:`, feedingInfo);
+                            // Calculate the actual feeding hours and update
+                            feedingInfo.realFeedingHours = calculateRealFeedingHours(feedingInfo);
+                            return feedingInfo;
                         }
                     } catch (contractError) {
-                        console.warn(`Failed to get the feeding information using the NFTFeedingManagerContract:`, contractError);
+                        console.warn(`Failed to get the feeding information using PetFeeding module:`, contractError);
                         // Continue to try other methods
                     }
                 } else {
-                    console.warn('The NFTFeedingManagerContract class is not available, trying to use the contract method directly');
+                    console.warn('PetFeeding module is not available, trying to use the contract method directly');
                 }
                 
                 // Check the global getNFTFeedingInfo function
@@ -678,7 +673,15 @@ const PetCard = (function() {
                 const quality = card.dataset.quality;
                 console.log(`Claim pet rewards: TokenID ${tokenId}, contract ${contractAddress}`);
                 
-                // Check wallet connection
+                // Check wallet connection and get user address
+                let userAddress = null;
+                
+                // Priority 1: Check private key wallet
+                if (window.SecureWalletManager && window.SecureWalletManager.shouldUsePrivateKeyForTransactions()) {
+                    userAddress = window.SecureWalletManager.getAddress();
+                    console.log('Using private key wallet for reward claim:', userAddress);
+                } else {
+                    // Priority 2: Check connected wallet
                 if (!window.web3) {
                     if (window.ethereum) {
                         try {
@@ -695,15 +698,22 @@ const PetCard = (function() {
                 }
                 
                 try {
-                    // Get the user address
+                        // Get the user address from connected wallet
                     const accounts = await window.web3.eth.getAccounts();
-                    const userAddress = accounts[0];
+                        userAddress = accounts[0];
+                        console.log('Using connected wallet for reward claim:', userAddress);
+                    } catch (error) {
+                        console.error('Failed to get connected wallet accounts:', error);
+                        return;
+                    }
+                }
                     
                     if (!userAddress) {
                         console.log('Please connect your wallet to claim rewards');
                         return;
                     }
                     
+                try {
                     // Get the feeding information
                     let feedingInfo = null;
                     let feedingContract = null;
@@ -736,28 +746,51 @@ const PetCard = (function() {
                         // Get the feeding information, check if there are rewards to claim
                         feedingInfo = await feedingContract.getNFTFeedingInfo(tokenId);
                     } 
-                    // If there is no nftFeedingManagerContract, try using the NFTFeedingManagerContract class
-                    else if (window.NFTFeedingManagerContract) {
-                        console.log('Creating a new NFTFeedingManagerContract instance');
+                    // If there is no nftFeedingManagerContract, try using initNFTFeedingManagerContract function
+                    else if (window.initNFTFeedingManagerContract && typeof window.initNFTFeedingManagerContract === 'function') {
+                        console.log('Creating NFTFeedingManager contract using initNFTFeedingManagerContract function');
                         
-                        // Check if the global feedingManagerContract instance has been initialized
-                        if (!window.feedingManagerContract) {
-                            window.feedingManagerContract = new window.NFTFeedingManagerContract(window.web3);
-                        }
+                        // Get contract address function
+                        const getContractAddress = window.getContractAddress || function(name) {
+                            const network = window.currentNetwork || 'TEST';
+                            return window.contractAddresses && 
+                                window.contractAddresses[network] ? 
+                                window.contractAddresses[network][name] : null;
+                        };
                         
-                        // Create a local contract instance
-                        feedingContract = new window.NFTFeedingManagerContract(window.web3);
+                        // Create contract instance using the init function
+                        const contractInstance = window.initNFTFeedingManagerContract(window.web3, getContractAddress);
                         
-                        // Check if the contract instance is valid
-                        if (!feedingContract || !feedingContract.contract) {
-                            console.error('Invalid contract instance:', feedingContract);
+                        if (!contractInstance) {
+                            console.error('Failed to create NFTFeedingManager contract instance');
                             return;
                         }
+                        
+                        // Create a wrapper object that matches the expected interface
+                        feedingContract = {
+                            contract: contractInstance,
+                            async getNFTFeedingInfo(tokenId) {
+                                try {
+                                    const data = await contractInstance.methods.nftFeeding(tokenId).call();
+                                    return {
+                                        isActive: data.isActive,
+                                        lastClaimTime: data.lastClaimTime,
+                                        feedingHours: data.feedingHours,
+                                        quality: data.quality,
+                                        accumulatedCycles: data.accumulatedCycles,
+                                        lastFeedTime: data.lastFeedTime
+                                    };
+                                } catch (error) {
+                                    console.error('Failed to get NFT feeding info:', error);
+                                    return null;
+                                }
+                            }
+                        };
                         
                         // Get the feeding information
                         feedingInfo = await feedingContract.getNFTFeedingInfo(tokenId);
                     } else {
-                        console.error('Failed to get the NFTFeedingManager contract');
+                        console.error('Failed to get the NFTFeedingManager contract - neither nftFeedingManagerContract nor initNFTFeedingManagerContract is available');
                         return;
                     }
                     
@@ -879,7 +912,7 @@ const PetCard = (function() {
                     
                     // If there are no rewards to claim, display a prompt and return
                     if (rewardHours <= 0 && estimatedPwpot <= 0 && estimatedPwbot <= 0) {
-                        await ModalDialog.alert('No rewards to claim', { title: '提示', confirmText: '确定' });
+                        await ModalDialog.alert('No rewards to claim', { title: 'Tip', confirmText: 'Confirm' });
                         return;
                     }
                     
@@ -1206,15 +1239,13 @@ const PetCard = (function() {
                                 if (window.web3.utils.toBN(allowance).lt(window.web3.utils.toBN(requiredAmount))) {
                                     console.log('Need to authorize the PwPoint contract, please confirm in the popup');
                                     
-                                    // Use ModalDialog to confirm PwPoint authorization
-                                    const approvalConfirm = await ModalDialog.confirm(
-                                        'Need to authorize the PWPoint token to claim rewards. Click "Confirm" to proceed.',
-                                        { title: 'Authorization Prompt', confirmText: 'Confirm', cancelText: 'Cancel' }
-                                    );
-                                    if (approvalConfirm.action !== 'confirm') {
-                                        await ModalDialog.alert('Authorization operation cancelled', { title: 'Error', confirmText: 'Confirm' });
-                                        return;
-                                    }
+                                    // Check if using private key wallet for transactions
+                                    const shouldUsePrivateKey = window.SecureWalletManager && 
+                                                               window.SecureWalletManager.shouldUsePrivateKeyForTransactions &&
+                                                               window.SecureWalletManager.shouldUsePrivateKeyForTransactions();
+                                    
+                                    // Auto-approve for all wallet types for smoother experience
+                                    console.log('Auto-approving PwPoint tokens for smoother experience...');
                                     
                                     try {
                                         // Execute authorization
@@ -1222,13 +1253,28 @@ const PetCard = (function() {
                                             from: userAddress
                                         });
                                         
-                                        const approveTransaction = await pwPointContract.methods.approve(pwPointManagerAddress, requiredAmount).send({
+                                        let approveTransaction;
+                                        
+                                        // Check if using private key wallet
+                                        if (shouldUsePrivateKey) {
+                                            console.log('Using private key wallet for PwPoint approval');
+                                            approveTransaction = await window.SecureWalletManager.sendContractTransaction(
+                                                pwPointContract,
+                                                'approve',
+                                                [pwPointManagerAddress, requiredAmount],
+                                                { gas: Math.floor(gasEstimate * 1.5) }
+                                            );
+                                        } else {
+                                            console.log('Using connected wallet for PwPoint approval');
+                                            approveTransaction = await pwPointContract.methods.approve(pwPointManagerAddress, requiredAmount).send({
                                             from: userAddress,
                                             gas: Math.floor(gasEstimate * 1.5) // Add 50% gas as a buffer
                                         });
+                                        }
                                         
                                         console.log('PwPoint authorization successful:', approveTransaction);
-                                        await ModalDialog.alert('Authorization successful, claiming rewards...', { title: 'Success', confirmText: 'Confirm' });
+                                        
+                                        // Removed authorization success alert for smoother experience
                                     } catch (approveError) {
                                         console.error('PwPoint authorization failed:', approveError);
                                         await ModalDialog.alert('Authorization failed: ' + (approveError.message || "Unknown error"), { title: 'Error', confirmText: 'Confirm' });
@@ -1240,11 +1286,35 @@ const PetCard = (function() {
                                 // Continue execution, try to claim rewards
                             }
                             
-                            // Display the claim in progress prompt
-                            await ModalDialog.alert('Claiming rewards...', { title: 'Claim in progress', confirmText: 'Confirm' });
+                            // Removed claim in progress alert for smoother experience
                             
                             // Call the contract to claim rewards
                             let tx;
+                            
+                            // Check if using private key wallet
+                            if (window.SecureWalletManager && window.SecureWalletManager.shouldUsePrivateKeyForTransactions()) {
+                                console.log('Using private key wallet for reward claim transaction');
+                                
+                                if (feedingContract && feedingContract.contract) {
+                                    tx = await window.SecureWalletManager.sendContractTransaction(
+                                        feedingContract.contract,
+                                        'claimRewards',
+                                        [[tokenId]],
+                                        { gas: 300000 }
+                                    );
+                                } else if (window.nftFeedingManagerContract) {
+                                    tx = await window.SecureWalletManager.sendContractTransaction(
+                                        window.nftFeedingManagerContract,
+                                        'claimRewards',
+                                        [[tokenId]],
+                                        { gas: 300000 }
+                                    );
+                                } else {
+                                    throw new Error('Unable to find a valid contract instance');
+                                }
+                            } else {
+                                console.log('Using connected wallet for reward claim transaction');
+                                
                             if (feedingContract && feedingContract.contract) {
                                 tx = await feedingContract.contract.methods.claimRewards([tokenId]).send({
                                     from: userAddress,
@@ -1257,10 +1327,9 @@ const PetCard = (function() {
                                 });
                             } else {
                                 throw new Error('Unable to find a valid contract instance');
+                                }
                             }
                             
-                            console.log("Rewards claimed successfully:", tx);
-                            await ModalDialog.alert('Rewards claimed successfully!', { title: 'Success', confirmText: 'Confirm' });
                             
                             // Update the feeding information
                             const updatedFeedingInfo = await feedingContract.getNFTFeedingInfo(tokenId);
@@ -1270,6 +1339,34 @@ const PetCard = (function() {
                                     updatePetSatietyWithFeedingInfo(card, updatedFeedingInfo.realFeedingHours, updatedFeedingInfo);
                                 } else {
                                     updatePetSatietyWithFeedingInfo(card, updatedFeedingInfo.feedingHours, updatedFeedingInfo);
+                                }
+                            }
+                            
+                            // Extract actual reward amounts from transaction receipt
+                            let actualRewards = { pwpotAmount: 0, pwbotAmount: 0 };
+                            if (window.RewardNotification && window.RewardNotification.extractRewardAmountsFromTransaction) {
+                                actualRewards = window.RewardNotification.extractRewardAmountsFromTransaction(tx);
+                            }
+                            
+                            // Show reward notification
+                            if (window.RewardNotification && window.RewardNotification.showRewardClaimed) {
+                                window.RewardNotification.showRewardClaimed({
+                                    pwpotAmount: actualRewards.pwpotAmount,
+                                    pwbotAmount: actualRewards.pwbotAmount,
+                                    transactionHash: tx.transactionHash,
+                                    tokenId: tokenId,
+                                    nftName: card.querySelector('.pet-name')?.textContent || `NFT #${tokenId}`
+                                });
+                            } else {
+                                // Fallback notification if RewardNotification is not available
+                                const pwpotFormatted = actualRewards.pwpotAmount > 0 ? Math.floor(actualRewards.pwpotAmount).toString() : '0';
+                                const pwbotFormatted = actualRewards.pwbotAmount > 0 ? Math.floor(actualRewards.pwbotAmount).toString() : '0';
+                                
+                                if (window.showNotification) {
+                                    window.showNotification(
+                                        `🎉 Rewards Claimed!\nPWPOT: ${pwpotFormatted}\nPWBOT: ${pwbotFormatted}`, 
+                                        'success'
+                                    );
                                 }
                             }
                             
@@ -1327,17 +1424,13 @@ const PetCard = (function() {
                             console.log(`PwPoint authorization status: allowance=${allowance}`);
                             
                             if (window.web3.utils.toBN(allowance).lt(window.web3.utils.toBN(requiredAmount))) {
-                                await ModalDialog.alert('Need to authorize the PwPoint contract, please confirm in the popup', { title: 'Prompt', confirmText: 'Confirm' });
+                                // Check if using private key wallet for transactions
+                                const shouldUsePrivateKey = window.SecureWalletManager && 
+                                                           window.SecureWalletManager.shouldUsePrivateKeyForTransactions &&
+                                                           window.SecureWalletManager.shouldUsePrivateKeyForTransactions();
                                 
-                                // Use ModalDialog to confirm PwPoint authorization
-                                const approvalConfirm = await ModalDialog.confirm(
-                                    'Need to authorize the PWPoint token to claim rewards. Click "Confirm" to proceed.',
-                                    { title: 'Authorization Prompt', confirmText: 'Confirm', cancelText: 'Cancel' }
-                                );
-                                if (approvalConfirm.action !== 'confirm') {
-                                    await ModalDialog.alert('Authorization operation cancelled', { title: 'Error', confirmText: 'Confirm' });
-                                    return;
-                                }
+                                // Auto-approve for all wallet types for smoother experience
+                                console.log('Auto-approving PwPoint tokens for smoother experience...');
                                 
                                 try {
                                     // Execute authorization
@@ -1345,13 +1438,28 @@ const PetCard = (function() {
                                         from: userAddress
                                     });
                                     
-                                    const approveTransaction = await pwPointContract.methods.approve(pwPointManagerAddress, requiredAmount).send({
+                                    let approveTransaction;
+                                    
+                                    // Check if using private key wallet
+                                    if (shouldUsePrivateKey) {
+                                        console.log('Using private key wallet for PwPoint approval');
+                                        approveTransaction = await window.SecureWalletManager.sendContractTransaction(
+                                            pwPointContract,
+                                            'approve',
+                                            [pwPointManagerAddress, requiredAmount],
+                                            { gas: Math.floor(gasEstimate * 1.5) }
+                                        );
+                                    } else {
+                                        console.log('Using connected wallet for PwPoint approval');
+                                        approveTransaction = await pwPointContract.methods.approve(pwPointManagerAddress, requiredAmount).send({
                                         from: userAddress,
                                         gas: Math.floor(gasEstimate * 1.5) // Add 50% gas as a buffer
                                     });
+                                    }
                                     
                                     console.log('PwPoint authorization successful:', approveTransaction);
-                                    await ModalDialog.alert('Authorization successful, claiming rewards...', { title: 'Success', confirmText: 'Confirm' });
+                                    
+                                    // Removed authorization success alert for smoother experience
                                 } catch (approveError) {
                                     console.error('PwPoint authorization failed:', approveError);
                                     await ModalDialog.alert('Authorization failed: ' + (approveError.message || "Unknown error"), { title: 'Error', confirmText: 'Confirm' });
@@ -1363,12 +1471,36 @@ const PetCard = (function() {
                             // Continue execution, try to claim rewards
                         }
                         
-                        // Display the claim in progress prompt
-                        await ModalDialog.alert('Claiming rewards...', { title: 'Claim in progress', confirmText: 'Confirm' });
+                        // Removed claim in progress alert for smoother experience
                         
                         try {
                             // Call the contract to claim rewards
                             let tx;
+                            
+                            // Check if using private key wallet
+                            if (window.SecureWalletManager && window.SecureWalletManager.shouldUsePrivateKeyForTransactions()) {
+                                console.log('Using private key wallet for reward claim transaction');
+                                
+                                if (feedingContract && feedingContract.contract) {
+                                    tx = await window.SecureWalletManager.sendContractTransaction(
+                                        feedingContract.contract,
+                                        'claimRewards',
+                                        [[tokenId]],
+                                        { gas: 300000 }
+                                    );
+                                } else if (window.nftFeedingManagerContract) {
+                                    tx = await window.SecureWalletManager.sendContractTransaction(
+                                        window.nftFeedingManagerContract,
+                                        'claimRewards',
+                                        [[tokenId]],
+                                        { gas: 300000 }
+                                    );
+                                } else {
+                                    throw new Error('Unable to find a valid contract instance');
+                                }
+                            } else {
+                                console.log('Using connected wallet for reward claim transaction');
+                                
                             if (feedingContract && feedingContract.contract) {
                                 tx = await feedingContract.contract.methods.claimRewards([tokenId]).send({
                                     from: userAddress,
@@ -1381,10 +1513,8 @@ const PetCard = (function() {
                                 });
                             } else {
                                 throw new Error('Unable to find a valid contract instance');
+                                }
                             }
-                            
-                            console.log("Rewards claimed successfully:", tx);
-                            await ModalDialog.alert('Rewards claimed successfully!', { title: 'Success', confirmText: 'Confirm' });
                             
                             // Update the feeding information
                             const updatedFeedingInfo = await feedingContract.getNFTFeedingInfo(tokenId);
@@ -1394,6 +1524,34 @@ const PetCard = (function() {
                                     updatePetSatietyWithFeedingInfo(card, updatedFeedingInfo.realFeedingHours, updatedFeedingInfo);
                                 } else {
                                     updatePetSatietyWithFeedingInfo(card, updatedFeedingInfo.feedingHours, updatedFeedingInfo);
+                                }
+                            }
+                            
+                            // Extract actual reward amounts from transaction receipt
+                            let actualRewards = { pwpotAmount: 0, pwbotAmount: 0 };
+                            if (window.RewardNotification && window.RewardNotification.extractRewardAmountsFromTransaction) {
+                                actualRewards = window.RewardNotification.extractRewardAmountsFromTransaction(tx);
+                            }
+                            
+                            // Show reward notification
+                            if (window.RewardNotification && window.RewardNotification.showRewardClaimed) {
+                                window.RewardNotification.showRewardClaimed({
+                                    pwpotAmount: actualRewards.pwpotAmount,
+                                    pwbotAmount: actualRewards.pwbotAmount,
+                                    transactionHash: tx.transactionHash,
+                                    tokenId: tokenId,
+                                    nftName: card.querySelector('.pet-name')?.textContent || `NFT #${tokenId}`
+                                });
+                            } else {
+                                // Fallback notification if RewardNotification is not available
+                                const pwpotFormatted = actualRewards.pwpotAmount > 0 ? Math.floor(actualRewards.pwpotAmount).toString() : '0';
+                                const pwbotFormatted = actualRewards.pwbotAmount > 0 ? Math.floor(actualRewards.pwbotAmount).toString() : '0';
+                                
+                                if (window.showNotification) {
+                                    window.showNotification(
+                                        `🎉 Rewards Claimed!\nPWPOT: ${pwpotFormatted}\nPWBOT: ${pwbotFormatted}`, 
+                                        'success'
+                                    );
                                 }
                             }
                             
@@ -1478,19 +1636,103 @@ const PetCard = (function() {
                 }
                 
                 // Check if authorization is needed
-                if (window.web3 && window.NFTFeedingManagerContract && window.ContractApprovalManager) {
+                if (window.web3 && (window.nftFeedingManagerContract || window.initNFTFeedingManagerContract) && window.ContractApprovalManager) {
                     try {
-                        // Get the user address
+                        // Check wallet connection and get user address
+                        let userAddress = null;
+                        
+                        // Priority 1: Check private key wallet
+                        if (window.SecureWalletManager && window.SecureWalletManager.shouldUsePrivateKeyForTransactions()) {
+                            userAddress = window.SecureWalletManager.getAddress();
+                            console.log('Using private key wallet for feeding:', userAddress);
+                        } else {
+                            // Priority 2: Check connected wallet
                         const accounts = await window.web3.eth.getAccounts();
-                        const userAddress = accounts[0];
+                            userAddress = accounts[0];
+                            console.log('Using connected wallet for feeding:', userAddress);
+                        }
                         
                         if (!userAddress) {
                             await ModalDialog.alert('Please connect your wallet to feed the pet', { title: 'Prompt', confirmText: 'Confirm' });
                             return;
                         }
                         
-                        // Create an NFTFeedingManagerContract instance
-                        const feedingManagerContract = new window.NFTFeedingManagerContract(window.web3);
+                        // Get NFTFeedingManager contract instance
+                        let feedingManagerContract = null;
+                        
+                        if (window.nftFeedingManagerContract) {
+                            feedingManagerContract = {
+                                contract: window.nftFeedingManagerContract,
+                                contractAddress: window.nftFeedingManagerContract.options.address,
+                                async getPWFOODContract(getContractAddress) {
+                                    const pwfoodAddress = getContractAddress('PwFood');
+                                    if (!pwfoodAddress) return null;
+                                    
+                                    const erc20ABI = window.GENERIC_ERC20_ABI || window.ERC20ABI || [
+                                        {
+                                            "constant": true,
+                                            "inputs": [{"name": "owner", "type": "address"}],
+                                            "name": "balanceOf",
+                                            "outputs": [{"name": "", "type": "uint256"}],
+                                            "type": "function"
+                                        },
+                                        {
+                                            "constant": false,
+                                            "inputs": [{"name": "spender", "type": "address"}, {"name": "value", "type": "uint256"}],
+                                            "name": "approve",
+                                            "outputs": [{"name": "", "type": "bool"}],
+                                            "type": "function"
+                                        }
+                                    ];
+                                    
+                                    return new window.web3.eth.Contract(erc20ABI, pwfoodAddress);
+                                }
+                            };
+                        } else if (window.initNFTFeedingManagerContract && typeof window.initNFTFeedingManagerContract === 'function') {
+                            const getContractAddress = window.getContractAddress || function(name) {
+                                const network = window.currentNetwork || 'TEST';
+                                return window.contractAddresses && 
+                                    window.contractAddresses[network] ? 
+                                    window.contractAddresses[network][name] : null;
+                            };
+                            
+                            const contractInstance = window.initNFTFeedingManagerContract(window.web3, getContractAddress);
+                            if (contractInstance) {
+                                feedingManagerContract = {
+                                    contract: contractInstance,
+                                    contractAddress: contractInstance.options.address,
+                                    async getPWFOODContract(getContractAddress) {
+                                        const pwfoodAddress = getContractAddress('PwFood');
+                                        if (!pwfoodAddress) return null;
+                                        
+                                        const erc20ABI = window.GENERIC_ERC20_ABI || window.ERC20ABI || [
+                                            {
+                                                "constant": true,
+                                                "inputs": [{"name": "owner", "type": "address"}],
+                                                "name": "balanceOf",
+                                                "outputs": [{"name": "", "type": "uint256"}],
+                                                "type": "function"
+                                            },
+                                            {
+                                                "constant": false,
+                                                "inputs": [{"name": "spender", "type": "address"}, {"name": "value", "type": "uint256"}],
+                                                "name": "approve",
+                                                "outputs": [{"name": "", "type": "bool"}],
+                                                "type": "function"
+                                            }
+                                        ];
+                                        
+                                        return new window.web3.eth.Contract(erc20ABI, pwfoodAddress);
+                                    }
+                                };
+                            }
+                        }
+                        
+                        if (!feedingManagerContract) {
+                            console.error('Failed to get NFTFeedingManager contract instance');
+                            await ModalDialog.alert('Failed to get contract instance, cannot proceed with feeding', { title: 'Error', confirmText: 'Confirm' });
+                            return;
+                        }
                         
                         // Get the PWFOOD token contract
                         const pwfoodContract = await feedingManagerContract.getPWFOODContract(window.getContractAddress);
@@ -1508,16 +1750,10 @@ const PetCard = (function() {
                             
                             // Use a general modal popup to confirm PWFOOD authorization
                             if (approvalStatus.needsApproval) {
-                                const approvalRes = await ModalDialog.confirm(
-                                    'Need to authorize the PWFOOD token to feed the pet. Click "Confirm" to proceed.',
-                                    { title: 'Authorization Prompt', confirmText: 'Confirm', cancelText: 'Cancel' }
-                                );
-                                if (approvalRes.action !== 'confirm') {
-                                    await ModalDialog.alert('Authorization operation cancelled', { title: 'Error', confirmText: 'Confirm' });
-                                    return;
-                                }
-                                await ModalDialog.alert('Requesting authorization...', { title: 'Prompt', confirmText: 'Confirm' });
-                                // 进行授权
+                                console.log('Auto-authorizing PWFOOD token for pet feeding');
+                                await ModalDialog.alert('Authorizing PWFOOD token automatically...', { title: 'Authorization', confirmText: 'OK' });
+                                
+                                // Execute authorization
                                 const approvalResult = await window.ContractApprovalManager.approveERC20Token(
                                     pwfoodContract,
                                     feedingManagerContract.contractAddress,
@@ -1529,6 +1765,7 @@ const PetCard = (function() {
                                     await ModalDialog.alert('Authorization failed: ' + (approvalResult.error || 'Unknown error'), { title: 'Error', confirmText: 'Confirm' });
                                     return;
                                 }
+                                console.log('PWFOOD authorization successful for pet feeding');
                                 await ModalDialog.alert('Authorization successful, proceeding to feed...', { title: 'Success', confirmText: 'Confirm' });
                             }
                             

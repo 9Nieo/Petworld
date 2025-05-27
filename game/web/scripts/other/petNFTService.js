@@ -69,6 +69,77 @@ const PetNFTService = (function() {
                 debug.log('load Web3 library from global object');
             }
             
+            // Priority 1: Check for private key wallet Web3 instance
+            if (window.SecureWalletManager && window.SecureWalletManager.shouldUsePrivateKeyForTransactions()) {
+                const privateKeyWeb3 = window.SecureWalletManager.getWeb3();
+                if (privateKeyWeb3) {
+                    web3 = privateKeyWeb3;
+                    debug.log('use private key wallet Web3 instance');
+                    
+                    // Enhanced verification for private key wallet Web3
+                    try {
+                        debug.log('Verifying private key wallet Web3 connection...');
+                        
+                        // Test basic connectivity
+                        const [networkId, blockNumber] = await Promise.race([
+                            Promise.all([
+                                web3.eth.net.getId(),
+                                web3.eth.getBlockNumber()
+                            ]),
+                            new Promise((_, reject) => 
+                                setTimeout(() => reject(new Error('Network verification timeout')), 10000)
+                            )
+                        ]);
+                        
+                        debug.log('Private key wallet Web3 verified successfully:', {
+                            networkId,
+                            blockNumber,
+                            hasEth: !!web3.eth,
+                            hasUtils: !!web3.utils
+                        });
+                        
+                        // Ensure global Web3 instances are synchronized
+                        window.web3 = web3;
+                        window.gameWeb3 = web3;
+                        window.homeWeb3 = web3;
+                        debug.log('Synchronized all global Web3 instances with private key wallet');
+                        
+                        // Additional verification: test a simple contract call
+                        const walletStatus = window.SecureWalletManager.getWalletStatus();
+                        if (walletStatus.activeAddress) {
+                            try {
+                                const balance = await web3.eth.getBalance(walletStatus.activeAddress);
+                                debug.log('Private key wallet balance check successful:', web3.utils.fromWei(balance, 'ether'), 'BNB');
+                            } catch (balanceError) {
+                                debug.warn('Balance check failed but Web3 is working:', balanceError.message);
+                            }
+                        }
+                        
+                    } catch (verifyError) {
+                        debug.error('Private key wallet Web3 verification failed:', verifyError);
+                        debug.log('Attempting to reinitialize private key wallet Web3...');
+                        
+                        // Try to reinitialize the wallet
+                        if (window.SecureWalletManager.forceReinitializeAccount) {
+                            const reinitSuccess = await window.SecureWalletManager.forceReinitializeAccount();
+                            if (reinitSuccess) {
+                                web3 = window.SecureWalletManager.getWeb3();
+                                // Ensure global Web3 instances are synchronized after reinit
+                                window.web3 = web3;
+                                window.gameWeb3 = web3;
+                                window.homeWeb3 = web3;
+                                debug.log('Private key wallet Web3 reinitialized and synchronized successfully');
+                            } else {
+                                debug.error('Failed to reinitialize private key wallet');
+                                web3 = null; // Reset to try other methods
+                            }
+                        } else {
+                            web3 = null; // Reset to try other methods
+                        }
+                    }
+                }
+            }
+            
             // if web3 instance does not exist, try to create one
             if (!web3) {
                 debug.log('Web3 instance does not exist, try to create');
@@ -77,6 +148,11 @@ const PetNFTService = (function() {
                 if (window.homeWeb3) {
                     web3 = window.homeWeb3;
                     debug.log('use global homeWeb3 instance');
+                }
+                // try to get from global web3
+                else if (window.web3 && window.web3.eth) {
+                    web3 = window.web3;
+                    debug.log('use global web3 instance');
                 }
                 // try to get from ethereum object
                 else if (window.ethereum) {
@@ -126,7 +202,7 @@ const PetNFTService = (function() {
             
             // get contract address function
             const getContractAddressFunc = window.getContractAddress || function(name) {
-                const network = window.currentNetwork || 'MAIN';
+                const network = window.currentNetwork || 'TEST'; // Default to TEST network
                 if (window.contractAddresses && window.contractAddresses[network]) {
                     return window.contractAddresses[network][name];
                 }
@@ -136,20 +212,149 @@ const PetNFTService = (function() {
             // check if there is already a contract instance
             if (pwNFTContract && pwNFTContract.methods) {
                 debug.log('use existing PwNFT contract instance');
-            } else if (typeof window.initPwNFTContract === 'function') {
+                
+                // Verify existing contract is still working
+                try {
+                    const contractAddress = pwNFTContract._address;
+                    if (contractAddress) {
+                        debug.log('existing PwNFT contract address:', contractAddress);
+                    }
+                } catch (existingError) {
+                    debug.warn('existing PwNFT contract may be invalid, reinitializing...');
+                    pwNFTContract = null;
+                }
+            }
+            
+            if (!pwNFTContract && typeof window.initPwNFTContract === 'function') {
                 try {
                     debug.log('initialize PwNFT contract...');
+                    
+                    // Get contract address first to validate
+                    const pwNftAddress = getContractAddressFunc('PwNFT');
+                    if (!pwNftAddress || pwNftAddress === '0x0000000000000000000000000000000000000000') {
+                        throw new Error('Invalid PwNFT contract address: ' + pwNftAddress);
+                    }
+                    
+                    debug.log('PwNFT contract address:', pwNftAddress);
+                    
+                    // Validate ABI is available
+                    if (!window.PwNFTABI) {
+                        throw new Error('PwNFT ABI not available');
+                    }
+                    
                     pwNFTContract = window.initPwNFTContract(web3, getContractAddressFunc);
                     
                     if (pwNFTContract) {
                         debug.log('PwNFT contract initialized successfully, address:', pwNFTContract._address);
+                        
+                        // Enhanced contract testing with better error handling
+                        try {
+                            debug.log('Testing PwNFT contract with enhanced timeout and retry...');
+                            
+                            // Try different test methods in order of preference
+                            const testMethods = [
+                                // Test 1: Try name() method (most common)
+                                async () => {
+                                    const contractName = await pwNFTContract.methods.name().call();
+                                    return { method: 'name()', result: contractName };
+                                },
+                                
+                                // Test 2: Try symbol() method (fallback)
+                                async () => {
+                                    const contractSymbol = await pwNFTContract.methods.symbol().call();
+                                    return { method: 'symbol()', result: contractSymbol };
+                                },
+                                
+                                // Test 3: Try totalSupply() method (another fallback)
+                                async () => {
+                                    const totalSupply = await pwNFTContract.methods.totalSupply().call();
+                                    return { method: 'totalSupply()', result: totalSupply };
+                                },
+                                
+                                // Test 4: Try balanceOf() with zero address (minimal test)
+                                async () => {
+                                    const balance = await pwNFTContract.methods.balanceOf('0x0000000000000000000000000000000000000000').call();
+                                    return { method: 'balanceOf(zero)', result: balance };
+                                }
+                            ];
+                            
+                            let testSuccess = false;
+                            let lastError = null;
+                            
+                            // Try each test method
+                            for (let methodIndex = 0; methodIndex < testMethods.length; methodIndex++) {
+                                const testMethod = testMethods[methodIndex];
+                                
+                                try {
+                                    debug.log(`Trying test method ${methodIndex + 1}/${testMethods.length}...`);
+                                    
+                                    const testPromise = testMethod();
+                                    const timeoutPromise = new Promise((_, reject) => 
+                                        setTimeout(() => reject(new Error(`Test method ${methodIndex + 1} timeout`)), 8000)
+                                    );
+                                    
+                                    const result = await Promise.race([testPromise, timeoutPromise]);
+                                    debug.log(`PwNFT contract test successful with ${result.method}:`, result.result);
+                                    testSuccess = true;
+                                    break;
+                                    
+                                } catch (methodError) {
+                                    debug.warn(`Test method ${methodIndex + 1} failed:`, methodError.message);
+                                    lastError = methodError;
+                                    
+                                    // Continue to next method
+                                    continue;
+                                }
+                            }
+                            
+                            if (!testSuccess) {
+                                // If all test methods failed, log warning but don't fail initialization
+                                debug.warn('All PwNFT contract test methods failed, but continuing with initialization');
+                                debug.warn('Last error:', lastError?.message);
+                                
+                                // Check if this is a gas/network issue vs contract issue
+                                if (lastError?.message.includes('Out of Gas') || 
+                                    lastError?.message.includes('timeout') ||
+                                    lastError?.message.includes('network')) {
+                                    debug.warn('This appears to be a network/gas issue, not a contract issue');
+                                    debug.warn('Contract may still work for actual NFT operations');
+                                } else {
+                                    debug.warn('This may be a contract ABI or deployment issue');
+                                }
+                                
+                                // Don't fail initialization - let it continue
+                                debug.log('Continuing with PwNFT contract despite test failures...');
+                            }
+                            
+                        } catch (testError) {
+                            debug.error('PwNFT contract test failed:', testError);
+                            
+                            // Provide detailed error analysis but don't fail initialization
+                            if (testError.message.includes('Out of Gas')) {
+                                debug.warn('Contract test failed due to gas issues. Possible causes:');
+                                debug.warn('1. Network congestion or RPC issues');
+                                debug.warn('2. Invalid contract address or ABI mismatch');
+                                debug.warn('3. Contract not deployed on current network');
+                                debug.warn('4. Gas price settings too low');
+                                
+                                // If using private key wallet, check gas settings
+                                if (window.SecureWalletManager && window.SecureWalletManager.shouldUsePrivateKeyForTransactions()) {
+                                    const gasSettings = window.SecureWalletManager.getCurrentNetworkGasSettings();
+                                    debug.warn('Current gas settings:', gasSettings);
+                                }
+                            }
+                            
+                            // Don't set pwNFTContract to null - let it continue
+                            debug.warn('Continuing with PwNFT contract despite test error...');
+                        }
                     } else {
                         debug.error('PwNFT contract initialization returned null');
                     }
                 } catch (nftError) {
                     debug.error('failed to initialize PwNFT contract:', nftError);
+                    pwNFTContract = null;
                 }
-            } else {
+            } else if (!typeof window.initPwNFTContract === 'function') {
                 debug.error('cannot find initPwNFTContract function');
             }
             
@@ -176,7 +381,21 @@ const PetNFTService = (function() {
             // check if contract is initialized successfully
             if (!pwNFTContract || !pwNFTContract.methods) {
                 debug.error('PwNFT contract initialization failed');
-                return false;
+                
+                // Try to continue without PwNFT contract for now
+                debug.warn('Attempting to continue without PwNFT contract...');
+                debug.warn('NFT loading may be limited, but other functionality should work');
+                
+                // Check if we have NFTManager at least
+                if (nftManagerContract && nftManagerContract.methods) {
+                    debug.log('NFTManager contract is available, partial NFT functionality may work');
+                    isInitialized = true;
+                    debug.log('NFT service initialized with limited functionality (no PwNFT contract)');
+                    return true;
+                } else {
+                    debug.error('Neither PwNFT nor NFTManager contracts are available');
+                    return false;
+                }
             }
             
             isInitialized = true;
@@ -190,6 +409,48 @@ const PetNFTService = (function() {
     }
     
     /**
+     * Validate contract address format
+     * @param {string} address - Contract address to validate
+     * @returns {boolean} - Whether the address is valid
+     */
+    function isValidContractAddress(address) {
+        if (!address || typeof address !== 'string') {
+            return false;
+        }
+        
+        // Check if it's a valid Ethereum address format
+        const addressRegex = /^0x[a-fA-F0-9]{40}$/;
+        if (!addressRegex.test(address)) {
+            return false;
+        }
+        
+        // Check if it's not the zero address
+        if (address === '0x0000000000000000000000000000000000000000') {
+            return false;
+        }
+        
+        return true;
+    }
+    
+    /**
+     * Get network information for debugging
+     * @returns {object} - Network information
+     */
+    function getNetworkInfo() {
+        const currentNetwork = window.currentNetwork || 'TEST';
+        const contractAddresses = window.contractAddresses || {};
+        const networkAddresses = contractAddresses[currentNetwork] || {};
+        
+        return {
+            currentNetwork,
+            hasContractAddresses: !!window.contractAddresses,
+            hasNetworkAddresses: !!networkAddresses,
+            pwNFTAddress: networkAddresses.PwNFT || 'Not found',
+            availableNetworks: Object.keys(contractAddresses)
+        };
+    }
+    
+    /**
      * initialize specific NFT address
      */
     function initPetNftAddress() {
@@ -199,12 +460,13 @@ const PetNFTService = (function() {
             const defaultAddress = "0x0000000000000000000000000000000000000000";
             
             // get current network
-            const network = window.currentNetwork || 'MAIN';
+            const network = window.currentNetwork || 'TEST';
             debug.log('current network:', network);
             
             // check if contractAddresses exists
             if (!window.contractAddresses) {
                 debug.warn('window.contractAddresses is undefined, use default address');
+                debug.warn('Network info:', getNetworkInfo());
                 petNftAddress = defaultAddress;
                 return;
             }
@@ -212,18 +474,34 @@ const PetNFTService = (function() {
             // check if contractAddresses for current network exists
             if (!window.contractAddresses[network]) {
                 debug.warn(`contractAddresses['${network}'] is undefined, use default address`);
+                debug.warn('Available networks:', Object.keys(window.contractAddresses));
+                debug.warn('Network info:', getNetworkInfo());
                 petNftAddress = defaultAddress;
                 return;
             }
             
             // try to get petNftAddress
-            petNftAddress = window.contractAddresses[network].PwNFT ||
-                            defaultAddress;
+            const foundAddress = window.contractAddresses[network].PwNFT;
             
+            if (!foundAddress) {
+                debug.warn(`PwNFT address not found in contractAddresses['${network}']`);
+                debug.warn('Available contracts:', Object.keys(window.contractAddresses[network]));
+                petNftAddress = defaultAddress;
+                return;
+            }
+            
+            if (!isValidContractAddress(foundAddress)) {
+                debug.warn(`Invalid PwNFT address format: ${foundAddress}`);
+                petNftAddress = defaultAddress;
+                return;
+            }
+            
+            petNftAddress = foundAddress;
             debug.log('specific NFT address initialized to:', petNftAddress);
         } catch (error) {
             // use default address if error
             debug.warn('failed to initialize specific NFT address, use default address:', error);
+            debug.warn('Network info:', getNetworkInfo());
             petNftAddress = "0x0000000000000000000000000000000000000000";
         }
     }
@@ -560,7 +838,7 @@ const PetNFTService = (function() {
      * @returns {Promise<Array>} - NFT array
      */
     async function loadUserNFTs(userAddress, options = {}) {
-        if (!userAddress || !utils.isValidAddress(userAddress)) {
+        if (!userAddress || !web3.utils.isAddress(userAddress)) {
             debug.error('invalid user address', userAddress);
             return [];
         }
@@ -568,7 +846,7 @@ const PetNFTService = (function() {
         debug.log('load user NFTs', userAddress);
         
         // normalize user address
-        userAddress = utils.toChecksumAddress(userAddress);
+        userAddress = web3.utils.toChecksumAddress(userAddress);
         
         // apply options
         const optionsWithDefaults = {
@@ -588,9 +866,16 @@ const PetNFTService = (function() {
         try {
             let nfts = [];
             
+            // Check if pwNFTContract is available
+            if (!pwNFTContract || !pwNFTContract.methods) {
+                debug.warn('PwNFT contract not available, returning cached data only');
+                const cachedNFTs = getCachedNFTs({ userAddress });
+                return cachedNFTs || [];
+            }
+            
             // load NFTs from web3 - this reflects the real ownership on blockchain
             try {
-                const contractNFTs = await nftContract.methods.getNFTsByOwner(userAddress).call();
+                const contractNFTs = await pwNFTContract.methods.getNFTsByOwner(userAddress).call();
                 if (contractNFTs && contractNFTs.length > 0) {
                     debug.log(`get ${contractNFTs.length} NFT tokenIds from contract`);
                     
@@ -683,6 +968,21 @@ const PetNFTService = (function() {
             return [];
         }
         
+        // Validate contract address format using our validation function
+        if (!isValidContractAddress(contractAddress)) {
+            debug.error('invalid contract address format:', contractAddress);
+            debug.error('Contract address must be a valid 42-character hex string starting with 0x');
+            debug.error('Network info:', getNetworkInfo());
+            return [];
+        }
+        
+        // Validate user address format
+        if (!isValidContractAddress(addressStr)) {
+            debug.error('invalid user address format:', addressStr);
+            debug.error('User address must be a valid 42-character hex string starting with 0x');
+            return [];
+        }
+        
         // if use cache, try to get data from cache first
         if (useCache) {
             const cachedNfts = getCachedNFTs({ 
@@ -706,20 +1006,242 @@ const PetNFTService = (function() {
             return [];
         }
         
+        // Enhanced Web3 instance validation
+        if (!web3 || !web3.eth) {
+            debug.error('Web3 instance not available or invalid');
+            
+            // Try to get Web3 from SecureWalletManager if available
+            if (window.SecureWalletManager && window.SecureWalletManager.shouldUsePrivateKeyWallet()) {
+                const privateKeyWeb3 = window.SecureWalletManager.getWeb3();
+                if (privateKeyWeb3 && privateKeyWeb3.eth) {
+                    debug.log('Using Web3 from SecureWalletManager');
+                    web3 = privateKeyWeb3;
+                    
+                    // Ensure global Web3 instances are synchronized
+                    window.web3 = web3;
+                    window.gameWeb3 = web3;
+                    window.homeWeb3 = web3;
+                    debug.log('Synchronized global Web3 instances with private key wallet');
+                } else {
+                    debug.error('SecureWalletManager Web3 instance also invalid');
+                    return [];
+                }
+            } else {
+                debug.error('No valid Web3 instance available');
+                return [];
+            }
+        }
+        
+        // Validate network connection and ensure we're on the correct network
+        try {
+            const networkId = await web3.eth.net.getId();
+            debug.log('Connected to network ID:', networkId);
+            
+            // Check if we're using private key wallet and verify network consistency
+            if (window.SecureWalletManager && window.SecureWalletManager.shouldUsePrivateKeyWallet()) {
+                const walletStatus = window.SecureWalletManager.getWalletStatus();
+                debug.log('Private key wallet status:', {
+                    isReady: walletStatus.isReady,
+                    hasWeb3: walletStatus.web3Available,
+                    networkId: networkId
+                });
+                
+                // Ensure we're using the same Web3 instance as the wallet
+                const walletWeb3 = window.SecureWalletManager.getWeb3();
+                if (walletWeb3 && walletWeb3 !== web3) {
+                    debug.log('Switching to wallet Web3 instance to ensure network consistency');
+                    web3 = walletWeb3;
+                    
+                    // Re-verify network after switching
+                    const newNetworkId = await web3.eth.net.getId();
+                    debug.log('Network ID after switching to wallet Web3:', newNetworkId);
+                }
+            }
+            
+        } catch (networkError) {
+            debug.error('Failed to connect to network:', networkError.message);
+            
+            // If network connection fails, try to reinitialize with private key wallet
+            if (window.SecureWalletManager && window.SecureWalletManager.shouldUsePrivateKeyWallet()) {
+                debug.log('Attempting to reinitialize Web3 with private key wallet...');
+                try {
+                    if (window.SecureWalletManager.forceReinitializeAccount) {
+                        const reinitSuccess = await window.SecureWalletManager.forceReinitializeAccount();
+                        if (reinitSuccess) {
+                            web3 = window.SecureWalletManager.getWeb3();
+                            window.web3 = web3;
+                            window.gameWeb3 = web3;
+                            window.homeWeb3 = web3;
+                            debug.log('Web3 reinitialized successfully with private key wallet');
+                            
+                            // Re-test network connection
+                            const networkId = await web3.eth.net.getId();
+                            debug.log('Network ID after reinitializing:', networkId);
+                        } else {
+                            debug.error('Failed to reinitialize Web3 with private key wallet');
+                            return [];
+                        }
+                    } else {
+                        debug.error('Private key wallet does not support reinitialization');
+                        return [];
+                    }
+                } catch (reinitError) {
+                    debug.error('Error during Web3 reinitialization:', reinitError.message);
+                    return [];
+                }
+            } else {
+                return [];
+            }
+        }
+        
         try {
             debug.log('create contract instance...');
             
-            // create contract instance
-            const contractInstance = new web3.eth.Contract(window.PwNFTABI, contractAddress);
-            
-            if (!contractInstance || !contractInstance.methods) {
-                debug.error('failed to create contract instance');
+            // Validate ABI availability
+            if (!window.PwNFTABI) {
+                debug.error('PwNFT ABI not available');
                 return [];
             }
             
-            // get number of NFTs owned by user
+            // Enhanced contract address validation
+            if (!contractAddress || contractAddress.length !== 42 || !contractAddress.startsWith('0x')) {
+                debug.error('Invalid contract address format:', contractAddress);
+                return [];
+            }
+            
+            // create contract instance with enhanced retry mechanism
+            let contractInstance;
+            const maxRetries = 3;
+            
+            for (let attempt = 1; attempt <= maxRetries; attempt++) {
+                try {
+                    debug.log(`Contract creation attempt ${attempt}/${maxRetries}`);
+                    
+                    // Create contract instance
+                    contractInstance = new web3.eth.Contract(window.PwNFTABI, contractAddress);
+                    
+                    if (!contractInstance || !contractInstance.methods) {
+                        throw new Error('Failed to create contract instance - invalid contract object');
+                    }
+                    
+                    // Test contract connection with timeout and better error handling
+                    try {
+                        // Try multiple test methods to verify contract
+                        const testMethods = [
+                            () => contractInstance.methods.name().call(),
+                            () => contractInstance.methods.symbol().call(),
+                            () => contractInstance.methods.totalSupply().call()
+                        ];
+                        
+                        let testPassed = false;
+                        for (let testIndex = 0; testIndex < testMethods.length; testIndex++) {
+                            try {
+                                const testPromise = testMethods[testIndex]();
+                                const timeoutPromise = new Promise((_, reject) => 
+                                    setTimeout(() => reject(new Error('Contract test timeout')), 8000)
+                                );
+                                
+                                await Promise.race([testPromise, timeoutPromise]);
+                                debug.log(`Contract test ${testIndex + 1} passed on attempt ${attempt}`);
+                                testPassed = true;
+                                break;
+                            } catch (testError) {
+                                debug.warn(`Contract test ${testIndex + 1} failed:`, testError.message);
+                                continue;
+                            }
+                        }
+                        
+                        if (!testPassed) {
+                            // If all tests failed, log warning but continue anyway
+                            debug.warn(`All contract tests failed on attempt ${attempt}, but continuing...`);
+                            debug.warn('Contract may still work for balance and NFT queries');
+                        }
+                        
+                        debug.log(`Contract instance created on attempt ${attempt} (test passed: ${testPassed})`);
+                        break;
+                        
+                    } catch (testError) {
+                        debug.warn(`Contract test failed on attempt ${attempt}:`, testError.message);
+                        // Continue anyway - the contract might still work for our purposes
+                        debug.log(`Contract instance created on attempt ${attempt} (test failed but continuing)`);
+                        break;
+                    }
+                    
+                } catch (contractError) {
+                    debug.warn(`Contract creation attempt ${attempt} failed:`, contractError.message);
+                    
+                    // Check if this is a network/gas issue
+                    if (contractError.message.includes('Out of Gas') || 
+                        contractError.message.includes('timeout') ||
+                        contractError.message.includes('network') ||
+                        contractError.message.includes('connection')) {
+                        debug.warn('Network or gas issue detected, will retry with delay');
+                    }
+                    
+                    if (attempt === maxRetries) {
+                        debug.error('Failed to create contract instance after all retries');
+                        
+                        // Try to provide more helpful error information
+                        if (contractError.message.includes('Out of Gas')) {
+                            debug.error('Contract call failed due to gas issues. This might indicate:');
+                            debug.error('1. Network congestion');
+                            debug.error('2. Invalid contract address');
+                            debug.error('3. Contract not deployed on current network');
+                            debug.error('4. RPC endpoint issues');
+                        }
+                        
+                        return [];
+                    }
+                    
+                    // Progressive delay: 1s, 2s, 3s
+                    const delay = 1000 * attempt;
+                    debug.log(`Waiting ${delay}ms before retry...`);
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                }
+            }
+            
+            // get number of NFTs owned by user with enhanced retry and timeout
             debug.log(`query number of NFTs owned by user(${addressStr})`);
-            const balance = await contractInstance.methods.balanceOf(addressStr).call();
+            let balance;
+            
+            for (let attempt = 1; attempt <= maxRetries; attempt++) {
+                try {
+                    // Add timeout protection for balance query
+                    const balancePromise = contractInstance.methods.balanceOf(addressStr).call();
+                    const timeoutPromise = new Promise((_, reject) => 
+                        setTimeout(() => reject(new Error('Balance query timeout')), 8000)
+                    );
+                    
+                    balance = await Promise.race([balancePromise, timeoutPromise]);
+                    debug.log(`Balance query successful on attempt ${attempt}: ${balance}`);
+                    break;
+                } catch (balanceError) {
+                    debug.warn(`Balance query attempt ${attempt} failed:`, balanceError.message);
+                    
+                    // Check for specific error types
+                    if (balanceError.message.includes('Out of Gas') || 
+                        balanceError.message.includes('timeout') ||
+                        balanceError.message.includes('network')) {
+                        debug.warn('Network or gas issue detected during balance query');
+                    }
+                    
+                    if (attempt === maxRetries) {
+                        debug.error('Failed to query balance after all retries');
+                        debug.error('This might indicate:');
+                        debug.error('1. Invalid user address format');
+                        debug.error('2. Contract does not support balanceOf method');
+                        debug.error('3. Network connectivity issues');
+                        debug.error('4. Contract not properly deployed');
+                        return [];
+                    }
+                    
+                    // Progressive delay for balance query retries
+                    const delay = 1000 * attempt;
+                    debug.log(`Waiting ${delay}ms before balance query retry...`);
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                }
+            }
+            
             const totalNFTCount = parseInt(balance);
             debug.log(`number of NFTs owned by user: ${totalNFTCount}`);
             
@@ -753,16 +1275,19 @@ const PetNFTService = (function() {
                 const startIndex = options.startIndex || 0;
                 const endIndex = Math.min(startIndex + limit, totalNFTCount);
                 
-                // load NFT
+                // load NFT with better error handling
                 const tasks = [];
                 for (let i = startIndex; i < endIndex; i++) {
                     tasks.push(fetchNFTByIndex(contractInstance, addressStr, i));
                 }
                 
-                const results = await Promise.all(tasks);
-                validNFTs = results.filter(result => result !== null);
+                const results = await Promise.allSettled(tasks);
+                validNFTs = results
+                    .filter(result => result.status === 'fulfilled' && result.value !== null)
+                    .map(result => result.value);
                 
-                debug.log(`successfully loaded ${validNFTs.length} NFTs, failed ${results.length - validNFTs.length} NFTs`);
+                const failedCount = results.length - validNFTs.length;
+                debug.log(`successfully loaded ${validNFTs.length} NFTs, failed ${failedCount} NFTs`);
             } else {
                 debug.log('contract does not support enumeration interface, use alternative method to load all possible NFTs');
                 
@@ -796,11 +1321,11 @@ const PetNFTService = (function() {
                 debug.log(`start querying ${possibleIds.length} possible tokenIds`);
                 
                 // parallel process batch queries, to speed up
-                const batchSize = 10;
+                const batchSize = 5; // Reduce batch size for better stability
                 for (let i = 0; i < possibleIds.length; i += batchSize) {
                     const batch = possibleIds.slice(i, i + batchSize);
                     
-                    // parallel process current batch
+                    // parallel process current batch with better error handling
                     const batchPromises = batch.map(async (possibleId) => {
                         try {
                             const owner = await contractInstance.methods.ownerOf(possibleId).call();
@@ -808,7 +1333,7 @@ const PetNFTService = (function() {
                                 // found tokenId owned by user
                                 debug.log(`found tokenId owned by user: ${possibleId}`);
                                 
-                                // get token info
+                                // get token info with error handling
                                 try {
                                     // get tokenURI
                                     let tokenURI;
@@ -818,7 +1343,7 @@ const PetNFTService = (function() {
                                         try {
                                             tokenURI = await contractInstance.methods.uri(possibleId).call();
                                         } catch (e) {
-                                            // ignore error
+                                            debug.warn(`Failed to get tokenURI for ${possibleId}:`, e.message);
                                         }
                                     }
                                     
@@ -829,7 +1354,7 @@ const PetNFTService = (function() {
                                         name = await contractInstance.methods.name().call();
                                         symbol = await contractInstance.methods.symbol().call();
                                     } catch (e) {
-                                        // ignore error
+                                        debug.warn(`Failed to get name/symbol for ${possibleId}:`, e.message);
                                     }
                                     
                                     // get metadata
@@ -2169,9 +2694,40 @@ const PetNFTService = (function() {
         }
     }
     
+    /**
+     * Reset initialization state (for reinitialization with different Web3 instance)
+     */
+    function _resetInitialization() {
+        debug.log('Resetting PetNFTService initialization state');
+        isInitialized = false;
+        web3 = null;
+        pwNFTContract = null;
+        nftManagerContract = null;
+    }
+
+    /**
+     * Update cached NFTs (for external updates)
+     * @param {Array} nfts - NFT array to cache
+     */
+    function updateCachedNFTs(nfts) {
+        if (Array.isArray(nfts)) {
+            debug.log(`Updating cached NFTs, count: ${nfts.length}`);
+            // Use the current user address if available
+            const userAddress = window.SecureWalletManager && window.SecureWalletManager.shouldUsePrivateKeyForTransactions() 
+                ? window.SecureWalletManager.getAddress() 
+                : (sessionStorage.getItem('walletAddress') || localStorage.getItem('walletAddress'));
+            
+            if (userAddress) {
+                cacheNFTs(nfts, userAddress, getPetNftAddress());
+            }
+        }
+    }
+
     // public API
     return {
         init,
+        _resetInitialization,
+        updateCachedNFTs,
         loadUserNFTs,
         loadNFTByContractAddress,
         loadSpecificNFT,
@@ -2191,7 +2747,9 @@ const PetNFTService = (function() {
         getPetImageUrl, 
         getBestPetImageUrl,
         updateNFTWithBestImage,
-        updateNFTsWithBestImages
+        updateNFTsWithBestImages,
+        isValidContractAddress,
+        getNetworkInfo
     };
 })();
 
@@ -2200,4 +2758,6 @@ if (typeof module !== 'undefined' && module.exports) {
     module.exports = PetNFTService;
 } else {
     window.PetNFTService = PetNFTService;
+    // Also expose validation function globally for backward compatibility
+    window.isValidContractAddress = PetNFTService.isValidContractAddress;
 } 

@@ -171,7 +171,40 @@
             "使用本地HTTPS伺服器(如ngrok, localtunnel等)"
           ]
         }
-      }
+      },
+      
+      // Wallet choice modal
+      choiceTitle: "選擇連接方式",
+      choiceDescription: "要使用所有功能，請連接您的錢包或使用私鑰",
+      connectWalletDesc: "連接MetaMask、OKX或其他支持的錢包",
+      usePrivateKey: "使用私鑰 (推薦)",
+      usePrivateKeyDesc: "安全地在本地存儲和使用您的私鑰",
+      skipForNow: "暫時跳過",
+      
+      // Private key setup
+      setupPrivateKey: "設置私鑰錢包",
+      securityWarning: "您的私鑰將被加密並存儲在本地。請勿與任何人分享！",
+      masterPassword: "主密碼",
+      masterPasswordDesc: "此密碼將保護您存儲的私鑰",
+      walletName: "錢包名稱",
+      walletNameDesc: "用於識別此錢包的友好名稱",
+      privateKey: "私鑰",
+      privateKeyDesc: "64位十六進制字符（帶或不帶0x前綴）",
+      setup: "設置錢包",
+      cancel: "取消",
+      
+      // Messages
+      enterMasterPassword: "請輸入主密碼",
+      passwordTooShort: "密碼必須至少6個字符",
+      enterWalletName: "請輸入錢包名稱",
+      enterPrivateKey: "請輸入您的私鑰",
+      invalidPrivateKey: "無效的私鑰格式。必須是64位十六進制字符。",
+      setting: "設置中...",
+      setupSuccess: "錢包設置成功！",
+      setupFailed: "錢包設置失敗",
+      setupError: "設置錢包時出錯",
+      authFailed: "認證失敗",
+      recommendedReason: "推薦: 無需頻繁簽名即可順暢操作"
     },
 
     // application specific items
@@ -343,7 +376,8 @@
         pendingRewards: "待領取收益",
         actions: "操作",
         noHistory: "沒有質押歷史",
-        cycle: "周期",
+        cycle: "周期 {cycle}",
+        notClaimed: "未領取",
       },
       notification: {
         noRewards: "沒有收益",
@@ -372,6 +406,7 @@
         approving: "授權中...",
         approveSuccess: "授權成功",
         approveFailed: "授權失敗",
+        claimConfirmation: "領取確認",
       }
     },
     // pets related
@@ -582,6 +617,8 @@
         purchaseFailed: "購買失敗",
         purchaseEggsSuccess: "恭喜! 成功購買了 {count} {eggName}",
         purchaseFoodSuccess: "恭喜! 成功購買了 {quantity} 寵物食物",
+        purchaseFoodSuccessModal: "成功購買了 {quantity} 寵物食物！",
+        purchaseFoodTip: "寵物食物已添加到您的庫存中。使用它來餵養您的寵物，讓它們保持快樂！",
         purchaseNoLotteryResult: "成功購買了蛋, 請檢查您的收藏以獲得新寵物。",
         purchaseNoLotteryDisplay: "成功購買了蛋, 但無法顯示抽獎結果",
         
@@ -591,6 +628,8 @@
         claimingEggs: "領取未領取的寵物...",
         claimNFTSuccess: "免費寵物領取成功! 請檢查您的遊戲中的新寵物",
         claimFoodSuccess: "免費寵物食物領取成功! 獲得 {count} 寵物食物",
+        claimFreeFoodSuccessModal: "成功領取了 {count} 免費寵物食物！",
+        claimFreeFoodTip: "明天再來領取更多免費寵物食物。定期餵養您的寵物以保持它們的健康！",
         claimEggsSuccess: "成功領取了 {count} 個寵物! 請檢查它們",
         
         // Validation errors

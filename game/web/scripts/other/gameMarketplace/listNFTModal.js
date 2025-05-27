@@ -35,6 +35,64 @@
     // NFT listing cooldown time (1 hour, in seconds)
     const NFT_LISTING_COOLDOWN = 60 * 60; // 1 hour = 60 minutes * 60 seconds
     
+    // Debug object for NFT listing modal
+    const debug = {
+        log: function(message, ...args) {
+            console.log('[Game NFT Listing Modal Debug]', message, ...args);
+        },
+        error: function(message, ...args) {
+            console.error('[Game NFT Listing Modal Debug]', message, ...args);
+        },
+        warn: function(message, ...args) {
+            console.warn('[Game NFT Listing Modal Debug]', message, ...args);
+        }
+    };
+    
+    /**
+     * Check if private key wallet should be used
+     * @returns {boolean} - Whether private key wallet should be used
+     */
+    function shouldUsePrivateKeyWallet() {
+        if (!window.SecureWalletManager) {
+            return false;
+        }
+        
+        try {
+            return window.SecureWalletManager.isWalletReady() && 
+                   window.SecureWalletManager.getWeb3() && 
+                   window.SecureWalletManager.getAddress();
+        } catch (error) {
+            debug.error('Error checking private key wallet status:', error);
+            return false;
+        }
+    }
+    
+    /**
+     * Get private key wallet status
+     * @returns {object} - Private key wallet status
+     */
+    function getPrivateKeyWalletStatus() {
+        if (!window.SecureWalletManager) {
+            return { hasWallet: false, activeAddress: null, isReady: false };
+        }
+        
+        try {
+            const isReady = window.SecureWalletManager.isWalletReady();
+            const address = window.SecureWalletManager.getAddress();
+            const web3Instance = window.SecureWalletManager.getWeb3();
+            
+            return {
+                hasWallet: isReady && !!address && !!web3Instance,
+                activeAddress: address,
+                isReady: isReady,
+                web3Available: !!web3Instance
+            };
+        } catch (error) {
+            debug.error('Error getting private key wallet status:', error);
+            return { hasWallet: false, activeAddress: null, isReady: false };
+        }
+    }
+    
     /**
      * Get the corresponding style class name based on quality ID
      * @param {string} qualityId - Quality ID
@@ -97,16 +155,59 @@
      */
     async function checkNFTCooldown(tokenId) {
         try {
+            // Ensure we have a valid marketplace contract
+            if (!marketplaceContract || !marketplaceContract.methods) {
+                debug.warn('Marketplace contract not available, skipping cooldown check');
+                return { inCooldown: false, timeLeft: 0 };
+            }
+            
+            // Ensure we're using the correct Web3 instance for contract calls
+            let contractToUse = marketplaceContract;
+            
+            // Check if we need to use private key wallet Web3
+            if (shouldUsePrivateKeyWallet()) {
+                const privateKeyWeb3 = window.SecureWalletManager.getWeb3();
+                if (privateKeyWeb3 && privateKeyWeb3 !== web3) {
+                    debug.log('Using private key wallet Web3 for contract calls in checkNFTCooldown');
+                    // Recreate contract with private key Web3 if needed
+                    try {
+                        contractToUse = new privateKeyWeb3.eth.Contract(
+                            marketplaceContract.options.jsonInterface,
+                            marketplaceContract.options.address
+                        );
+                    } catch (error) {
+                        debug.warn('Failed to recreate contract with private key Web3, using original:', error);
+                    }
+                }
+            }
+            
             // Get NFT listing information
-            const listingInfo = await marketplaceContract.methods.listings(tokenId).call();
+            let listingInfo;
+            try {
+                listingInfo = await contractToUse.methods.listings(tokenId).call();
+            } catch (error) {
+                // Handle specific error types
+                if (error.message && (
+                    error.message.includes("Returned values aren't valid") ||
+                    error.message.includes("execution reverted") ||
+                    error.message.includes("invalid opcode") ||
+                    error.message.includes("revert")
+                )) {
+                    // These errors usually mean the NFT has never been listed
+                    debug.log(`NFT #${tokenId} has never been listed (contract error indicates no listing history)`);
+                    return { inCooldown: false, timeLeft: 0 };
+                } else {
+                    throw error; // Re-throw other types of errors
+                }
+            }
             
             // If the NFT has never been listed before, it is not in cooldown
-            if (listingInfo.seller === '0x0000000000000000000000000000000000000000') {
+            if (!listingInfo || listingInfo.seller === '0x0000000000000000000000000000000000000000') {
                 return { inCooldown: false, timeLeft: 0 };
             }
             
             // Get the last listing time
-            const lastListTime = parseInt(listingInfo.lastListTime);
+            const lastListTime = parseInt(listingInfo.lastListTime || 0);
             
             // If lastListTime is 0, it means the NFT has never been listed
             if (lastListTime === 0) {
@@ -123,10 +224,12 @@
             if (currentTime < cooldownEndTime) {
                 // Calculate the remaining cooldown time (seconds)
                 const timeLeft = cooldownEndTime - currentTime;
+                debug.log(`NFT #${tokenId} is in cooldown, ${timeLeft} seconds remaining`);
                 return { inCooldown: true, timeLeft: timeLeft };
             }
             
             // Not in cooldown
+            debug.log(`NFT #${tokenId} is not in cooldown`);
             return { inCooldown: false, timeLeft: 0 };
         } catch (error) {
             console.error(`Failed to check cooldown for NFT #${tokenId}:`, error);
@@ -167,10 +270,59 @@
      */
     function init(web3Instance, marketplaceContractInstance, nftContractInstance) {
         try {
+            debug.log('Initializing game mode NFT listing modal...');
+            
             // Save Web3 and contract instances
             web3 = web3Instance;
             marketplaceContract = marketplaceContractInstance;
             pwNFTContract = nftContractInstance;
+            
+            // Validate contract instances
+            if (!marketplaceContract || !marketplaceContract.methods) {
+                debug.warn('Invalid marketplace contract instance provided');
+            } else {
+                debug.log('Marketplace contract initialized:', marketplaceContract.options.address);
+            }
+            
+            if (!pwNFTContract || !pwNFTContract.methods) {
+                debug.warn('Invalid NFT contract instance provided');
+            } else {
+                debug.log('NFT contract initialized:', pwNFTContract.options.address);
+            }
+            
+            // Check if we need to use private key wallet Web3
+            if (shouldUsePrivateKeyWallet()) {
+                const privateKeyWeb3 = window.SecureWalletManager.getWeb3();
+                if (privateKeyWeb3) {
+                    debug.log('Private key wallet detected, updating Web3 instance');
+                    web3 = privateKeyWeb3;
+                    
+                    // Recreate contracts with private key Web3 if needed
+                    if (marketplaceContract && marketplaceContract.options) {
+                        try {
+                            marketplaceContract = new privateKeyWeb3.eth.Contract(
+                                marketplaceContract.options.jsonInterface,
+                                marketplaceContract.options.address
+                            );
+                            debug.log('Marketplace contract recreated with private key Web3');
+                        } catch (error) {
+                            debug.warn('Failed to recreate marketplace contract with private key Web3:', error);
+                        }
+                    }
+                    
+                    if (pwNFTContract && pwNFTContract.options) {
+                        try {
+                            pwNFTContract = new privateKeyWeb3.eth.Contract(
+                                pwNFTContract.options.jsonInterface,
+                                pwNFTContract.options.address
+                            );
+                            debug.log('NFT contract recreated with private key Web3');
+                        } catch (error) {
+                            debug.warn('Failed to recreate NFT contract with private key Web3:', error);
+                        }
+                    }
+                }
+            }
             
             // If the modal already exists, return directly
             if (document.getElementById('list-nft-modal-game')) {
@@ -187,6 +339,7 @@
                 bindEvents();
                 
                 isInitialized = true;
+                debug.log('Game mode NFT listing modal reinitialized successfully');
                 return;
             }
             
@@ -197,7 +350,7 @@
             bindEvents();
             
             isInitialized = true;
-            console.log('Game mode NFT listing modal initialized successfully');
+            debug.log('Game mode NFT listing modal initialized successfully');
         } catch (error) {
             console.error('Failed to initialize game mode NFT listing modal:', error);
             isInitialized = false;
@@ -517,12 +670,36 @@
             // Clear NFT list
             nftList.innerHTML = '';
             
-            // Get current user address
-            const accounts = await web3.eth.getAccounts();
-            const userAddress = accounts[0];
+            // Check if using private key wallet
+            const usingPrivateKey = shouldUsePrivateKeyWallet();
+            debug.log('Using private key wallet for loading NFTs:', usingPrivateKey);
             
-            if (!userAddress) {
-                throw new Error('Wallet not connected');
+            // Get current user address
+            let userAddress;
+            if (usingPrivateKey) {
+                const walletStatus = getPrivateKeyWalletStatus();
+                userAddress = walletStatus.activeAddress;
+                
+                if (!userAddress) {
+                    throw new Error('Private key wallet address not available');
+                }
+                
+                // Ensure we're using the correct Web3 instance
+                web3 = window.SecureWalletManager.getWeb3();
+                if (!web3) {
+                    throw new Error('Failed to get Web3 instance from private key wallet');
+                }
+                
+                debug.log('Using private key wallet address for NFT loading:', userAddress);
+            } else {
+                const accounts = await web3.eth.getAccounts();
+                userAddress = accounts[0];
+                
+                if (!userAddress) {
+                    throw new Error('External wallet not connected');
+                }
+                
+                debug.log('Using external wallet address for NFT loading:', userAddress);
             }
             
             // Initialize NFTFeedingManager contract
@@ -762,37 +939,83 @@
         try {
             const filteredNFTs = [];
             
+            // Ensure we have a valid marketplace contract
+            if (!marketplaceContract || !marketplaceContract.methods) {
+                console.warn('Marketplace contract not available, skipping listing status check');
+                return nfts; // Return all NFTs if contract not available
+            }
+            
+            // Ensure we're using the correct Web3 instance for contract calls
+            let contractToUse = marketplaceContract;
+            
+            // Check if we need to use private key wallet Web3
+            if (shouldUsePrivateKeyWallet()) {
+                const privateKeyWeb3 = window.SecureWalletManager.getWeb3();
+                if (privateKeyWeb3 && privateKeyWeb3 !== web3) {
+                    debug.log('Using private key wallet Web3 for contract calls in filterListedNFTs');
+                    // Recreate contract with private key Web3 if needed
+                    try {
+                        contractToUse = new privateKeyWeb3.eth.Contract(
+                            marketplaceContract.options.jsonInterface,
+                            marketplaceContract.options.address
+                        );
+                    } catch (error) {
+                        debug.warn('Failed to recreate contract with private key Web3, using original:', error);
+                    }
+                }
+            }
+            
             for (const nft of nfts) {
                 try {
                     // Already filtered out common quality, no need to check again
                     
                     // Check if the NFT is listed
-                    // First try using isTokenListed method
                     let isListed = false;
+                    
                     try {
-                        if (marketplaceContract.methods.isTokenListed) {
-                            isListed = await marketplaceContract.methods.isTokenListed(nft.tokenId).call();
-                        } else if (marketplaceContract.methods.listings) {
-                            // Fallback method: check listings mapping
-                            const listing = await marketplaceContract.methods.listings(nft.tokenId).call();
-                            isListed = listing.active === true;
-                        } else if (marketplaceContract.methods.getListingByToken) {
-                            // Fallback method: use getListingByToken method
-                            const listing = await marketplaceContract.methods.getListingByToken(nft.tokenId).call();
-                            isListed = listing && listing.price && listing.price !== '0';
+                        // Try different methods to check listing status
+                        if (contractToUse.methods.isTokenListed) {
+                            // Method 1: Use isTokenListed if available
+                            isListed = await contractToUse.methods.isTokenListed(nft.tokenId).call();
+                            debug.log(`NFT #${nft.tokenId} listing status (isTokenListed): ${isListed}`);
+                        } else if (contractToUse.methods.listings) {
+                            // Method 2: Check listings mapping
+                            const listing = await contractToUse.methods.listings(nft.tokenId).call();
+                            isListed = listing && listing.active === true;
+                            debug.log(`NFT #${nft.tokenId} listing status (listings): ${isListed}`);
+                        } else {
+                            // Method 3: Assume not listed if no method available
+                            debug.warn(`No listing check method available for NFT #${nft.tokenId}`);
+                            isListed = false;
                         }
                     } catch (listingError) {
-                        console.warn(`Error checking listing status for NFT #${nft.tokenId}:`, listingError);
-                        // Default to assuming not listed
-                        isListed = false;
+                        // Handle specific error types
+                        if (listingError.message && (
+                            listingError.message.includes("Returned values aren't valid") ||
+                            listingError.message.includes("execution reverted") ||
+                            listingError.message.includes("invalid opcode") ||
+                            listingError.message.includes("revert")
+                        )) {
+                            // These errors usually mean the NFT is not listed or method doesn't exist
+                            debug.log(`NFT #${nft.tokenId} not listed (contract error indicates no listing)`);
+                            isListed = false;
+                        } else {
+                            console.error(`Error checking listing status for NFT #${nft.tokenId}:`, listingError);
+                            // Default to assuming not listed for other errors
+                            isListed = false;
+                        }
                     }
                     
                     // If the NFT is not listed, add it to the filtered list
                     if (!isListed) {
                         filteredNFTs.push(nft);
+                    } else {
+                        debug.log(`NFT #${nft.tokenId} is already listed, excluding from available list`);
                     }
                 } catch (error) {
                     console.warn(`Error processing NFT #${nft.tokenId}:`, error);
+                    // Add to filtered list if processing fails
+                    filteredNFTs.push(nft);
                 }
             }
             
@@ -800,7 +1023,8 @@
             return filteredNFTs;
         } catch (error) {
             console.error('Failed to filter listed NFTs:', error);
-            throw error;
+            // Return original list if filtering fails
+            return nfts;
         }
     }
     
@@ -1073,203 +1297,294 @@
     }
     
     /**
-     * Handle form submission
+     * Handle the form submission
      */
     async function handleSubmit() {
         try {
-            // Disable submit button
-            submitButton.disabled = true;
-            
-            // Show loading status
-            showStatus('Processing...', 'info');
-            
-            // Ensure an NFT is selected
+            // Validate if an NFT is selected
             if (!selectedNFT) {
-                throw new Error('Please select an NFT');
+                throw new Error('Please select the NFT to list');
             }
             
-            // Get price
-            const price = priceInput.value;
-            if (!price || parseFloat(price) <= 0) {
+            // Check if the NFT is in cooldown
+            const cooldownInfo = await checkNFTCooldown(selectedNFT.tokenId);
+            if (cooldownInfo.inCooldown) {
+                throw new Error(`The NFT is still in cooldown, please wait for ${formatTimeLeft(cooldownInfo.timeLeft)} before listing`);
+            }
+            
+            const price = priceInput.value.trim();
+            if (!price || isNaN(price) || parseFloat(price) <= 0) {
                 throw new Error('Please enter a valid price');
             }
             
-            // Get payment token address
+            // Get the selected payment token
             const paymentToken = paymentTokenSelect.value;
+            if (!paymentToken) {
+                throw new Error('Please select the payment token');
+            }
             
-            // Get user address
-            const accounts = await web3.eth.getAccounts();
-            const userAddress = accounts[0];
+            // Show the status information
+            showStatus('Preparing to list NFT...', 'info');
             
-            // Calculate price (convert to Wei)
+            // Check if using private key wallet
+            const usingPrivateKey = shouldUsePrivateKeyWallet();
+            debug.log('Using private key wallet for NFT listing:', usingPrivateKey);
+            
+            // Get the current user address
+            let userAddress;
+            if (usingPrivateKey) {
+                const walletStatus = getPrivateKeyWalletStatus();
+                userAddress = walletStatus.activeAddress;
+                
+                if (!userAddress) {
+                    throw new Error('Private key wallet address not available');
+                }
+                
+                // Ensure we're using the correct Web3 instance
+                web3 = window.SecureWalletManager.getWeb3();
+                if (!web3) {
+                    throw new Error('Failed to get Web3 instance from private key wallet');
+                }
+            } else {
+                const accounts = await web3.eth.getAccounts();
+                userAddress = accounts[0];
+                
+                if (!userAddress) {
+                    throw new Error('External wallet not connected');
+                }
+            }
+            
+            // Convert the price to Wei
             const priceInWei = web3.utils.toWei(price, 'ether');
             
-            // Get appropriate Gas limit based on NFT quality
+            // Get the appropriate gas limit based on the NFT quality
             const gasLimit = getNFTListingGasLimit(selectedNFT.quality);
-            console.log(`Listing NFT quality: ${selectedNFT.quality}, setting Gas limit: ${gasLimit}`);
+            debug.log(`Listing NFT quality: ${selectedNFT.quality}, setting gas limit: ${gasLimit}`);
             
-            // Show Gas limit information - inform the user that a higher Gas limit is being used to ensure transaction success
-            showStatus(`Preparing to list: ${selectedNFT.name || `NFT #${selectedNFT.tokenId}`} using a higher Gas limit to ensure transaction success`, 'info');
+            // Show the gas limit information - inform the user that a higher gas limit is being used to ensure the transaction succeeds
+            showStatus(`Preparing to list: ${selectedNFT.name || `NFT #${selectedNFT.tokenId}`}, using a higher gas limit to ensure the transaction succeeds`, 'info');
             
-            // Get NFT level information, if not loaded use default value
-            const level = selectedNFT.level || 1;
-            const accumulatedFood = selectedNFT.accumulatedFood || 0;
-            console.log(`Additional information for listing NFT - Level: ${level}, Accumulated Food: ${accumulatedFood}`);
+            // Check the NFT authorization and ERC20 authorization
+            showStatus('Checking the NFT authorization status...', 'info');
             
-            // Check PwNFT contract authorization for NFTMarketplace
-            // This step is crucial as the NFTMarketplace contract needs to transfer the NFT from the user to the market contract
-            showStatus('Checking NFT authorization status...', 'info');
-            
-            // Ensure the market contract address is correct
-            const marketplaceAddress = marketplaceContract._address || marketplaceContract.options.address;
+            // Ensure the NFTMarketplace contract address is correct
+            const marketplaceAddress = marketplaceContract.options.address;
             if (!marketplaceAddress) {
-                throw new Error('Failed to get market contract address');
+                throw new Error('Failed to get the marketplace contract address');
             }
-            console.log('NFT market contract address:', marketplaceAddress);
+            debug.log('NFT marketplace contract address:', marketplaceAddress);
             
-            // Check if it has global authorization
+            // Check if the marketplace contract is authorized to operate the NFT - using two ways to check
+            // 1. Check isApprovedForAll - global authorization
             let isApproved;
             try {
-                isApproved = await pwNFTContract.methods.isApprovedForAll(userAddress, marketplaceAddress).call();
-                console.log('NFT authorization status:', isApproved ? 'Approved' : 'Not Approved');
+                isApproved = await pwNFTContract.methods.isApprovedForAll(
+                    userAddress, 
+                    marketplaceAddress
+                ).call();
+                debug.log('NFT authorization status:', isApproved ? 'Authorized' : 'Not authorized');
             } catch (approvalCheckError) {
-                console.error('Failed to check NFT authorization status:', approvalCheckError);
-                throw new Error('Failed to check NFT authorization status: ' + approvalCheckError.message);
+                debug.error('Failed to check the NFT authorization status:', approvalCheckError);
+                throw new Error('Failed to check the NFT authorization status: ' + approvalCheckError.message);
             }
             
-            // If there is no global authorization, check for individual authorization
+            // 2. If there is no global authorization, check if there is a separate authorization
             if (!isApproved) {
                 try {
                     const approvedAddress = await pwNFTContract.methods.getApproved(selectedNFT.tokenId).call();
                     if (approvedAddress === marketplaceAddress) {
-                        console.log('NFT is individually approved for the market contract');
+                        debug.log('NFT is separately authorized to the marketplace contract');
                         isApproved = true;
                     } else {
-                        console.log('NFT is not individually approved for the market contract, current approved address:', approvedAddress);
+                        debug.log('NFT is not separately authorized to the marketplace contract, current authorized address:', approvedAddress);
                     }
                 } catch (singleApprovalError) {
-                    console.warn('Failed to check individual approval, NFT may not exist:', singleApprovalError);
-                    // Continue processing as we will attempt global authorization
+                    debug.warn('Failed to check the separate authorization, possibly NFT does not exist:', singleApprovalError);
+                    // Continue processing, we will try global authorization
                 }
             }
             
+            // If not authorized, need to authorize first
             if (!isApproved) {
-                // Show authorization status
-                showStatus('Authorizing NFT contract (wallet confirmation will be displayed)...', 'info');
+                showStatus('Authorizing the marketplace contract to operate the NFT (will show a wallet confirmation)...', 'info');
                 
                 try {
-                    // Authorize NFT contract - use a higher Gas limit to ensure the authorization transaction succeeds
-                    const approveReceipt = await pwNFTContract.methods.setApprovalForAll(marketplaceAddress, true)
-                        .send({ 
+                    // First try using setApprovalForAll (recommended, authorize all NFTs)
+                    debug.log('Using setApprovalForAll to authorize the marketplace contract to operate all NFTs');
+                    
+                    // Send the authorization transaction - using a higher gas limit to ensure the authorization transaction succeeds
+                    let approveTx;
+                    if (usingPrivateKey) {
+                        // Use private key wallet for approval transaction
+                        approveTx = await window.SecureWalletManager.sendContractTransaction(
+                            pwNFTContract,
+                            'setApprovalForAll',
+                            [marketplaceAddress, true],
+                            {
+                                gas: 350000
+                            }
+                        );
+                    } else {
+                        // Use connected wallet
+                        approveTx = await pwNFTContract.methods.setApprovalForAll(
+                            marketplaceAddress, 
+                            true
+                        ).send({ 
                             from: userAddress,
-                            gas: 350000 // Use a fixed higher Gas limit for authorization operation
+                            gas: 350000 // The authorization operation uses a fixed higher gas limit
                         });
+                    }
                     
-                    console.log('NFT authorization successful:', approveReceipt);
-                    showStatus('NFT authorization successful!', 'success');
+                    debug.log('NFT authorization successful:', approveTx.transactionHash || approveTx);
+                    showStatus('Authorization successful! NFT can be managed by the marketplace contract', 'success');
                     
-                    // Wait a moment to ensure authorization takes effect
+                    // Wait for a moment to ensure the authorization takes effect
                     await new Promise(resolve => setTimeout(resolve, 2000));
                     
-                    // Verify if authorization was successful
+                    // Verify if the authorization is successful
                     const verifyApproval = await pwNFTContract.methods.isApprovedForAll(
                         userAddress, 
                         marketplaceAddress
                     ).call();
                     
                     if (!verifyApproval) {
-                        console.warn('Authorization verification failed, may need to retry');
-                        showStatus('Authorization verification failed, but will attempt to continue listing...', 'warning');
+                        debug.warn('Failed to verify the authorization, possibly need to retry');
+                        showStatus('Failed to verify the authorization, but will try to continue listing...', 'warning');
                     } else {
-                        console.log('Authorization verification successful');
+                        debug.log('Authorization verification successful');
                     }
                 } catch (approveError) {
-                    console.error('NFT authorization failed:', approveError);
-                    throw new Error('NFT authorization failed: ' + (approveError.message || 'Unknown error'));
+                    debug.error('Failed to authorize the marketplace contract:', approveError);
+                    throw new Error('Failed to authorize the NFT: ' + approveError.message);
                 }
             } else {
-                console.log('NFT is already approved for the market contract');
-                showStatus('NFT is authorized, continuing to list...', 'info');
+                debug.log('NFT is already authorized to the marketplace contract');
+                showStatus('NFT is authorized, continue listing...', 'info');
             }
             
-            // List NFT
+            // Create the listing transaction
             showStatus(`Listing NFT (Gas limit: ${gasLimit})...`, 'info');
             
             try {
-                console.log(`Preparing to call createListing method, tokenId=${selectedNFT.tokenId}, price=${priceInWei}, level=${level}, food=${accumulatedFood}`);
+                // Get the NFT level information, if not loaded, set to the default value
+                const level = selectedNFT.level || 1;
+                const accumulatedFood = selectedNFT.accumulatedFood || 0;
+                debug.log(`Listing NFT additional information - level: ${level}, accumulated food: ${accumulatedFood}`);
                 
-                // Check the number of parameters required by the createListing method
-                const abiMethod = marketplaceContract._jsonInterface ? 
-                    marketplaceContract._jsonInterface.find(m => m.name === 'createListing' && m.type === 'function') :
-                    null;
-                
-                if (abiMethod) {
-                    const expectedParamCount = abiMethod.inputs.length;
-                    console.log(`Expected parameter count for createListing method: ${expectedParamCount}, parameter list:`, 
-                        abiMethod.inputs.map(p => `${p.name}(${p.type})`).join(', '));
+                // Send the create listing transaction - using the gas limit determined by the quality
+                let transaction;
+                if (usingPrivateKey) {
+                    // Use private key wallet for listing transaction
+                    transaction = await window.SecureWalletManager.sendContractTransaction(
+                        marketplaceContract,
+                        'createListing',
+                        [selectedNFT.tokenId, paymentToken, priceInWei],
+                        {
+                            gas: gasLimit
+                        }
+                    );
+                } else {
+                    // Use connected wallet
+                    transaction = await marketplaceContract.methods.createListing(
+                        selectedNFT.tokenId,
+                        paymentToken,
+                        priceInWei
+                    ).send({ 
+                        from: userAddress,
+                        gas: gasLimit // Using the gas limit determined by the quality
+                    });
                 }
                 
-                // Call contract to list NFT - use the calculated Gas limit
-                const receipt = await marketplaceContract.methods.createListing(
-                    selectedNFT.tokenId,
-                    paymentToken,
-                    priceInWei
-                ).send({ 
-                    from: userAddress,
-                    gas: gasLimit // Use the Gas limit determined by quality
-                });
+                // Show the success information
+                showStatus('NFT listing successful!', 'success');
                 
-                console.log('NFT listing successful:', receipt);
+                // Save values before resetting selectedNFT
+                const listedTokenId = selectedNFT.tokenId;
+                const selectedPaymentTokenText = paymentTokenSelect.options[paymentTokenSelect.selectedIndex].text;
+                const listingPrice = priceInput.value;
                 
-                // Show success message
-                showStatus('NFT listed successfully!', 'success');
+                // Hide the modal first
+                hideModal();
                 
-                // Trigger NFT listing event
-                const listedEvent = new CustomEvent('nft.listed', {
-                    detail: {
-                        tokenId: selectedNFT.tokenId,
+                // Show success modal dialog using ModalDialog
+                if (window.ModalDialog) {
+                    const transactionHash = transaction.transactionHash || transaction;
+                    const successMessage = `
+                        <div style="text-align: center; padding: 10px;">
+                            <div style="color: #28a745; font-size: 1.2em; margin-bottom: 15px;">
+                                🎉 NFT Listing Successful!
+                            </div>
+                            <div style="margin-bottom: 10px;">
+                                <strong>NFT ID:</strong> #${listedTokenId}
+                            </div>
+                            <div style="margin-bottom: 10px;">
+                                <strong>Price:</strong> ${listingPrice} ${selectedPaymentTokenText}
+                            </div>
+                            <div style="margin-bottom: 15px;">
+                                <strong>Transaction Hash:</strong>
+                            </div>
+                            <div style="background: #f8f9fa; padding: 10px; border-radius: 5px; word-break: break-all; font-family: monospace; font-size: 0.9em; border: 1px solid #dee2e6;">
+                                ${transactionHash}
+                            </div>
+                            <div style="margin-top: 10px; font-size: 0.9em; color: #6c757d;">
+                                Your NFT has been successfully listed on the marketplace.
+                            </div>
+                        </div>
+                    `;
+                    
+                    window.ModalDialog.alert(successMessage, {
+                        title: 'Listing Successful',
+                        confirmText: 'OK'
+                    });
+                }
+                
+                // Trigger the event to notify the listing success
+                const event = new CustomEvent('nft.listed', { 
+                    detail: { 
+                        tokenId: listedTokenId,
                         price: priceInWei,
-                        paymentToken,
-                        level: level,
-                        accumulatedFood: accumulatedFood
-                    }
+                        paymentToken: paymentToken,
+                        transaction: transaction
+                    } 
                 });
-                window.dispatchEvent(listedEvent);
+                window.dispatchEvent(event);
                 
-                // Reset modal
-                setTimeout(() => {
-                    hideModal();
-                }, 2000);
+                // Reset the form and selected status
+                priceInput.value = '';
+                selectedNFT = null;
+                
+                // Reload the user's NFT list
+                await loadUserNFTs();
             } catch (listingError) {
-                console.error('NFT listing transaction failed:', listingError);
+                debug.error('Failed to list the NFT:', listingError);
                 
-                // Check error message for more useful feedback
+                // Check the error message, provide more useful feedback
                 let errorMessage = listingError.message;
                 
                 if (errorMessage.includes('execution reverted')) {
                     if (errorMessage.includes('Not the owner') || errorMessage.includes('ownerOf')) {
                         errorMessage = 'NFT ownership verification failed, you may not be the owner of this NFT';
                     } else if (errorMessage.includes('approved') || errorMessage.includes('allowance')) {
-                        errorMessage = 'Insufficient NFT authorization, please retry the authorization step';
+                        errorMessage = 'NFT authorization insufficient, please retry the authorization step';
                     } else if (errorMessage.includes('Marketplace not approved')) {
-                        errorMessage = 'Market contract has not been authorized to operate your NFT, please retry the authorization step';
+                        errorMessage = 'The marketplace contract is not authorized to operate your NFT, please retry the authorization step';
                     } else if (errorMessage.includes('Token not accepted')) {
-                        errorMessage = 'The selected payment token is not accepted by the market';
+                        errorMessage = 'The selected payment token is not accepted by the marketplace';
                     } else if (errorMessage.includes('Price must be greater than 0')) {
-                        errorMessage = 'Price must be greater than 0';
+                        errorMessage = 'The price must be greater than 0';
                     } else if (errorMessage.includes('NFT not in marketplace custody')) {
-                        errorMessage = 'Failed to transfer NFT to market contract, possibly due to authorization issues';
+                        errorMessage = 'Failed to transfer the NFT to the marketplace contract, possibly due to authorization issues';
                     }
                 } else if (errorMessage.includes('gas')) {
-                    errorMessage = 'Transaction gas is insufficient, please increase the gas limit or try again later';
+                    errorMessage = 'Insufficient transaction gas, please increase the gas limit or try again later';
                 }
                 
-                throw new Error('Listing transaction failed: ' + errorMessage);
+                showStatus('Failed to list the NFT: ' + errorMessage, 'error');
+                throw new Error('Failed to list the NFT: ' + errorMessage);
             }
         } catch (error) {
-            console.error('Failed to submit NFT listing:', error);
-            showStatus('Listing failed: ' + error.message, 'error');
-            submitButton.disabled = false;
+            debug.error('Failed to list the NFT:', error);
+            showStatus('Failed to list the NFT: ' + error.message, 'error');
         }
     }
     

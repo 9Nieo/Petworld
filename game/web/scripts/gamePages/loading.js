@@ -171,18 +171,76 @@ function initLoadingPage() {
     let progress = 0;
     updateProgress(progress);
     
+    // Track loading state
+    let nftLoadingComplete = false;
+    let animationsComplete = false;
+    let loadingCompleteTimer = null;
+    
     // Listen for NFT loading complete event
-    window.addEventListener('nftRefreshed', () => {
-        console.log('Detected NFT refresh event, loading complete');
-        // Set loading complete
-        progress = 100;
-        updateProgress(progress);
+    window.addEventListener('nftRefreshed', (event) => {
+        console.log('Detected NFT refresh event:', event.detail);
+        nftLoadingComplete = true;
         
-        // Show game page after a short delay
-        setTimeout(() => {
-            hideLoadingPage();
-        }, 500);
+        // Update progress to 80% when NFTs are loaded
+        if (progress < 80) {
+            progress = 80;
+            updateProgress(progress);
+        }
+        
+        // Check if we can complete loading
+        checkLoadingComplete();
     });
+    
+    // Listen for all animations complete event
+    window.addEventListener('allAnimationsComplete', () => {
+        console.log('All pet animations have been created and applied');
+        animationsComplete = true;
+        
+        // Update progress to 95% when animations are complete
+        if (progress < 95) {
+            progress = 95;
+            updateProgress(progress);
+        }
+        
+        // Check if we can complete loading
+        checkLoadingComplete();
+    });
+    
+    // Function to check if loading is complete
+    function checkLoadingComplete() {
+        // Clear any existing timer
+        if (loadingCompleteTimer) {
+            clearTimeout(loadingCompleteTimer);
+        }
+        
+        // If both NFT loading and animations are complete, finish loading
+        if (nftLoadingComplete && animationsComplete) {
+            console.log('Both NFT loading and animations complete, finishing loading');
+            progress = 100;
+            updateProgress(progress);
+            
+            loadingCompleteTimer = setTimeout(() => {
+                hideLoadingPage();
+            }, 500);
+        } else {
+            // If only NFTs are loaded but animations are not complete, wait a bit more
+            if (nftLoadingComplete && !animationsComplete) {
+                console.log('NFTs loaded but animations not complete, waiting...');
+                
+                // Wait maximum 3 seconds for animations to complete
+                loadingCompleteTimer = setTimeout(() => {
+                    console.log('Animation timeout, forcing loading completion');
+                    animationsComplete = true;
+                    progress = 100;
+                    updateProgress(progress);
+                    
+                    setTimeout(() => {
+                        hideLoadingPage();
+                    }, 500);
+                }, 3000);
+            }
+        }
+    }
     
     // Set maximum loading time (show game page after 15 seconds regardless)
     const maxLoadingTime = 15000; // 15 seconds

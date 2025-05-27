@@ -568,32 +568,79 @@ class CatManager {
             this.error('[CatManager] Element is not connected to DOM, cannot animate:', element);
             return;
         }
-        
-        // Check element dimensions, delay processing if zero
-        if (element.offsetWidth === 0 || element.offsetHeight === 0) {
-            this.log('[CatManager] Element has zero dimensions, delaying animation:', element);
-            
-            // Use setTimeout to delay applying animation, wait for element to render
-            setTimeout(() => {
-                // Recheck dimensions
-                if (element.isConnected && element.offsetWidth > 0 && element.offsetHeight > 0) {
-                    this.log('[CatManager] Element now has dimensions, applying animation');
-                    this.doApplyCatAnimation(element);
-                } else {
-                    this.error('[CatManager] Element still has zero dimensions after delay, using default size');
-                    // set minimum size, then let PetSizeManager control
-                    element.style.width = element.style.width || '50px';
-                    element.style.height = element.style.height || '50px';
-                    // Try to apply animation
-                    this.doApplyCatAnimation(element);
+        // Use PetSizeHelper for intelligent size checking and animation application
+        if (window.PetSizeHelper) {
+            window.PetSizeHelper.applyAnimationWithSizeCheck(
+                element,
+                'cat',
+                (el) => this.doApplyCatAnimation(el),
+                {
+                    maxWaitAttempts: 8,
+                    fallbackSize: { width: '50px', height: '50px' }
                 }
-            }, 500); // Delay 500ms
+            );
+        } else {
+            // Fallback to original logic if PetSizeHelper is not available
+            this.log('[CatManager] PetSizeHelper not available, using fallback logic');
             
-            return;
+            // Check element dimensions using multiple methods
+            const offsetWidth = element.offsetWidth;
+            const offsetHeight = element.offsetHeight;
+            const computedStyle = window.getComputedStyle(element);
+            const cssWidth = parseFloat(computedStyle.width) || 0;
+            const cssHeight = parseFloat(computedStyle.height) || 0;
+            
+            // Use CSS dimensions if offset dimensions are zero
+            const effectiveWidth = offsetWidth || cssWidth;
+            const effectiveHeight = offsetHeight || cssHeight;
+            
+            if (effectiveWidth === 0 || effectiveHeight === 0) {
+                this.log('[CatManager] Element has zero effective dimensions, delaying animation:', element);
+                
+                // Use setTimeout to delay applying animation, wait for element to render
+                setTimeout(() => {
+                    // Recheck dimensions using multiple methods
+                    const newOffsetWidth = element.offsetWidth;
+                    const newOffsetHeight = element.offsetHeight;
+                    const newComputedStyle = window.getComputedStyle(element);
+                    const newCssWidth = parseFloat(newComputedStyle.width) || 0;
+                    const newCssHeight = parseFloat(newComputedStyle.height) || 0;
+                    
+                    const newEffectiveWidth = newOffsetWidth || newCssWidth;
+                    const newEffectiveHeight = newOffsetHeight || newCssHeight;
+                    
+                    if (element.isConnected && (newEffectiveWidth > 0 && newEffectiveHeight > 0)) {
+                        this.log('[CatManager] Element now has dimensions, applying animation');
+                        this.doApplyCatAnimation(element);
+                    } else {
+                        this.error('[CatManager] Element still has zero dimensions after delay, using default size');
+                        // Force set minimum size with important flag
+                        element.style.setProperty('width', '50px', 'important');
+                        element.style.setProperty('height', '50px', 'important');
+                        element.style.setProperty('min-width', '50px', 'important');
+                        element.style.setProperty('min-height', '50px', 'important');
+                        
+                        // Re-apply PetSizeManager if available
+                        if (window.PetSizeManager) {
+                            try {
+                                window.PetSizeManager.setSize(element, 'cat');
+                                this.log('[CatManager] Re-applied PetSizeManager after fallback sizing');
+                            } catch (error) {
+                                this.error('[CatManager] Failed to re-apply PetSizeManager:', error);
+                            }
+                        }
+                        
+                        // Try to apply animation
+                        this.doApplyCatAnimation(element);
+                    }
+                }, 500); // Delay 500ms
+                
+                return;
+            }
+            
+            // If dimensions are normal, apply animation directly
+            this.doApplyCatAnimation(element);
         }
-        
-        // If dimensions are normal, apply animation directly
-        this.doApplyCatAnimation(element);
     }
     
     /**
@@ -838,23 +885,40 @@ class CatManager {
             this.error('[CatManager] Cannot prepare element - element is not connected to DOM');
             return false;
         }
+        // Check element dimensions using multiple methods
+        const offsetWidth = element.offsetWidth;
+        const offsetHeight = element.offsetHeight;
+        const computedStyle = window.getComputedStyle(element);
+        const cssWidth = parseFloat(computedStyle.width) || 0;
+        const cssHeight = parseFloat(computedStyle.height) || 0;
         
-        // Set a minimum size if dimensions are zero, but let PetSizeManager handle final sizing
-        if (element.offsetWidth === 0 || element.offsetHeight === 0) {
-            this.error('[CatManager] Cannot prepare element - element has zero dimensions');
-            // Set minimum size
-            element.style.width = element.style.width || '50px';
-            element.style.height = element.style.height || '50px';
-        }
+        this.log(`[CatManager] Element dimension check: offset(${offsetWidth}x${offsetHeight}), css(${cssWidth}x${cssHeight})`);
         
-        // Apply size using PetSizeManager
+        // Apply size using PetSizeManager first if available
         if (window.PetSizeManager) {
             window.PetSizeManager.setSize(element, 'cat');
             this.log('[CatManager] Applied size using PetSizeManager');
-        } else {
-            this.error('[CatManager] PetSizeManager not available, using default sizing');
-            element.style.width = '50px';
-            element.style.height = '50px';
+        }
+        
+        // Use CSS dimensions if offset dimensions are zero but CSS dimensions exist
+        let effectiveWidth = offsetWidth || cssWidth;
+        let effectiveHeight = offsetHeight || cssHeight;
+        
+        // Check again after PetSizeManager
+        const newOffsetWidth = element.offsetWidth;
+        const newOffsetHeight = element.offsetHeight;
+        effectiveWidth = newOffsetWidth || effectiveWidth;
+        effectiveHeight = newOffsetHeight || effectiveHeight;
+        
+        if (effectiveWidth === 0 || effectiveHeight === 0) {
+            this.error('[CatManager] Element still has zero effective dimensions after PetSizeManager, applying fallback size');
+            // Force set minimum size with important flag
+            element.style.setProperty('width', '50px', 'important');
+            element.style.setProperty('height', '50px', 'important');
+            element.style.setProperty('min-width', '50px', 'important');
+            element.style.setProperty('min-height', '50px', 'important');
+            effectiveWidth = 50;
+            effectiveHeight = 50;
         }
         
         element.style.position = element.style.position || 'relative';

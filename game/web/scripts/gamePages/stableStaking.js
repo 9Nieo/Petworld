@@ -56,6 +56,84 @@ let lastCloseAllTime = 0;
 let notificationTimer = null;
 
 /**
+ * Check if private key wallet should be used
+ * @returns {boolean} - Whether to use private key wallet
+ */
+function shouldUsePrivateKeyWallet() {
+    // Check parent window first (for iframe context)
+    if (window.parent && window.parent.SecureWalletManager) {
+        return window.parent.SecureWalletManager.isWalletReady && 
+               window.parent.SecureWalletManager.isWalletReady();
+    }
+    
+    // Check current window
+    return window.SecureWalletManager && 
+           window.SecureWalletManager.isWalletReady && 
+           window.SecureWalletManager.isWalletReady();
+}
+
+/**
+ * Get private key wallet status and information
+ * @returns {object} - Private key wallet status
+ */
+function getPrivateKeyWalletStatus() {
+    let walletManager = null;
+    
+    // Check parent window first (for iframe context)
+    if (window.parent && window.parent.SecureWalletManager) {
+        walletManager = window.parent.SecureWalletManager;
+    } else if (window.SecureWalletManager) {
+        walletManager = window.SecureWalletManager;
+    }
+    
+    if (!walletManager) {
+        return {
+            available: false,
+            ready: false,
+            address: null,
+            web3: null
+        };
+    }
+    
+    const isReady = walletManager.isWalletReady();
+    const address = isReady ? walletManager.getAddress() : null;
+    const web3Instance = isReady ? walletManager.getWeb3() : null;
+    
+    return {
+        available: true,
+        ready: isReady,
+        address: address,
+        web3: web3Instance,
+        locked: walletManager.isWalletLocked && walletManager.isWalletLocked()
+    };
+}
+
+/**
+ * Send contract transaction using private key wallet
+ * @param {object} contract - Web3 contract instance
+ * @param {string} methodName - Contract method name
+ * @param {array} methodParams - Method parameters
+ * @param {object} txOptions - Transaction options
+ * @returns {Promise<object>} - Transaction receipt
+ */
+async function sendPrivateKeyTransaction(contract, methodName, methodParams = [], txOptions = {}) {
+    let walletManager = null;
+    
+    // Check parent window first (for iframe context)
+    if (window.parent && window.parent.SecureWalletManager) {
+        walletManager = window.parent.SecureWalletManager;
+    } else if (window.SecureWalletManager) {
+        walletManager = window.SecureWalletManager;
+    }
+    
+    if (!walletManager) {
+        throw new Error('SecureWalletManager not available');
+    }
+    
+    return await walletManager.sendContractTransaction(contract, methodName, methodParams, txOptions);
+}
+
+/**
  * the initialization function
  */
 function init() {
@@ -83,9 +161,32 @@ function init() {
     // listen to the iframe message event
     window.addEventListener('message', handleIframeMessage);
     
-    // try to get the Web3 and wallet information from the parent window
+    // Priority 1: Check private key wallet first
+    const privateKeyStatus = getPrivateKeyWalletStatus();
+    debug.log('Private key wallet status:', privateKeyStatus);
+    
+    if (privateKeyStatus.ready && privateKeyStatus.address && privateKeyStatus.web3) {
+        debug.log('Private key wallet is ready, using it for staking');
+        web3 = privateKeyStatus.web3;
+        currentUserAddress = privateKeyStatus.address;
+        
+        // Initialize contracts with private key wallet
+        initializeContracts();
+        
+        // Send ready message to parent window
+        if (window.parent) {
+            window.parent.postMessage({ 
+                type: 'iframeReady', 
+                source: 'stableStaking',
+                walletType: 'privateKey'
+            }, '*');
+        }
+        return; // Exit early since private key wallet is ready
+    }
+    
+    // Priority 2: Try to get Web3 and wallet information from parent window (traditional method)
     if (window.parent) {
-        debug.log('trying to get the wallet information from the parent window...');
+        debug.log('Private key wallet not ready, trying to get wallet information from parent window...');
         
         // try to get the shared web3 instance from the parent window
         if (window.parent.gameWeb3) {
@@ -516,6 +617,70 @@ function calculatePendingRewards(stakingInfo, currentCycle, lastUpdateTime) {
 }
 
 /**
+ * Calculate the actual current cycle based on time
+ * @param {number} contractCycle - Current cycle from contract
+ * @param {number} lastUpdateTimestamp - Last update timestamp from contract
+ * @returns {number} - Actual current cycle
+ */
+function calculateActualCurrentCycle(contractCycle, lastUpdateTimestamp) {
+    if (!lastUpdateTimestamp || lastUpdateTimestamp === 0) {
+        return contractCycle;
+    }
+    
+    const now = Math.floor(Date.now() / 1000);
+    const elapsedTime = now - lastUpdateTimestamp;
+    const cycleDuration = 86400; // 24 hours in seconds
+    const elapsedCycles = Math.floor(elapsedTime / cycleDuration);
+    
+    const actualCurrentCycle = contractCycle + elapsedCycles;
+    
+    debug.log('Cycle calculation:', {
+        contractCycle,
+        lastUpdateTimestamp,
+        now,
+        elapsedTime,
+        elapsedCycles,
+        actualCurrentCycle
+    });
+    
+    return actualCurrentCycle;
+}
+
+/**
+ * Start dynamic cycle update timer
+ */
+function startDynamicCycleTimer() {
+    // Clear existing timer
+    if (window.dynamicCycleTimer) {
+        clearInterval(window.dynamicCycleTimer);
+    }
+    
+    // Update immediately
+    updateDynamicCycleDisplay();
+    
+    // Update every second
+    window.dynamicCycleTimer = setInterval(updateDynamicCycleDisplay, 1000);
+}
+
+/**
+ * Update dynamic cycle display
+ */
+function updateDynamicCycleDisplay() {
+    if (!lastUpdateTimestamp) {
+        return;
+    }
+    
+    const actualCurrentCycle = calculateActualCurrentCycle(currentCycleValue, lastUpdateTimestamp);
+    const currentCycleElement = document.getElementById('currentCycle');
+    if (currentCycleElement) {
+        currentCycleElement.textContent = actualCurrentCycle.toString();
+    }
+    
+    // Update global variable for other calculations
+    window.actualCurrentCycle = actualCurrentCycle;
+}
+
+/**
  * load the contract basic information
  */
 async function loadContractInfo() {
@@ -546,7 +711,9 @@ async function loadContractInfo() {
         }
         
         currentCycleValue = parseInt(currentCycle);
-        document.getElementById('currentCycle').textContent = currentCycleValue;
+        
+        // Store the contract cycle value for reference
+        window.contractCurrentCycle = currentCycleValue;
         debug.log('the current cycle:', currentCycleValue);
         
         // get the last update timestamp
@@ -561,11 +728,19 @@ async function loadContractInfo() {
                 const cycleDuration = 86400; // 24 hours, unit: seconds
                 nextCycleUpdateTimestamp = lastUpdateTimestamp + cycleDuration;
                 
+                // start the dynamic cycle timer
+                startDynamicCycleTimer();
+                
                 // start the update timer
                 startNextCycleUpdateTimer();
             }
         } catch (error) {
             debug.error('failed to get the last update timestamp:', error);
+            // If no timestamp available, just display the contract cycle
+            const currentCycleElement = document.getElementById('currentCycle');
+            if (currentCycleElement) {
+                currentCycleElement.textContent = currentCycleValue.toString();
+            }
         }
         
         // get the total staked amount
@@ -666,6 +841,12 @@ function resetStakingPage() {
     if (nextCycleUpdateInterval) {
         clearInterval(nextCycleUpdateInterval);
         nextCycleUpdateInterval = null;
+    }
+    
+    // clear the dynamic cycle timer
+    if (window.dynamicCycleTimer) {
+        clearInterval(window.dynamicCycleTimer);
+        window.dynamicCycleTimer = null;
     }
     
     try {
@@ -1138,11 +1319,13 @@ function updateStakingHistoryUI() {
         // only try to calculate the pending rewards when the original rewards are 0
         if (rewardsToShow === '0') {
             // calculate the pending rewards, ensure the latest data is displayed
+            // Use actual current cycle if available, otherwise use contract cycle
+            const actualCycle = window.actualCurrentCycle || calculateActualCurrentCycle(currentCycleValue, lastUpdateTimestamp);
             rewardsToShow = calculatePendingRewards({
                 amount: coin.amount,
                 lastClaimedCycle: coin.lastClaimedCycle,
                 pendingRewards: '0'
-            }, currentCycleValue, lastUpdateTimestamp);
+            }, actualCycle, lastUpdateTimestamp);
         }
         
         debug.log(`the rewards displayed in the staking history UI: ${rewardsToShow}, token: ${coin.symbol}, record ID: ${recordId}, staked amount: ${coin.amount}, last claimed cycle: ${coin.lastClaimedCycle}`);
@@ -1338,20 +1521,45 @@ async function stake() {
             showNotification('stableStaking.notification.approving', 'info');
             
             // request the approval
-            await stableCoinContract.methods.approve(
-                pwusdStakingContract._address, 
-                // use the max value as the allowance, avoid approving every time
-                '115792089237316195423570985008687907853269984665640564039457584007913129639935'
-            ).send({ from: currentUserAddress });
+            const maxUint256 = '115792089237316195423570985008687907853269984665640564039457584007913129639935';
+            
+            if (shouldUsePrivateKeyWallet()) {
+                debug.log('Using private key wallet for approval transaction');
+                await sendPrivateKeyTransaction(
+                    stableCoinContract,
+                    'approve',
+                    [pwusdStakingContract._address, maxUint256],
+                    { from: currentUserAddress }
+                );
+            } else {
+                debug.log('Using traditional wallet for approval transaction');
+                await stableCoinContract.methods.approve(
+                    pwusdStakingContract._address, 
+                    maxUint256
+                ).send({ from: currentUserAddress });
+            }
             
             showNotification('stableStaking.notification.approveSuccess', 'success');
         }
         
         // execute the stake operation
-        const stakeTx = await pwusdStakingContract.methods.stake(
-            selectedCoinAddress,
-            amountInWei
-        ).send({ from: currentUserAddress });
+        let stakeTx;
+        
+        if (shouldUsePrivateKeyWallet()) {
+            debug.log('Using private key wallet for staking transaction');
+            stakeTx = await sendPrivateKeyTransaction(
+                pwusdStakingContract,
+                'stake',
+                [selectedCoinAddress, amountInWei],
+                { from: currentUserAddress }
+            );
+        } else {
+            debug.log('Using traditional wallet for staking transaction');
+            stakeTx = await pwusdStakingContract.methods.stake(
+                selectedCoinAddress,
+                amountInWei
+            ).send({ from: currentUserAddress });
+        }
         
         debug.log('stake transaction successful:', stakeTx);
         showNotification('stableStaking.notification.stakeSuccess', 'success');
@@ -1454,12 +1662,23 @@ async function withdraw() {
                     // Request maximum approval amount
                     const maxUint256 = '115792089237316195423570985008687907853269984665640564039457584007913129639935'; // 2^256 - 1
                     
-                    await pwusdContract.methods.approve(
-                        pwusdStakingContract._address, 
-                        maxUint256
-                    ).send({
-                        from: currentUserAddress
-                    });
+                    if (shouldUsePrivateKeyWallet()) {
+                        debug.log('Using private key wallet for PWUSD approval transaction');
+                        await sendPrivateKeyTransaction(
+                            pwusdContract,
+                            'approve',
+                            [pwusdStakingContract._address, maxUint256],
+                            { from: currentUserAddress }
+                        );
+                    } else {
+                        debug.log('Using traditional wallet for PWUSD approval transaction');
+                        await pwusdContract.methods.approve(
+                            pwusdStakingContract._address, 
+                            maxUint256
+                        ).send({
+                            from: currentUserAddress
+                        });
+                    }
                     
                     showNotification('PWUSD approved successfully', 'success');
                 }
@@ -1473,10 +1692,23 @@ async function withdraw() {
         // Execute the withdraw operation directly without checking if method exists
         showNotification('Processing withdrawal...', 'info');
         
-        const withdrawTx = await pwusdStakingContract.methods.withdraw(
-            selectedRecordId,
-            amountInWei
-        ).send({ from: currentUserAddress });
+        let withdrawTx;
+        
+        if (shouldUsePrivateKeyWallet()) {
+            debug.log('Using private key wallet for withdraw transaction');
+            withdrawTx = await sendPrivateKeyTransaction(
+                pwusdStakingContract,
+                'withdraw',
+                [selectedRecordId, amountInWei],
+                { from: currentUserAddress }
+            );
+        } else {
+            debug.log('Using traditional wallet for withdraw transaction');
+            withdrawTx = await pwusdStakingContract.methods.withdraw(
+                selectedRecordId,
+                amountInWei
+            ).send({ from: currentUserAddress });
+        }
         
         debug.log('withdraw transaction successful:', withdrawTx);
         
@@ -1794,9 +2026,22 @@ async function claimAllRewards() {
         showNotification('stableStaking.notification.claiming', 'info');
         
         // Execute the claimAllRewards function
-        // const claimTx = await pwusdStakingContract.methods.claimAllRewards().send({ 
-        //     from: currentUserAddress 
-        // });
+        let claimTx;
+        
+        if (shouldUsePrivateKeyWallet()) {
+            debug.log('Using private key wallet for claim all rewards transaction');
+            claimTx = await sendPrivateKeyTransaction(
+                pwusdStakingContract,
+                'claimAllRewards',
+                [],
+                { from: currentUserAddress }
+            );
+        } else {
+            debug.log('Using traditional wallet for claim all rewards transaction');
+            claimTx = await pwusdStakingContract.methods.claimAllRewards().send({ 
+                from: currentUserAddress 
+            });
+        }
         
         debug.log('claim all rewards transaction successful:', claimTx);
         
@@ -1844,9 +2089,22 @@ async function claimRewards(recordId) {
         showNotification('stableStaking.notification.claiming', 'info');
         
         // Execute the claimRewards function
-        const claimTx = await pwusdStakingContract.methods.claimRewards(recordId).send({ 
-            from: currentUserAddress 
-        });
+        let claimTx;
+        
+        if (shouldUsePrivateKeyWallet()) {
+            debug.log('Using private key wallet for claim rewards transaction');
+            claimTx = await sendPrivateKeyTransaction(
+                pwusdStakingContract,
+                'claimRewards',
+                [recordId],
+                { from: currentUserAddress }
+            );
+        } else {
+            debug.log('Using traditional wallet for claim rewards transaction');
+            claimTx = await pwusdStakingContract.methods.claimRewards(recordId).send({ 
+                from: currentUserAddress 
+            });
+        }
         
         debug.log('claim rewards transaction successful:', claimTx);
         

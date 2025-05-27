@@ -13,6 +13,10 @@ document.addEventListener('DOMContentLoaded', () => {
         error: function() {
             const args = Array.from(arguments);
             console.error('[Pet World Error]', ...args);
+        },
+        warn: function() {
+            const args = Array.from(arguments);
+            console.warn('[Pet World Warning]', ...args);
         }
     };
     
@@ -32,11 +36,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const pwBountyBalanceElem = document.getElementById('pwBountyBalance');
     const pwFoodBalanceElem = document.getElementById('pwFoodBalance');
     
-    // Wallet connection status
+    // Game state variables (managed by WalletNetworkManager)
     let isWalletConnected = false;
     let currentAddress = null;
-    
-    // Web3 instance and contract instances
+    let currentWalletType = null;
     let web3 = null;
     
     // Game token contract instances
@@ -49,7 +52,8 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // NFT update flag to control NFT refresh frequency
     let lastNFTUpdateTime = 0;
-    const NFT_REFRESH_COOLDOWN = 30000; // 30 seconds cooldown time, increased to reduce refresh
+    const NFT_REFRESH_COOLDOWN = 120000; // 2 minutes cooldown time 
+    const VISIBILITY_REFRESH_COOLDOWN = 3600000; // 1 hour cooldown for visibility change refresh
     
     // Loading NFT flag to prevent concurrent loading
     let isLoadingNFT = false;
@@ -57,132 +61,460 @@ document.addEventListener('DOMContentLoaded', () => {
     // Sound manager reference
     let soundManager = null;
     
+    // WalletNetworkManager instance
+    let walletNetworkManager = null;
+    
     // Initialization
     init();
     
     /**
      * Initialization function
      */
-    function init() {
+    async function init() {
         console.log('Initializing game home page...');
-        
-        // Check key DOM elements
-        if (!walletBtn) console.error('Wallet connection button not found');
-        if (!walletAddressSpan) console.error('Wallet address display element not found');
-        if (!walletFrame) console.error('Wallet iframe not found');
-        if (!pwPointBalanceElem) console.error('PwPoint balance display element not found');
-        if (!pwBountyBalanceElem) console.error('PwBounty balance display element not found');
-        if (!pwFoodBalanceElem) console.error('PwFood balance display element not found');
-        if (!moreButton) console.error('More button not found');
         
         // Initialize sound manager
         initSoundManager();
         
-        // Clean up all static example animals
-        cleanupStaticAnimals();
+        // Bind UI event listeners
+        bindEventListeners();
         
-        // Output iframe source
-        if (walletFrame) {
-            console.log('Wallet iframe source:', walletFrame.src);
-            
-            // Ensure iframe has loaded
-            walletFrame.onload = function() {
-                debug.log('Wallet iframe has loaded');
-                // Check wallet status after iframe has loaded
-                checkWalletStatus();
-            };
-        }
+        // Initialize WalletNetworkManager
+        await initializeWalletNetworkManager();
         
-        // Initialize PetNFTService
-        // Note: To avoid repeated refreshes, the loadFarmAnimals call has been removed here,
-        // now handled uniformly in checkWalletStatus
-        if (window.PetNFTService) {
-            debug.log('Initializing PetNFTService...');
-            window.PetNFTService.init().then(success => {
-                debug.log('PetNFTService initialization ' + (success ? 'succeeded' : 'failed'));
-                // Do not call loadFarmAnimals here to reduce repeated refreshes
-            });
-        } else {
-            debug.warn('PetNFTService not found, unable to initialize');
-        }
+        // Apply current language settings
+        localizeContent();
         
+        // Initialize all pet features
+        initializeAllPetFeatures();
+        
+        // Start memory cleanup interval
+        startMemoryCleanup();
+    }
+    
+    /**
+     * Bind all UI event listeners
+     */
+    function bindEventListeners() {
         // Bind wallet connection button click event
         walletBtn.addEventListener('click', handleWalletBtnClick);
         
-        // Bind refresh NFT button click event
-        const refreshNFTBtn = document.getElementById('refreshNFTBtn');
-        if (refreshNFTBtn) {
-            refreshNFTBtn.addEventListener('click', function() {
-                debug.log('Clicked refresh button, forcing refresh of NFT data...');
-                // Show refresh prompt
-                showRefreshToast();
-                // Force refresh NFT data
-                loadFarmAnimals(true);
+        // Bind navigation buttons click events
+        navItems.forEach(navItem => {
+            navItem.addEventListener('click', (e) => {
+                const modalType = navItem.getAttribute('data-modal');
+                if (modalType && modalType !== 'more') {
+                    const modalId = modalType + '-modal';
+                    debug.log('Navigation item clicked:', modalType, 'opening modal:', modalId);
+                    openModal(modalId);
+                }
+            });
+        });
+        
+        // Bind close modal buttons click events
+        closeButtons.forEach(closeBtn => {
+            closeBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                debug.log('Close button clicked, closing all modals');
+                closeAllModals();
+            });
+        });
+        
+        // Bind modal container click event to close modals when clicking outside
+        if (modalContainer) {
+            modalContainer.addEventListener('click', (e) => {
+                if (e.target === modalContainer) {
+                    debug.log('Modal container clicked, closing all modals');
+                    closeAllModals();
+                }
             });
         }
         
-        // Bind navigation bar modal button
-        navItems.forEach(item => {
-            if (item.id !== 'moreButton') {
-                item.addEventListener('click', () => {
-                    console.log('Navigation item clicked:', item);
-                    const modalId = item.getAttribute('data-modal');
-                    console.log('Modal ID:', modalId);
-                    if (modalId) {
-                        console.log('Opening modal:', modalId + '-modal');
-                        openModal(modalId + '-modal');
-                    }
-                });
+        // Bind ESC key to close modals
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && modalContainer && modalContainer.classList.contains('active')) {
+                debug.log('ESC key pressed, closing all modals');
+                closeAllModals();
             }
         });
         
-        // Bind close buttons
-        closeButtons.forEach(button => {
-            button.addEventListener('click', () => {
-                closeAllModals();
+        // Listen for messages from the wallet iframe
+        window.addEventListener('message', handleIframeMessage);
+        
+        // Listen for settings messages
+        window.addEventListener('message', handleSettingsMessage);
+        
+        // Listen for visibility change events (with passive option for better performance)
+        document.addEventListener('visibilitychange', handleVisibilityChange, { passive: true });
+        
+        // Initialize more menu
+        initMoreMenu();
+    }
+    
+    /**
+     * Initialize WalletNetworkManager
+     */
+    async function initializeWalletNetworkManager() {
+        debug.log('Initializing WalletNetworkManager...');
+        
+        try {
+            // Wait for WalletNetworkManager to be available
+        let attempts = 0;
+            const maxAttempts = 50;
+        
+            while (!window.WalletNetworkManager && attempts < maxAttempts) {
+                debug.log(`Waiting for WalletNetworkManager... (${attempts + 1}/${maxAttempts})`);
+            await new Promise(resolve => setTimeout(resolve, 100));
+            attempts++;
+        }
+        
+            if (!window.WalletNetworkManager) {
+                throw new Error('WalletNetworkManager not available after timeout');
+        }
+        
+            // Create WalletNetworkManager instance
+            walletNetworkManager = new window.WalletNetworkManager();
+            
+            // Set up event listeners
+            setupWalletNetworkManagerEventListeners();
+            
+            // Initialize WalletNetworkManager
+            const initResult = await walletNetworkManager.init();
+            
+            debug.log('WalletNetworkManager initialization result:', initResult);
+            
+            if (initResult.success) {
+                // Update local state from manager
+                updateLocalStateFromManager(initResult);
+                
+                // Initialize contracts if wallet is connected
+                if (initResult.isConnected && initResult.walletType) {
+                    await initializeContractsWithManager();
+                }
+                
+                // Additional wallet status check after initialization (optimized timing)
+                setTimeout(() => {
+                    debug.log('Performing additional wallet status check after WalletNetworkManager initialization');
+                    checkWalletStatus();
+                }, 200);
+                
+                // Load farm animals (reduced delay for better performance)
+                setTimeout(() => {
+                    loadFarmAnimals(false);
+                }, 500);
+            } else {
+                debug.warn('WalletNetworkManager initialization failed:', initResult.error);
+                // Still check for stored wallet status
+                setTimeout(() => {
+                    debug.log('WalletNetworkManager failed, checking stored wallet status');
+                    checkWalletStatus();
+                }, 500);
+                // Still try to load farm animals without wallet
+                loadFarmAnimals(false);
+            }
+        } catch (error) {
+            debug.error('Failed to initialize WalletNetworkManager:', error);
+            // Show error message but continue
+            showRefreshToast('Failed to initialize wallet manager. Some features may not work properly.');
+            loadFarmAnimals(false);
+        }
+            }
+            
+    /**
+     * Set up WalletNetworkManager event listeners
+     */
+    function setupWalletNetworkManagerEventListeners() {
+        if (!walletNetworkManager) return;
+        
+        // Listen for wallet ready events
+        walletNetworkManager.on('onWalletReady', (data) => {
+            debug.log('Wallet ready event received:', data);
+            updateLocalStateFromManager(data);
+            
+            // Initialize contracts when wallet becomes ready
+            initializeContractsWithManager().then(() => {
+                debug.log('Contracts initialized after wallet ready');
+                loadFarmAnimals(true);
+            }).catch(error => {
+                debug.error('Failed to initialize contracts after wallet ready:', error);
             });
         });
         
-        // Click outside modal to close
-        modalContainer.addEventListener('click', (e) => {
-            if (e.target === modalContainer) {
-                closeAllModals();
+        // Listen for network change events
+        walletNetworkManager.on('onNetworkChanged', (data) => {
+            debug.log('Network changed event received:', data);
+            // Reinitialize contracts for new network
+            initializeContractsWithManager().then(() => {
+                debug.log('Contracts reinitialized after network change');
+                loadFarmAnimals(true);
+            }).catch(error => {
+                debug.error('Failed to reinitialize contracts after network change:', error);
+            });
+        });
+        
+        // Listen for connection status changes
+        walletNetworkManager.on('onConnectionStatusChanged', (data) => {
+            debug.log('Connection status changed:', data);
+            updateLocalStateFromManager(data);
+        });
+    }
+    
+    /**
+     * Update local state from WalletNetworkManager
+     */
+    function updateLocalStateFromManager(managerData) {
+        const wasConnected = isWalletConnected;
+        const oldAddress = currentAddress;
+        
+        debug.log('Updating local state from WalletNetworkManager, received data:', managerData);
+        
+        // Update local state
+        isWalletConnected = managerData.isConnected || false;
+        
+        // Get current address from manager with multiple fallback methods
+        let newAddress = null;
+        if (walletNetworkManager) {
+            newAddress = walletNetworkManager.getCurrentAddress();
+            debug.log('Address from walletNetworkManager.getCurrentAddress():', newAddress);
+            
+            // If no address from getCurrentAddress, try other methods
+            if (!newAddress && managerData.address) {
+                newAddress = managerData.address;
+                debug.log('Using address from managerData:', newAddress);
             }
+            
+            // If still no address, check stored values
+            if (!newAddress && isWalletConnected) {
+                newAddress = sessionStorage.getItem('walletAddress') || localStorage.getItem('walletAddress');
+                debug.log('Using stored address as fallback:', newAddress);
+            }
+        }
+        
+        currentAddress = newAddress;
+        currentWalletType = managerData.walletType;
+    
+        // Get Web3 instance from manager
+        const managerWeb3 = walletNetworkManager ? walletNetworkManager.getWeb3() : null;
+        if (managerWeb3) {
+            web3 = managerWeb3;
+            window.web3 = managerWeb3;
+            window.gameWeb3 = managerWeb3;
+        }
+        
+        debug.log('Local state updated from WalletNetworkManager:', {
+            isConnected: isWalletConnected,
+            address: currentAddress,
+            walletType: currentWalletType,
+            hasWeb3: !!web3,
+            wasConnected: wasConnected,
+            oldAddress: oldAddress
         });
+            
+        // Always update UI, even if address is null (for disconnected state)
+        updateWalletUI(isWalletConnected, currentAddress);
         
-        // Listen for messages from wallet iframe
-        window.addEventListener('message', handleIframeMessage);
+        // Also update stored values if connected
+        if (isWalletConnected && currentAddress) {
+            debug.log('Updating stored wallet connection info');
+            localStorage.setItem('walletConnected', 'true');
+            localStorage.setItem('walletAddress', currentAddress);
+            if (currentWalletType) {
+                localStorage.setItem('walletType', currentWalletType);
+            }
+            
+            sessionStorage.setItem('walletConnected', 'true');
+            sessionStorage.setItem('walletAddress', currentAddress);
+            if (currentWalletType) {
+                sessionStorage.setItem('walletType', currentWalletType);
+            }
+        }
+            
+        // Update token balances if wallet is connected and contracts are initialized
+        if (isWalletConnected && currentAddress && web3 && pwPointContract && pwBountyContract && pwFoodContract) {
+            updateTokenBalances().catch(error => {
+                debug.error('Failed to update token balances:', error);
+            });
+        } else if (isWalletConnected && currentAddress && web3) {
+            debug.log('Wallet connected but contracts not yet initialized, skipping token balance update');
+        }
         
-        // Listen for language change events
-        window.addEventListener('localeChanged', function(event) {
-            debug.log('Detected language change event:', event.detail);
-            localizeContent();
-        });
+        // If wallet status changed, refresh farm animals
+        if (wasConnected !== isWalletConnected || oldAddress !== currentAddress) {
+            setTimeout(() => {
+                loadFarmAnimals(true);
+            }, 500);
+        }
+    }
+    
+    /**
+     * Initialize contracts using WalletNetworkManager
+     */
+    async function initializeContractsWithManager() {
+        try {
+            debug.log('Initializing contracts with WalletNetworkManager...');
+            
+            if (!walletNetworkManager || !walletNetworkManager.isReadyForContracts()) {
+                throw new Error('WalletNetworkManager not ready for contract operations');
+            }
+            
+            // Initialize main contracts through WalletNetworkManager
+            const contractResult = await walletNetworkManager.initializeContracts({
+                contracts: ['NFTManager', 'PwNFT', 'NFTFeedingManager', 'PaymentManager']
+            });
+            
+            debug.log('WalletNetworkManager contract initialization result:', contractResult);
+    
+            // Initialize token contracts separately using traditional method
+            debug.log('Initializing token contracts using traditional method...');
+            const tokenInitSuccess = await initGameTokens();
+            
+                         if (contractResult.success && tokenInitSuccess) {
+                debug.log('All contracts initialized successfully');
+            
+                // Verify contracts are properly set
+                debug.log('Contract verification:', {
+                    pwPointContract: !!pwPointContract,
+                    pwBountyContract: !!pwBountyContract,
+                    pwFoodContract: !!pwFoodContract,
+                    currentAddress: !!currentAddress
+                });
+            
+                // Update token balances only if all contracts are initialized
+                if (currentAddress && pwPointContract && pwBountyContract && pwFoodContract) {
+                    debug.log('All contracts verified, updating token balances...');
+                    await updateTokenBalances();
+                } else {
+                    debug.warn('Some contracts not initialized, skipping token balance update');
+                }
+                
+            return true;
+            } else {
+                throw new Error('Contract initialization failed');
+            }
+        } catch (error) {
+            debug.error('Failed to initialize contracts with manager:', error);
+            
+            // Fallback to original contract initialization
+            debug.log('Falling back to original contract initialization...');
+            return await initGameTokens();
+        }
+    }
+    
+    // Removed deprecated wallet initialization functions - functionality moved to WalletNetworkManager
+    
+    /**
+     * Initialize contracts with retry mechanism
+     */
+    async function initContractsWithRetry() {
+        const maxRetries = 3;
+        let retryCount = 0;
         
-        // Listen for language initialization events
-        window.addEventListener('localeInitialized', function(event) {
-            debug.log('Detected language initialization event:', event.detail);
-            localizeContent();
-        });
+        while (retryCount < maxRetries) {
+            try {
+                debug.log(`Initializing contracts (attempt ${retryCount + 1}/${maxRetries})...`);
+                
+                // If using private key wallet, add additional verification
+                if (window.SecureWalletManager && window.SecureWalletManager.shouldUsePrivateKeyForTransactions()) {
+                    debug.log('Using private key wallet, performing additional checks...');
+                    
+                    // Verify wallet is ready
+                    const walletStatus = window.SecureWalletManager.getWalletStatus();
+                    if (!walletStatus.isReady || !walletStatus.web3Available) {
+                        throw new Error('Private key wallet not ready for contract initialization');
+                    }
+                    
+                    // Verify Web3 instance
+                    const privateKeyWeb3 = window.SecureWalletManager.getWeb3();
+                    if (!privateKeyWeb3 || !privateKeyWeb3.eth) {
+                        throw new Error('Private key wallet Web3 instance invalid');
+                    }
+                    
+                    // Test network connectivity
+                    try {
+                        const networkId = await privateKeyWeb3.eth.net.getId();
+                        const blockNumber = await privateKeyWeb3.eth.getBlockNumber();
+                        debug.log('Private key wallet network test successful:', { networkId, blockNumber });
+                    } catch (networkError) {
+                        throw new Error('Private key wallet network connectivity test failed: ' + networkError.message);
+                    }
+                    
+                    // Ensure global Web3 instances are set
+                    web3 = privateKeyWeb3;
+                    window.web3 = privateKeyWeb3;
+                    window.gameWeb3 = privateKeyWeb3;
+                }
         
-        // Localize content
-        localizeContent();
-
-        // Initialize dropdown menu for more button
-        initMoreMenu();
+                // Call the original initGameTokens function
+                await initGameTokens();
+                
+                // Verify that key contracts are initialized
+                if (pwPointContract && pwBountyContract && pwFoodContract) {
+                    debug.log('Contracts initialized successfully');
+                    
+                    // Additional verification: test contract calls
+                    try {
+                        debug.log('Testing contract functionality...');
+                        
+                        // Test PwPoint contract
+                        if (pwPointContract.methods && typeof pwPointContract.methods.balanceOf === 'function') {
+                            debug.log('PwPoint contract methods verified');
+                        } else {
+                            throw new Error('PwPoint contract methods not available');
+                        }
+                        
+                        // Test PwBounty contract
+                        if (pwBountyContract.methods && typeof pwBountyContract.methods.balanceOf === 'function') {
+                            debug.log('PwBounty contract methods verified');
+                        } else {
+                            throw new Error('PwBounty contract methods not available');
+                        }
+                        
+                        // Test PwFood contract
+                        if (pwFoodContract.methods && typeof pwFoodContract.methods.balanceOf === 'function') {
+                            debug.log('PwFood contract methods verified');
+                        } else {
+                            throw new Error('PwFood contract methods not available');
+                        }
+                        
+                        debug.log('All contract functionality tests passed');
+                        
+                    } catch (testError) {
+                        debug.warn('Contract functionality test failed:', testError.message);
+                        // Continue anyway, as the contracts might still work
+                    }
+                    
+                    return true;
+                } else {
+                    throw new Error('Key contracts not initialized properly');
+                }
+            } catch (error) {
+                debug.error(`Contract initialization attempt ${retryCount + 1} failed:`, error);
+                retryCount++;
+                
+                if (retryCount < maxRetries) {
+                    // Progressive delay: 1s, 2s, 3s
+                    const delay = 1000 * retryCount;
+                    debug.log(`Retrying contract initialization in ${delay}ms...`);
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                    
+                    // If using private key wallet and this is not the last attempt, try to reinitialize
+                    if (window.SecureWalletManager && window.SecureWalletManager.shouldUsePrivateKeyForTransactions()) {
+                        debug.log('Attempting to reinitialize private key wallet before retry...');
+                        try {
+                            if (window.SecureWalletManager.forceReinitializeAccount) {
+                                await window.SecureWalletManager.forceReinitializeAccount();
+                                debug.log('Private key wallet reinitialized for retry');
+                            }
+                        } catch (reinitError) {
+                            debug.warn('Failed to reinitialize private key wallet:', reinitError.message);
+                        }
+                    }
+                }
+            }
+        }
         
-        // Load initial contract files
-        loadContractInitializers();
-        
-        // Add page visibility change listener, refresh NFT data when user returns to page
-        document.addEventListener('visibilitychange', handleVisibilityChange);
-        
-        // Listen for audio-related settings changes from iframes
-        window.addEventListener('message', handleSettingsMessage);
-        
-        // Initialize pet features after the page has fully loaded, including shadow handling
-        // Only needs to be processed once, no need to repeatedly call loadFarmAnimals
-        setTimeout(initializeAllPetFeatures, 2000);
+        throw new Error('Failed to initialize contracts after all retries');
     }
     
     /**
@@ -269,12 +601,13 @@ document.addEventListener('DOMContentLoaded', () => {
         // Initialize pet size manager
         if (window.PetSizeManager) {
             debug.log('Initializing pet size manager...');
-            // Enable debug mode if needed
-            // window.PetSizeManager.debug = true;
+            // Enable debug mode to see sizing process
+            window.PetSizeManager.debug = true;
             
             // Apply to all pets
             setTimeout(() => {
-                window.PetSizeManager.applyToAll();
+                const farmContainer = document.getElementById('farm-animals-container');
+                window.PetSizeManager.applyToAll(farmContainer || document);
             }, 200);
         }
         
@@ -304,26 +637,39 @@ document.addEventListener('DOMContentLoaded', () => {
                 window.PetShadowManager.cleanupOrphanedShadows();
             }
             
-            // Reapply shadows
+            // Reapply shadows with better timing
+            requestAnimationFrame(() => {
             setTimeout(() => {
                 window.PetShadowManager.applyToAll();
-            }, 300);
+                }, 200);
+            });
         } else {
             debug.error('PetShadowManager not available, unable to apply shadows');
         }
         
-        // If NFTs have not been loaded, load once
+        // If NFTs have not been loaded, load once with delay for private key wallet
         const farmAnimalsContainer = document.getElementById('farm-animals-container');
         if (farmAnimalsContainer && (!farmAnimalsContainer.children || farmAnimalsContainer.children.length === 0)) {
             debug.log('Pet container is empty, loading NFT data...');
-            loadFarmAnimals(false);  // Use non-force mode, respect refresh interval
+            
+            // Check if using private key wallet and add delay if needed
+            if (window.SecureWalletManager && window.SecureWalletManager.shouldUsePrivateKeyWallet()) {
+                debug.log('Using private key wallet, adding delay before loading NFTs...');
+                setTimeout(() => {
+                    loadFarmAnimals(false);  // Use non-force mode, respect refresh interval
+                }, 5000); // Increased to 5 seconds delay for private key wallet network sync
+            } else {
+                loadFarmAnimals(false);  // Use non-force mode, respect refresh interval
+            }
         } else {
             debug.log('Pet container already has content, skipping NFT load');
             
-            // Only process existing pet animations
+            // Only process existing pet animations with better timing
+            requestAnimationFrame(() => {
             setTimeout(() => {
                 applyAnimationsToExistingPets();
-            }, 400);
+                }, 500);
+            });
         }
     }
     
@@ -357,10 +703,36 @@ document.addEventListener('DOMContentLoaded', () => {
         debug.log(`Cleanup completed: Removed ${allShadows.length} shadow elements`);
     }
     
+    // Visibility change optimization
+    let lastVisibilityChangeTime = 0;
+    let visibilityChangeTimeout = null;
+    const VISIBILITY_CHANGE_DEBOUNCE = 500; // 500ms debounce for visibility changes
+    
     /**
-     * Handle page visibility change
+     * Handle page visibility change (optimized)
      */
     function handleVisibilityChange() {
+        const currentTime = Date.now();
+        
+        // Debounce rapid visibility changes
+        if (currentTime - lastVisibilityChangeTime < VISIBILITY_CHANGE_DEBOUNCE) {
+            if (visibilityChangeTimeout) {
+                clearTimeout(visibilityChangeTimeout);
+            }
+            visibilityChangeTimeout = setTimeout(() => {
+                handleVisibilityChangeInternal();
+            }, VISIBILITY_CHANGE_DEBOUNCE);
+            return;
+        }
+        
+        lastVisibilityChangeTime = currentTime;
+        handleVisibilityChangeInternal();
+    }
+    
+    /**
+     * Internal visibility change handler
+     */
+    function handleVisibilityChangeInternal() {
         if (document.visibilityState === 'visible') {
             debug.log('Page became visible, checking if NFT data needs to be refreshed');
             
@@ -373,21 +745,29 @@ document.addEventListener('DOMContentLoaded', () => {
             // Get current time
             const currentTime = Date.now();
             
-            // Check if the time since the last update exceeds the cooldown time, using a longer time interval
-            if (currentTime - lastNFTUpdateTime > NFT_REFRESH_COOLDOWN * 3) {
-                debug.log('Time since last NFT update has exceeded cooldown time, refreshing NFT data');
+            // Check if the time since the last update exceeds the visibility change cooldown time
+            if (currentTime - lastNFTUpdateTime > VISIBILITY_REFRESH_COOLDOWN) {
+                debug.log('Time since last NFT update has exceeded visibility cooldown time, refreshing NFT data');
                 loadFarmAnimals(true);
             } else {
-                debug.log('NFT refresh is still in cooldown, skipping refresh');
+                debug.log(`NFT refresh is still in cooldown (${Math.floor((VISIBILITY_REFRESH_COOLDOWN - (currentTime - lastNFTUpdateTime))/1000)} seconds remaining), skipping refresh`);
                 
-                // Only reapply existing animations and shadows, do not refresh data
-                if (window.PetShadowManager) {
+                // Only reapply existing animations and shadows if not currently applying effects
+                if (!isApplyingEffects && window.PetShadowManager) {
                     setTimeout(() => {
+                        if (!isApplyingEffects) { // Double check to avoid conflicts
                         window.PetShadowManager.applyToAll();
+                        }
                     }, 300);
                 }
             }
         } else if (document.visibilityState === 'hidden') {
+            // Clear any pending visibility change timeouts
+            if (visibilityChangeTimeout) {
+                clearTimeout(visibilityChangeTimeout);
+                visibilityChangeTimeout = null;
+            }
+            
             // Optionally pause the music when the page is hidden (tab changed, etc.)
             // Uncomment if you want to pause music when the page is not visible
             // if (soundManager && soundManager.isMusicPlaying) {
@@ -498,153 +878,81 @@ document.addEventListener('DOMContentLoaded', () => {
     
     
     /**
-     * Check wallet connection status and restore session
+     * Check wallet connection status using WalletNetworkManager
      */
     function checkWalletStatus() {
-        debug.log('Checking wallet connection status...');
+        debug.log('Checking wallet status...');
         
-        // First check sessionStorage (cross-page transfer)
-        const sessionWalletConnected = sessionStorage.getItem('walletConnected');
-        const sessionWalletAddress = sessionStorage.getItem('walletAddress');
-        const sessionWalletType = sessionStorage.getItem('walletType');
-        
-        if (sessionWalletConnected === 'true' && sessionWalletAddress) {
-            debug.log('Restoring wallet connection status from sessionStorage:', sessionWalletAddress);
-            
-            // Restore wallet connection status
-            isWalletConnected = true;
-            currentAddress = sessionWalletAddress;
-            
-            // Update UI
-            updateWalletUI(true, currentAddress);
-            
-            // Notify wallet iframe to auto-connect
-            setTimeout(() => {
-                if (walletFrame && walletFrame.contentWindow) {
-                    try {
-                        debug.log('Sending auto-connect message to wallet iframe');
-                        walletFrame.contentWindow.postMessage({ 
-                            type: 'autoConnect',
-                            walletType: sessionWalletType || 'metamask'
-                        }, '*');
-                    } catch (error) {
-                        debug.error('Failed to send message to iframe:', error);
+        if (walletNetworkManager) {
+            try {
+            const status = walletNetworkManager.getStatus();
+            debug.log('Wallet status from WalletNetworkManager:', status);
+                
+                // If WalletNetworkManager has status, use it
+                if (status && (status.isConnected || status.address)) {
+            updateLocalStateFromManager(status);
+                } else {
+                    // If WalletNetworkManager doesn't have status, try to get current address
+                    const currentAddr = walletNetworkManager.getCurrentAddress();
+                    debug.log('Current address from WalletNetworkManager:', currentAddr);
+                    
+                    if (currentAddr) {
+                        // Create status object if we have an address
+                        const manualStatus = {
+                            isConnected: true,
+                            address: currentAddr,
+                            walletType: localStorage.getItem('walletType') || 'unknown'
+                        };
+                        updateLocalStateFromManager(manualStatus);
+                    } else {
+                        // No address from manager, fall back to stored values
+                        debug.log('No address from WalletNetworkManager, checking stored values');
+                        checkStoredWalletStatus();
                     }
                 }
-            }, 500);
-            
-            // Check Web3 instance
-            if (!web3 && window.ethereum) {
-                try {
-                    debug.log('Creating Web3 instance');
-                    web3 = new Web3(window.ethereum);
-                    
-                    // Initialize game token contracts
-                    initGameTokens();
-                    
-                    // Only update balance once after creating new Web3 instance
-                    updateTokenBalances();
-                } catch (error) {
-                    debug.error('Failed to create Web3 instance:', error);
-                }
+            } catch (error) {
+                debug.error('Error getting status from WalletNetworkManager:', error);
+                // Fall back to stored values
+                checkStoredWalletStatus();
             }
-            
-            // Force refresh NFT data 
-            if (window.PetNFTService) {
-                debug.log('Restoring session, initializing PetNFTService');
-                window.PetNFTService.init().then(success => {
-                    debug.log('PetNFTService initialization ' + (success ? 'succeeded' : 'failed'));
-                    
-                    // Reload farm animals, force refresh
-                    loadFarmAnimals(true);
-                });
-            } else {
-                // Even without PetNFTService, load farm animals (will use default animals)
-                loadFarmAnimals();
-            }
-            
-            return;
+                            } else {
+            debug.warn('WalletNetworkManager not available, falling back to basic check');
+            checkStoredWalletStatus();
         }
+    }
+    
+    /**
+     * Check stored wallet status as fallback
+     */
+    function checkStoredWalletStatus() {
+        debug.log('Checking stored wallet status...');
         
-        // If not found in sessionStorage, check localStorage
-        const storedWalletConnected = localStorage.getItem('walletConnected');
-        const storedWalletAddress = localStorage.getItem('walletAddress');
-        const storedWalletType = localStorage.getItem('walletType');
+            // Basic fallback check
+            const connectedWallet = sessionStorage.getItem('walletConnected') === 'true' || 
+                                   localStorage.getItem('walletConnected') === 'true';
+            const storedAddress = sessionStorage.getItem('walletAddress') || 
+                                 localStorage.getItem('walletAddress');
+        const storedWalletType = sessionStorage.getItem('walletType') || 
+                                localStorage.getItem('walletType');
+    
+        debug.log('Stored wallet info:', {
+            connected: connectedWallet,
+            address: storedAddress,
+            type: storedWalletType
+        });
         
-        if (storedWalletConnected === 'true' && storedWalletAddress) {
-            debug.log('Restoring wallet connection status from localStorage:', storedWalletAddress);
-            
-            // Restore wallet connection status
+            if (connectedWallet && storedAddress) {
             isWalletConnected = true;
-            currentAddress = storedWalletAddress;
-            
-            // Update UI
+                currentAddress = storedAddress;
+            currentWalletType = storedWalletType;
             updateWalletUI(true, currentAddress);
-            
-            // Sync to sessionStorage
-            sessionStorage.setItem('walletConnected', 'true');
-            sessionStorage.setItem('walletAddress', storedWalletAddress);
-            sessionStorage.setItem('walletType', storedWalletType || 'metamask');
-            
-            // Notify wallet iframe to auto-connect
-            setTimeout(() => {
-                if (walletFrame && walletFrame.contentWindow) {
-                    try {
-                        debug.log('Sending auto-connect message to wallet iframe');
-                        walletFrame.contentWindow.postMessage({ 
-                            type: 'autoConnect',
-                            walletType: storedWalletType || 'metamask'
-                        }, '*');
-                    } catch (error) {
-                        debug.error('Failed to send message to iframe:', error);
-                    }
-                }
-            }, 500);
-            
-            // Check Web3 instance
-            if (!web3 && window.ethereum) {
-                try {
-                    debug.log('Creating Web3 instance');
-                    web3 = new Web3(window.ethereum);
-                    
-                    // Initialize game token contracts
-                    initGameTokens();
-                    
-                    // Only update balance once after creating new Web3 instance
-                    updateTokenBalances();
-                } catch (error) {
-                    debug.error('Failed to create Web3 instance:', error);
-                }
-            }
-            
-            // Force refresh NFT data
-            if (window.PetNFTService) {
-                debug.log('Restoring session, initializing PetNFTService');
-                window.PetNFTService.init().then(success => {
-                    debug.log('PetNFTService initialization ' + (success ? 'succeeded' : 'failed'));
-                    
-                    // Reload farm animals, force refresh
-                    loadFarmAnimals(true);
-                });
-            } else {
-                // Even without PetNFTService, load farm animals (will use default animals)
-                loadFarmAnimals();
-            }
-            
-            return;
-        }
-        
-        // If no connected wallet is found, try to load NFTs from cache
-        debug.log('No connected wallet found, trying to load NFTs from cache');
-        if (window.PetNFTService) {
-            window.PetNFTService.init().then(success => {
-                debug.log('PetNFTService initialization ' + (success ? 'succeeded' : 'failed'));
-                // Load farm animals (will try to load NFTs from cache)
-                loadFarmAnimals(false);
-            });
-        } else {
-            // Load default animals
-            loadFarmAnimals();
+            debug.log('Restored wallet connection from storage:', currentAddress);
+                } else {
+                isWalletConnected = false;
+                currentAddress = null;
+            currentWalletType = null;
+                updateWalletUI(false);
+            debug.log('No stored wallet connection found');
         }
     }
     
@@ -652,9 +960,12 @@ document.addEventListener('DOMContentLoaded', () => {
      * Load user's farm animals
      * @param {boolean} forceUpdate - Whether to force refresh NFT data
      */
-    function loadFarmAnimals(forceUpdate = false) {
+    async function loadFarmAnimals(forceUpdate = false) {
         const farmAnimalsContainer = document.getElementById('farm-animals-container');
-        if (!farmAnimalsContainer) return;
+        if (!farmAnimalsContainer) {
+            debug.error('Farm animals container not found');
+            return;
+        }
         
         // Prevent concurrent loading - if loading is in progress, do not start a new loading process
         if (isLoadingNFT) {
@@ -681,7 +992,58 @@ document.addEventListener('DOMContentLoaded', () => {
         // Clear existing content
         farmAnimalsContainer.innerHTML = '';
         
-        // Try to load NFTs using PetNFTService (even if wallet is not connected, try to load from cache)
+        // Priority 1: Use WalletNetworkManager to get current address
+        if (walletNetworkManager) {
+            const managerAddress = walletNetworkManager.getCurrentAddress();
+            if (managerAddress) {
+                debug.log('Using WalletNetworkManager address for NFT loading:', managerAddress);
+                currentAddress = managerAddress;
+                isWalletConnected = true;
+                
+                // Verify WalletNetworkManager is ready for contracts
+                if (!walletNetworkManager.isReadyForContracts()) {
+                    debug.warn('WalletNetworkManager not ready for contracts, waiting...');
+                    // Add a delay to allow manager to fully initialize
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+                    
+                    // Re-check status
+                    if (!walletNetworkManager.isReadyForContracts()) {
+                        debug.error('WalletNetworkManager still not ready after waiting');
+                        isLoadingNFT = false;
+                        showAdoptPetButton(farmAnimalsContainer);
+                        return;
+                    }
+                }
+            }
+        }
+        
+        // Fallback: Check if using private key wallet directly
+        if (!currentAddress && window.SecureWalletManager) {
+            const walletStatus = window.SecureWalletManager.getWalletStatus();
+            if (walletStatus.usingPrivateKey && walletStatus.activeAddress) {
+                debug.log('Using private key wallet for NFT loading (fallback):', walletStatus.activeAddress);
+                currentAddress = walletStatus.activeAddress;
+                isWalletConnected = true;
+                
+                // Verify private key wallet is fully ready before proceeding
+                if (!walletStatus.isReady || !walletStatus.web3Available) {
+                    debug.warn('Private key wallet not fully ready, waiting...');
+                    // Add a delay to allow wallet to fully initialize
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+                    
+                    // Re-check status
+                    const updatedStatus = window.SecureWalletManager.getWalletStatus();
+                    if (!updatedStatus.isReady || !updatedStatus.web3Available) {
+                        debug.error('Private key wallet still not ready after waiting');
+                        isLoadingNFT = false;
+                        showAdoptPetButton(farmAnimalsContainer);
+                        return;
+                    }
+                }
+            }
+        }
+        
+        // Try to load NFTs using PetNFTService
         if (window.PetNFTService) {
             debug.log('Trying to load cached or online NFT pets using PetNFTService');
             
@@ -689,19 +1051,51 @@ document.addEventListener('DOMContentLoaded', () => {
             const loadingIndicator = document.createElement('div');
             loadingIndicator.className = 'loading-animal-indicator';
             loadingIndicator.textContent = 'Loading pets...';
+            loadingIndicator.style.textAlign = 'center';
+            loadingIndicator.style.padding = '20px';
+            loadingIndicator.style.color = '#666';
             farmAnimalsContainer.appendChild(loadingIndicator);
             
-            // Get user address (connected or from local storage)
-            const userAddress = currentAddress || localStorage.getItem('walletAddress') || sessionStorage.getItem('walletAddress');
+            // Get user address (priority: WalletNetworkManager > current address > private key wallet > storage)
+            let userAddress = currentAddress;
+            
+            // Priority 1: Use WalletNetworkManager
+            if (!userAddress && walletNetworkManager) {
+                userAddress = walletNetworkManager.getCurrentAddress();
+                if (userAddress) {
+                    currentAddress = userAddress;
+                    isWalletConnected = true;
+                }
+            }
+            
+            // Priority 2: Use private key wallet directly
+            if (!userAddress && window.SecureWalletManager) {
+                const walletStatus = window.SecureWalletManager.getWalletStatus();
+                if (walletStatus.activeAddress) {
+                    userAddress = walletStatus.activeAddress;
+                    currentAddress = userAddress;
+                    isWalletConnected = true;
+                }
+            }
+            
+            // Priority 3: Use stored address
+            if (!userAddress) {
+                userAddress = localStorage.getItem('walletAddress') || sessionStorage.getItem('walletAddress');
+            }
+            
+            debug.log('Loading NFTs for address:', userAddress);
             
             // First ensure PetNFTService is initialized
-            window.PetNFTService.init().then(success => {
-                debug.log('PetNFTService initialization ' + (success ? 'succeeded' : 'failed'));
+            try {
+                const initSuccess = await window.PetNFTService.init();
+                debug.log('PetNFTService initialization ' + (initSuccess ? 'succeeded' : 'failed'));
                 
-                if (!success) {
+                if (!initSuccess) {
                     debug.error('PetNFTService initialization failed, unable to load NFTs');
                     // Remove loading indicator
-                    farmAnimalsContainer.removeChild(loadingIndicator);
+                    if (loadingIndicator.parentNode) {
+                        farmAnimalsContainer.removeChild(loadingIndicator);
+                    }
                     isLoadingNFT = false; // Reset loading flag
                     
                     // Show adopt button
@@ -712,100 +1106,79 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Check if NFT data needs to be refreshed
                 const needsRefresh = forceUpdate || window.PetNFTService.needsRefresh({
                     userAddress: userAddress,
-                    refreshInterval: 60000, // Reduce to 1 minute refresh interval
+                    refreshInterval: NFT_REFRESH_COOLDOWN, // Use the same cooldown as defined above (2 minutes)
                 });
                 
-                if ((needsRefresh || forceUpdate) && isWalletConnected && userAddress) {
+                if ((needsRefresh || forceUpdate) && userAddress) {
                     debug.log('Need to refresh NFT data, fetching latest data from the chain...');
                     
                     // Call PetNFTService to refresh NFT data
-                    window.PetNFTService.refreshNFTs(userAddress, {
+                    const result = await window.PetNFTService.refreshNFTs(userAddress, {
                         forceUpdate: true, // Force to get the latest data from the chain
-                        refreshInterval: 60000, // Reduce to 1 minute refresh interval
-                        skipIntervalCheck: true // Skip interval check, always refresh
-                    }).then(result => {
-                        debug.log('NFT data refresh result:', result);
-                        
-                        // Remove loading indicator
+                        refreshInterval: NFT_REFRESH_COOLDOWN, // Use the same cooldown as defined above (2 minutes)
+                        skipIntervalCheck: true, // Skip interval check, always refresh
+                        removeDuplicates: true // Add duplicate removal
+                    });
+                    
+                    debug.log('NFT data refresh result:', result);
+                    
+                    // Remove loading indicator
+                    if (loadingIndicator.parentNode) {
                         farmAnimalsContainer.removeChild(loadingIndicator);
+                    }
+                    
+                    if (result.success && result.nfts && result.nfts.length > 0) {
+                        debug.log(`Successfully refreshed and loaded ${result.nfts.length} NFT pets`);
                         
-                        if (result.success && result.nfts && result.nfts.length > 0) {
-                            debug.log(`Successfully refreshed and loaded ${result.nfts.length} NFT pets`);
-                            
-                            // Sort NFTs by quality (from high to low)
-                            const sortedNFTs = sortNFTsByQuality(result.nfts);
-                            debug.log(`Sorted NFT list by quality:`, sortedNFTs.map(nft => 
-                                `${nft.metadata?.name || `#${nft.tokenId}`} - ${nft.metadata?.attributes?.find(attr => attr.trait_type === 'Quality')?.value || 'unknown'}`
-                            ));
-                            
-                            // Show up to 10 pets in the farm
-                            const nftsToShow = sortedNFTs.slice(0, 10);
-                            
-                            // Generate positions based on the number of pets
-                            const positions = generatePositions(nftsToShow.length);
-                            
-                            // Add NFTs as animals to the farm
-                            nftsToShow.forEach((nft, index) => {
+                        // Sort NFTs by quality (from high to low)
+                        const sortedNFTs = sortNFTsByQuality(result.nfts);
+                        debug.log(`Sorted NFT list by quality:`, sortedNFTs.map(nft => 
+                            `${nft.metadata?.name || `#${nft.tokenId}`} - ${nft.metadata?.attributes?.find(attr => attr.trait_type === 'Quality')?.value || 'unknown'}`
+                        ));
+                        
+                        // Show up to 10 pets in the farm
+                        const nftsToShow = sortedNFTs.slice(0, 10);
+                        
+                        // Generate positions based on the number of pets
+                        const positions = generatePositions(nftsToShow.length);
+                        
+                        // Add NFTs as animals to the farm
+                        nftsToShow.forEach((nft, index) => {
+                            try {
                                 const animalElement = createNFTAnimalElement(nft, positions[index]);
                                 farmAnimalsContainer.appendChild(animalElement);
-                            });
-                            
-                            // Ensure all pets' Z-axis order is correct and apply animations
-                            setTimeout(() => {
-                                // Apply Z-axis order
-                                if (window.PetZIndexManager) {
-                                    debug.log('Updating pets\' Z-axis order');
-                                    window.PetZIndexManager.updateAllPetZIndexes();
-                                }
                                 
-                                // Apply animations and shadows
-                                setTimeout(() => {
-                                    applyAnimationsToExistingPets();
-                                    
-                                    // Trigger NFT refresh event to notify other components that data has been updated
-                                    debug.log('Triggering nftRefreshed event, notifying that page data has been loaded');
-                                    window.dispatchEvent(new CustomEvent('nftRefreshed', {
-                                        detail: { 
-                                            count: nftsToShow.length,
-                                            source: 'online'
-                                        }
-                                    }));
-                                }, 300);
-                            }, 300);
-                        } else {
-                            debug.log('No NFT pets found or loading failed, trying to load from cache');
-                            loadFromCacheOrDefault(farmAnimalsContainer, userAddress);
-                        }
+                                // PetSizeManager will be applied later in the timing sequence
+                                // to ensure proper rendering before sizing
+                            } catch (error) {
+                                debug.error(`Failed to create NFT animal element for token ${nft.tokenId}:`, error);
+                            }
+                        });
                         
-                        // Reset loading flag
-                        isLoadingNFT = false;
-                    }).catch(error => {
-                        debug.error('Failed to refresh NFT data:', error);
-                        
-                        // Remove loading indicator
-                        if (loadingIndicator.parentNode) {
-                            farmAnimalsContainer.removeChild(loadingIndicator);
-                        }
-                        
-                        // Try to load from cache on failure
+                        // Apply PetSizeManager first, then Z-index and shadows, then animations with proper delays (optimized)
+                        applyPetEffectsOptimized(farmAnimalsContainer, nftsToShow, 'refreshed');
+                    } else {
+                        debug.log('No NFT pets found or loading failed, trying to load from cache');
                         loadFromCacheOrDefault(farmAnimalsContainer, userAddress);
-                        
-                        // Reset loading flag
-                        isLoadingNFT = false;
-                    });
+                    }
+                    
+                    // Reset loading flag
+                    isLoadingNFT = false;
                 } else {
                     // If no need to refresh or cannot refresh, try to load from cache
                     debug.log('Using cached NFT data');
                     
                     // Remove loading indicator
-                    farmAnimalsContainer.removeChild(loadingIndicator);
+                    if (loadingIndicator.parentNode) {
+                        farmAnimalsContainer.removeChild(loadingIndicator);
+                    }
                     
                     loadFromCacheOrDefault(farmAnimalsContainer, userAddress);
                     
                     // Reset loading flag
                     isLoadingNFT = false;
                 }
-            }).catch(error => {
+            } catch (error) {
                 debug.error('PetNFTService initialization failed:', error);
                 
                 // Remove loading indicator
@@ -824,10 +1197,25 @@ document.addEventListener('DOMContentLoaded', () => {
                 window.dispatchEvent(new CustomEvent('nftRefreshed', {
                     detail: { 
                         success: false,
-                        error: error.message || 'Initialization failed'
+                        error: error.message || 'Initialization failed',
+                        count: 0,
+                        source: 'error'
                     }
                 }));
-            });
+                
+                // Also trigger animations complete since there are no animations to apply
+                setTimeout(() => {
+                    debug.log('trigger allAnimationsComplete event (initialization failed)');
+                    window.dispatchEvent(new CustomEvent('allAnimationsComplete', {
+                        detail: { 
+                            success: false,
+                            error: error.message || 'Initialization failed',
+                            count: 0,
+                            source: 'error'
+                        }
+                    }));
+                }, 100);
+            }
         } else {
             // PetNFTService is not available, restore loading state
             debug.log('PetNFTService is not available, unable to load NFTs');
@@ -835,15 +1223,6 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // Show adopt button
             showAdoptPetButton(farmAnimalsContainer);
-            
-            // Trigger NFT refresh failure event
-            debug.log('Triggering nftRefreshed event (service unavailable)');
-            window.dispatchEvent(new CustomEvent('nftRefreshed', {
-                detail: { 
-                    success: false,
-                    error: 'PetNFTService is not available'
-                }
-            }));
         }
     }
     
@@ -1007,118 +1386,19 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // add NFTs as animals to the farm
             nftsToShow.forEach((nft, index) => {
+                try {
                 const animalElement = createNFTAnimalElement(nft, positions[index]);
                 container.appendChild(animalElement);
+                    
+                    // PetSizeManager will be applied later in the timing sequence
+                    // to ensure proper rendering before sizing
+                } catch (error) {
+                    debug.error(`Failed to create NFT animal element for token ${nft.tokenId}:`, error);
+                }
             });
             
-            // check and enable Egg animation
-            if (window.EggManager && typeof window.EggManager.checkForEggs === 'function') {
-            setTimeout(() => {
-                    debug.log('check cached NFTs for Egg pets and apply animation');
-                    window.EggManager.checkForEggs();
-                    
-                    // trigger nftRefreshed event to notify EggManager to reset state
-                    debug.log('trigger nftRefreshed event (cache loaded)');
-                    window.dispatchEvent(new CustomEvent('nftRefreshed', {
-                        detail: { 
-                            count: nftsToShow.length,
-                            source: 'cache'
-                        }
-                    }));
-                }, 500);
-            } else {
-                // if there is no EggManager, also trigger refresh event
-                setTimeout(() => {
-                    debug.log('trigger nftRefreshed event (cache loaded, no EggManager)');
-                    window.dispatchEvent(new CustomEvent('nftRefreshed', {
-                        detail: { 
-                            count: nftsToShow.length,
-                            source: 'cache'
-                        }
-                    }));
-            }, 500);
-            }
-            
-            // check and enable Duck animation
-            if (window.DuckManager && typeof window.DuckManager.checkForDucks === 'function') {
-                setTimeout(() => {
-                    debug.log('check cached NFTs for Duck pets and apply animation');
-                    window.DuckManager.checkForDucks();
-                }, 600);
-            }
-
-            // check and enable Chicken animation
-            if (window.ChickenManager && typeof window.ChickenManager.checkForChickens === 'function') {
-                setTimeout(() => {
-                    debug.log('check cached NFTs for Chicken pets and apply animation');
-                    window.ChickenManager.checkForChickens();
-                }, 600);
-            }
-
-            // check and enable Cat animation
-            if (window.CatManager && typeof window.CatManager.checkForCats === 'function') {
-            setTimeout(() => {
-                    debug.log('check cached NFTs for Cat pets and apply animation');
-                    window.CatManager.checkForCats();
-                }, 600);
-            }
-
-            // check and enable White Tiger animation
-            if (window.WhiteTigerManager && typeof window.WhiteTigerManager.checkForWhiteTigers === 'function') {
-                setTimeout(() => {
-                    debug.log('check cached NFTs for White Tiger pets and apply animation');
-                    window.WhiteTigerManager.checkForWhiteTigers();
-                }, 600);
-            }
-
-            // check and enable White Lion animation
-            if (window.WhiteLionManager && typeof window.WhiteLionManager.checkForWhiteLions === 'function') {
-                setTimeout(() => {
-                    debug.log('check cached NFTs for White Lion pets and apply animation');
-                    window.WhiteLionManager.checkForWhiteLions();
-                }, 600);
-            }
-
-            // check and enable Black Panther animation
-            if (window.BlackPantherManager && typeof window.BlackPantherManager.checkForBlackPanthers === 'function') {
-                setTimeout(() => {
-                    debug.log('check cached NFTs for Black Panther pets and apply animation');
-                    window.BlackPantherManager.checkForBlackPanthers();
-                }, 600);
-            }
-
-            // check and enable Moonlit Wolf animation
-            if (window.MoonlitWolfManager && typeof window.MoonlitWolfManager.checkForMoonlitWolves === 'function') {
-                setTimeout(() => {
-                    debug.log('check cached NFTs for Moonlit Wolf pets and apply animation');
-                    window.MoonlitWolfManager.checkForMoonlitWolves();
-                }, 600);
-            }
-
-            // check and enable Dragon animation
-            if (window.DragonManager && typeof window.DragonManager.checkForDragons === 'function') {
-                setTimeout(() => {
-                    debug.log('check cached NFTs for Dragon pets and apply animation');
-                    window.DragonManager.checkForDragons();
-                }, 600);
-            }
-
-            // check and enable Unicorn animation
-            if (window.UnicornManager && typeof window.UnicornManager.checkForUnicorns === 'function') {
-                setTimeout(() => {  
-                    debug.log('check cached NFTs for Unicorn pets and apply animation');
-                    window.UnicornManager.checkForUnicorns();
-                }, 600);
-            }
-
-            // check and enable Dog animation
-            if (window.DogManager && typeof window.DogManager.checkForDogs === 'function') {
-                setTimeout(() => {
-                    debug.log('check cached NFTs for Dog pets and apply animation');
-                    window.DogManager.checkForDogs();
-                }, 600);
-            }   
-
+            // Apply PetSizeManager first, then Z-index and shadows, then animations with proper delays (optimized)
+            applyPetEffectsOptimized(container, nftsToShow, 'cache');
         } else {
             debug.log('no NFT data in cache, show adopt button');
             
@@ -1135,6 +1415,17 @@ document.addEventListener('DOMContentLoaded', () => {
                         source: 'empty'
                                         }
                                     }));
+                
+                // Also trigger animations complete since there are no animations to apply
+                setTimeout(() => {
+                    debug.log('trigger allAnimationsComplete event (no data)');
+                    window.dispatchEvent(new CustomEvent('allAnimationsComplete', {
+                        detail: { 
+                            count: 0,
+                            source: 'empty'
+                        }
+                    }));
+                }, 100);
                                 }, 300);
         }
     }
@@ -1143,11 +1434,80 @@ document.addEventListener('DOMContentLoaded', () => {
      * handle wallet button click event
      */
     function handleWalletBtnClick() {
+        debug.log('Wallet button clicked, current connection status:', isWalletConnected);
+        
         if (isWalletConnected) {
             // if connected, disconnect
             disconnectWallet();
         } else {
-            // if not connected, show wallet connection modal
+            // if not connected, try to connect using WalletNetworkManager first
+            if (walletNetworkManager) {
+                debug.log('Using WalletNetworkManager to connect wallet');
+                connectWalletViaManager();
+            } else {
+                debug.log('WalletNetworkManager not available, falling back to iframe method');
+                // fallback to traditional iframe method
+                showWalletModal();
+            }
+        }
+    }
+    
+    /**
+     * Connect wallet using WalletNetworkManager
+     */
+    async function connectWalletViaManager() {
+        try {
+            debug.log('Attempting to connect wallet via WalletNetworkManager...');
+            
+            // Check if WalletNetworkManager is ready
+            if (!walletNetworkManager.isReady()) {
+                debug.log('WalletNetworkManager not ready, initializing...');
+                const initResult = await walletNetworkManager.init();
+                if (!initResult.success) {
+                    throw new Error('Failed to initialize WalletNetworkManager: ' + initResult.error);
+                }
+            }
+            
+            // Try to auto-connect first (for previously connected wallets)
+            let connectResult = await walletNetworkManager.autoConnect();
+            debug.log('WalletNetworkManager auto-connect result:', connectResult);
+            
+            if (!connectResult.success || !connectResult.isConnected) {
+                debug.log('Auto-connect failed or no previous connection, trying manual connect...');
+                
+                // If auto-connect fails, try to connect with default wallet type
+                // First check if MetaMask is available
+                if (window.ethereum && window.ethereum.isMetaMask) {
+                    debug.log('MetaMask detected, attempting MetaMask connection...');
+                    connectResult = await walletNetworkManager.connectWallet('metamask');
+                } else if (window.okxwallet) {
+                    debug.log('OKX wallet detected, attempting OKX connection...');
+                    connectResult = await walletNetworkManager.connectWallet('okx');
+                } else {
+                    debug.log('No specific wallet detected, trying default connection...');
+                    connectResult = await walletNetworkManager.connectWallet();
+                }
+            }
+            
+            debug.log('Final WalletNetworkManager connect result:', connectResult);
+            
+            if (connectResult.success && connectResult.isConnected) {
+                debug.log('Wallet connected successfully via WalletNetworkManager');
+                // Update local state
+                updateLocalStateFromManager(connectResult);
+                
+                // Initialize contracts if needed
+                await initializeContractsWithManager();
+                loadFarmAnimals(true);
+            } else {
+                debug.warn('WalletNetworkManager connection failed, falling back to iframe method');
+                // Fallback to iframe method
+                showWalletModal();
+            }
+        } catch (error) {
+            debug.error('Error connecting wallet via WalletNetworkManager:', error);
+            // Fallback to iframe method
+            debug.log('Falling back to iframe wallet connection method');
             showWalletModal();
         }
     }
@@ -1180,297 +1540,263 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     /**
-     * handle iframe message
+     * Handle iframe messages
      */
     function handleIframeMessage(event) {
-        if (!event.data || typeof event.data !== 'object') return;
+        // Filter out messages that are not objects or don't have proper structure
+        if (!event.data || typeof event.data !== 'object') {
+            return; // Silently ignore non-object messages
+        }
         
         const message = event.data;
-        debug.log('receive iframe message:', message.type);
+        
+        // Filter out messages that don't have a type or have undefined/null type
+        if (!message.type || message.type === undefined || message.type === null) {
+            return; // Silently ignore messages without valid type
+        }
+        
+        // Filter out MetaMask internal messages that we don't need to handle
+        if (message.target && (message.target.includes('metamask') || message.target.includes('inpage'))) {
+            return; // Silently ignore MetaMask internal messages
+        }
+        
+        debug.log('Received iframe message:', message.type, message);
         
         switch (message.type) {
             case 'walletConnected':
+                debug.log('Received wallet connection success message:', message.data);
                 handleWalletConnected(message.data);
                 break;
                 
             case 'walletModalClosed':
-                // close wallet modal
+                // Close wallet modal
                 hideWalletModal();
                 break;
                 
             case 'walletDisconnected':
-                // handle wallet disconnect
+                // Wallet disconnected
                 handleWalletDisconnect();
                 break;
                 
-            case 'refreshNFT':
-                // handle refresh NFT request
-                debug.log('receive refresh NFT request:', message.forceUpdate);
-                if (currentAddress) {
-                    loadFarmAnimals(true); // force refresh
-                    showRefreshToast('NFT data refreshed');
-                }
+            case 'closeModal':
+                // Close game modal (from iframe)
+                debug.log('Received close modal message from iframe');
+                closeAllModals();
                 break;
                 
-            case 'syncStorage':
-                // handle sync storage request
-                debug.log('receive sync storage request:', message.data);
-                if (message.data) {
+            case 'requestNFTData':
+                // Handle request for NFT data from pets page
+                debug.log('Received NFT data request from:', message.source);
+                
+                let nftData = [];
+                
+                // Try to get NFT data from multiple sources
+                // Priority 1: Get from PetNFTService cache
+                if (window.PetNFTService && typeof window.PetNFTService.getCachedNFTs === 'function') {
                     try {
-                        // save old address for address change detection
-                        const oldAddress = localStorage.getItem('walletAddress');
-                        
-                        // sync localStorage
-                        if (message.data.localStorage) {
-                            Object.entries(message.data.localStorage).forEach(([key, value]) => {
-                                localStorage.setItem(key, value);
-                                debug.log(`synced localStorage: ${key}=${value}`);
-                            });
+                        const cachedNFTs = window.PetNFTService.getCachedNFTs();
+                        if (cachedNFTs && cachedNFTs.length > 0) {
+                            nftData = cachedNFTs;
+                            debug.log(`Sending ${nftData.length} NFTs from PetNFTService cache to pets page`);
                         }
-                        
-                        // sync sessionStorage
-                        if (message.data.sessionStorage) {
-                            Object.entries(message.data.sessionStorage).forEach(([key, value]) => {
-                                sessionStorage.setItem(key, value);
-                                debug.log(`synced sessionStorage: ${key}=${value}`);
-                            });
-                        }
-                        
-                        // if sync is wallet connection info, update UI
-                        if (message.data.localStorage && message.data.localStorage.walletAddress) {
-                            const newAddress = message.data.localStorage.walletAddress;
-                            isWalletConnected = true;
-                            
-                            // detect if wallet address changed
-                            if (oldAddress && oldAddress !== newAddress) {
-                                debug.log(`detected wallet address changed: ${oldAddress} -> ${newAddress}`);
-                                // update current address
-                                currentAddress = newAddress;
-                                // update UI
-                                updateWalletUI(true, currentAddress);
-                                // force refresh NFT data
-                                loadFarmAnimals(true);
-                                // show toast
-                                showRefreshToast('wallet switched, refreshing NFT data...', 3000);
-                            } else if (!currentAddress || currentAddress !== newAddress) {
-                                // first connection or other cases
-                                currentAddress = newAddress;
-                                // update UI
-                                updateWalletUI(true, currentAddress);
+                    } catch (error) {
+                        debug.warn('Error getting NFTs from PetNFTService cache:', error);
+                    }
+                }
+                
+                // Priority 2: Get from localStorage cache if PetNFTService cache is empty
+                if (nftData.length === 0) {
+                    try {
+                        const savedCache = localStorage.getItem('nftCache');
+                        if (savedCache) {
+                            const parsedCache = JSON.parse(savedCache);
+                            if (parsedCache.allNfts && parsedCache.allNfts.length > 0) {
+                                nftData = parsedCache.allNfts;
+                                debug.log(`Sending ${nftData.length} NFTs from localStorage cache to pets page`);
                             }
                         }
                     } catch (error) {
-                        debug.error('sync storage error:', error);
+                        debug.warn('Error getting NFTs from localStorage cache:', error);
                     }
                 }
+                
+                // Send NFT data response to pets page
+                event.source.postMessage({
+                    type: 'nftDataResponse',
+                    nfts: nftData,
+                    timestamp: Date.now()
+                }, '*');
+                
+                debug.log(`Sent NFT data response with ${nftData.length} NFTs to pets page`);
                 break;
                 
             case 'web3Ready':
-                debug.log('receive web3 ready message:', message.data);
+                // Get Web3 instance
+                debug.log('Received Web3 instance');
                 
-                if (!message.data) {
-                    debug.error('receive invalid web3 connection info');
-                    return;
+                // Check if private key wallet is already active and should take priority
+                if (window.SecureWalletManager && window.SecureWalletManager.shouldUsePrivateKeyWallet()) {
+                    debug.log('Private key wallet is active, using its Web3 instance instead of iframe Web3');
+                    const privateKeyWeb3 = window.SecureWalletManager.getWeb3();
+                    if (privateKeyWeb3) {
+                        web3 = privateKeyWeb3;
+                        window.web3 = privateKeyWeb3;
+                        window.gameWeb3 = privateKeyWeb3;
+                        debug.log('Using private key wallet Web3 instance');
+                        
+                        // If wallet is connected, initialize contracts and load NFTs
+                        if (isWalletConnected && currentAddress) {
+                            initGameTokens().then((success) => {
+                                if (success) {
+                                    debug.log('Contracts initialized with private key wallet, loading farm animals');
+                                    loadFarmAnimals(true); // Force update to load NFTs
+                                } else {
+                                    debug.error('Failed to initialize contracts with private key wallet');
+                                }
+                            }).catch(error => {
+                                debug.error('Error initializing contracts with private key wallet:', error);
+                            });
+                        }
+                        break;
+                    }
                 }
                 
-                try {
-                    // save old address for address change detection
-                    const oldAddress = currentAddress;
-                    
-                    // select provider based on wallet type
-                    if (message.data.walletType === 'metamask' && window.ethereum) {
-                        web3 = new Web3(window.ethereum);
-                        debug.log('created web3 instance via MetaMask');
-                    } else if (message.data.walletType === 'okx' && window.okxwallet) {
-                        web3 = new Web3(window.okxwallet);
-                        debug.log('created web3 instance via OKX wallet');
-                    } else if (window.ethereum) {
-                        web3 = new Web3(window.ethereum);
-                        debug.log('created web3 instance via available provider');
-                    } else {
-                        debug.error('cannot create web3 instance: no compatible provider found');
-                        return;
-                    }
-                    
-                    // share web3 instance globally
+                // Use iframe Web3 if private key wallet is not available
+                if (message.data && message.data.web3) {
+                    web3 = message.data.web3;
+                    window.web3 = web3;
                     window.gameWeb3 = web3;
-                    
-                    // initialize game token contracts
-                    initGameTokens();
-                    
-                    // if there is address info but UI not updated, update UI
-                    if (message.data.address) {
-                        const noWalletText = i18n && typeof i18n.t === 'function' ? 
-                            i18n.t('wallet.noWallet') : 'no wallet connected';
-                        
-                        // check if UI needs update (if wallet address not shown)
-                        if (walletAddressSpan && (
-                            walletAddressSpan.textContent === noWalletText || 
-                            !walletAddressSpan.textContent ||
-                            !isWalletConnected ||
-                            oldAddress !== message.data.address // add address change detection
-                        )) {
-                            debug.log('update wallet UI, address:', message.data.address);
+                    debug.log('Web3 instance set from iframe');
                             
-                            // detect if wallet address changed
-                            if (oldAddress && oldAddress !== message.data.address) {
-                                debug.log(`detected wallet address changed: ${oldAddress} -> ${message.data.address}`);
-                                // force refresh NFT data
-                                showRefreshToast('wallet switched, refreshing NFT data...', 3000);
+                    // If wallet is connected, initialize contracts and load NFTs
+                    if (isWalletConnected && currentAddress) {
+                        initGameTokens().then((success) => {
+                            if (success) {
+                                debug.log('Contracts initialized with iframe Web3, loading farm animals');
+                                loadFarmAnimals(true); // Force update
+                            } else {
+                                debug.error('Failed to initialize contracts with iframe Web3');
                             }
-                            
-                            currentAddress = message.data.address;
-                            isWalletConnected = true;
-                            
-                            // use unified UI update function
-                            updateWalletUI(true, currentAddress);
-                            
-                            // ensure saved to localStorage and sessionStorage
-                            localStorage.setItem('walletConnected', 'true');
-                            localStorage.setItem('walletAddress', currentAddress);
-                            localStorage.setItem('walletType', message.data.walletType || 'metamask');
-                            
-                            sessionStorage.setItem('walletConnected', 'true');
-                            sessionStorage.setItem('walletAddress', currentAddress);
-                            sessionStorage.setItem('walletType', message.data.walletType || 'metamask');
-                            
-                            // force refresh NFT data
-                            if (oldAddress !== message.data.address) {
-                                loadFarmAnimals(true);
-                            }
-                        }
+                        }).catch(error => {
+                            debug.error('Error initializing contracts with iframe Web3:', error);
+                        });
                     }
-                } catch (error) {
-                    debug.error('create web3 instance failed:', error);
-                }
-                break;
-                
-            case 'clearStorage':
-                // clear specified storage data
-                debug.log('receive clear storage request:', message.data);
-                if (message.data) {
+                } else if (window.ethereum) {
                     try {
-                        // clear specified items in localStorage
-                        if (message.data.localStorage && Array.isArray(message.data.localStorage)) {
-                            message.data.localStorage.forEach(key => {
-                                localStorage.removeItem(key);
-                                debug.log(`cleared localStorage: ${key}`);
+                        web3 = new Web3(window.ethereum);
+                        window.web3 = web3;
+                        window.gameWeb3 = web3;
+                        debug.log('Web3 instance created from window.ethereum');
+                        
+                        // If wallet is connected, initialize contracts and load NFTs
+                        if (isWalletConnected && currentAddress) {
+                            initGameTokens().then((success) => {
+                                if (success) {
+                                    debug.log('Contracts initialized with window.ethereum, loading farm animals');
+                                    loadFarmAnimals(true); // Force update
+                                } else {
+                                    debug.error('Failed to initialize contracts with window.ethereum');
+                                }
+                            }).catch(error => {
+                                debug.error('Error initializing contracts with window.ethereum:', error);
                             });
-                        }
-                        
-                        // clear specified items in sessionStorage
-                        if (message.data.sessionStorage && Array.isArray(message.data.sessionStorage)) {
-                            message.data.sessionStorage.forEach(key => {
-                                sessionStorage.removeItem(key);
-                                debug.log(`cleared sessionStorage: ${key}`);
-                            });
-                        }
-                        
-                        // reset connection status and UI
-                        isWalletConnected = false;
-                        currentAddress = null;
-                        
-                        if (walletAddressSpan) {
-                            walletAddressSpan.textContent = i18n ? i18n.t('wallet.noWallet') : 'no wallet connected';
-                        }
-                        
-                        if (walletBtn) {
-                            walletBtn.textContent = i18n ? i18n.t('wallet.connect') : 'connect wallet';
-                            walletBtn.classList.remove('connected');
                         }
                     } catch (error) {
-                        debug.error('clear storage error:', error);
+                        debug.error('Failed to create Web3 instance:', error);
                     }
+                } else {
+                    debug.error('Failed to create Web3 instance, neither message.data.web3 nor window.ethereum is available');
                 }
                 break;
                 
             default:
-                debug.log('unhandled message type:', message.type);
+                // Only log unhandled message types that seem relevant (not MetaMask internal messages)
+                if (!message.target || (!message.target.includes('metamask') && !message.target.includes('inpage'))) {
+                    debug.log('unhandled message type:', message.type);
+                }
                 break;
         }
     }
     
     /**
-     * handle wallet connected event
-     * @param {Object} data - wallet connection data, contains address and walletType
+     * Handle wallet connection success
      */
     function handleWalletConnected(data) {
-        debug.log('receive wallet connected message:', data);
+        const { walletType, address, chainId } = data;
         
-        // extract address and wallet type from data object
-        let address, walletType;
-        if (typeof data === 'object' && data !== null) {
-            address = data.address;
-            walletType = data.walletType || 'metamask';
-        } else {
-            // if only address string is provided
-            address = data;
-            walletType = 'metamask'; // default value
+        // Check if WalletNetworkManager is managing wallets
+        if (walletNetworkManager) {
+            debug.log('WalletNetworkManager is active, refreshing manager status');
+            
+            // Refresh WalletNetworkManager to detect the new connection
+            walletNetworkManager.refresh().then(result => {
+                debug.log('WalletNetworkManager refresh result after external wallet connection:', result);
+                
+                if (result.success && result.isConnected) {
+                    updateWalletStatusFromManager(result);
+                }
+            }).catch(error => {
+                debug.error('Failed to refresh WalletNetworkManager after external wallet connection:', error);
+            });
+            
+            // Store connection status for compatibility
+            localStorage.setItem('walletConnected', 'true');
+            localStorage.setItem('walletAddress', address);
+            localStorage.setItem('walletType', walletType);
+            
+            sessionStorage.setItem('walletConnected', 'true');
+            sessionStorage.setItem('walletAddress', address);
+            sessionStorage.setItem('walletType', walletType);
+            
+            // Hide wallet modal
+            hideWalletModal();
+            
+            console.log(`External wallet connected, WalletNetworkManager will handle: ${walletType}, address: ${address}, chain ID: ${chainId}`);
+            return;
         }
         
-        // save old address for wallet switch detection
-        const oldAddress = currentAddress;
-        
-        // detect if wallet address changed
-        if (oldAddress && oldAddress !== address) {
-            debug.log(`detected wallet address changed: ${oldAddress} -> ${address}`);
+        // Fallback: Check if private key wallet is already active
+        if (window.SecureWalletManager && window.SecureWalletManager.shouldUsePrivateKeyWallet()) {
+            console.log('Private key wallet is active, not updating to connected wallet address');
+            
+            // Still save the connected wallet info but don't change the displayed address
+            localStorage.setItem('walletConnected', 'true');
+            localStorage.setItem('walletAddress', address);
+            localStorage.setItem('walletType', walletType);
+            
+            sessionStorage.setItem('walletConnected', 'true');
+            sessionStorage.setItem('walletAddress', address);
+            sessionStorage.setItem('walletType', walletType);
+            
+            // Hide wallet modal
+            hideWalletModal();
+            
+            console.log(`External wallet connected but private key wallet takes priority: ${walletType}, address: ${address}, chain ID: ${chainId}`);
+            return;
         }
         
-        // update connection status
+        // Set connection status (fallback mode)
         isWalletConnected = true;
         currentAddress = address;
+        currentWalletType = 'external';
         
-        // update UI
-        updateWalletUI(true, currentAddress);
+        // Update UI
+        updateWalletUI(true, address);
         
-        // ensure saved to localStorage and sessionStorage
+        // Store connection status in localStorage and sessionStorage
         localStorage.setItem('walletConnected', 'true');
-        localStorage.setItem('walletAddress', currentAddress);
+        localStorage.setItem('walletAddress', address);
         localStorage.setItem('walletType', walletType);
         
+        // Update sessionStorage
         sessionStorage.setItem('walletConnected', 'true');
-        sessionStorage.setItem('walletAddress', currentAddress);
+        sessionStorage.setItem('walletAddress', address);
         sessionStorage.setItem('walletType', walletType);
         
-        debug.log('saved wallet connection status to localStorage and sessionStorage:', {
-            address: currentAddress,
-            type: walletType
-        });
-        
-        // hide wallet modal
+        // Hide wallet modal
         hideWalletModal();
         
-        // if web3 instance exists, initialize game token contracts
-        if (web3) {
-            initGameTokens();
-            
-            // update token balances after wallet connected
-            updateTokenBalances();
-        }
-        
-        // initialize PetNFTService and reload NFT pets
-        if (window.PetNFTService) {
-            window.PetNFTService.init().then(success => {
-                debug.log('PetNFTService initialized' + (success ? 'successfully' : 'failed'));
-                
-                // detect if wallet address changed
-                if (oldAddress && oldAddress !== address) {
-                    // show wallet switch toast
-                    showRefreshToast('wallet switched, refreshing NFT data...', 3000);
-                    
-                    // force refresh NFT data
-                    loadFarmAnimals(true);
-                } else {
-                    // new wallet connected but not switch, delay 500ms to load, avoid overlapping with other initialization processes
-                    setTimeout(() => {
-                        loadFarmAnimals(true); // also force refresh, ensure data is up to date
-                    }, 500);
-                }
-            });
-        } else {
-            // even if PetNFTService is not available, try to load farm animals
-            loadFarmAnimals();
-        }
+        console.log(`Wallet connected successfully (fallback mode): ${walletType}, address: ${address}, chain ID: ${chainId}`);
     }
     
     /**
@@ -1587,15 +1913,16 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     /**
-     * initialize game token contracts
+     * Initialize game token contracts
+     * @returns {Promise<boolean>} - Success status
      */
-    function initGameTokens() {
+    async function initGameTokens() {
         try {
             debug.log('initializing game token contracts...');
             
             if (!web3) {
                 debug.error('cannot initialize game token contracts: Web3 not initialized');
-                return;
+                return false;
             }
             
             // get contract address function
@@ -1610,17 +1937,17 @@ document.addEventListener('DOMContentLoaded', () => {
             // check if initialization function is available
             if (typeof window.initPwPointContract !== 'function') {
                 debug.error('PwPoint contract initialization function not loaded');
-                return;
+                return false;
             }
             
             if (typeof window.initPwBountyContract !== 'function') {
                 debug.error('PwBounty contract initialization function not loaded');
-                return;
+                return false;
             }
             
             if (typeof window.initPwFoodContract !== 'function') {
                 debug.error('PwFood contract initialization function not loaded');
-                return;
+                return false;
             }
             
             if (typeof window.initNFTManagerContract !== 'function') {
@@ -1649,25 +1976,43 @@ document.addEventListener('DOMContentLoaded', () => {
                 debug.log('PwNFT contract initialized');
             }
             
-            // update token balances
-            if (currentAddress) {
-                updateTokenBalances();
-            }
-            
-            debug.log('game token contracts initialized');
+            debug.log('game token contracts initialized successfully');
+            return true;
         } catch (error) {
             debug.error('initialize game token contracts failed:', error);
+            return false;
         }
     }
     
+    // Token balance update optimization
+    let lastTokenBalanceUpdateTime = 0;
+    let isUpdatingTokenBalances = false;
+    const TOKEN_BALANCE_UPDATE_COOLDOWN = 5000; // 5 seconds cooldown between balance updates
+    
     /**
-     * update token balance display
+     * update token balance display (optimized with throttling)
      */
     async function updateTokenBalances() {
         if (!web3 || !currentAddress) {
             debug.log('cannot update token balances: web3 or currentAddress not initialized');
             return Promise.reject(new Error('web3 or currentAddress not initialized'));
         }
+        
+        const currentTime = Date.now();
+        
+        // Throttle balance updates
+        if (isUpdatingTokenBalances) {
+            debug.log('Token balance update already in progress, skipping');
+            return Promise.resolve({ message: 'Update in progress' });
+        }
+        
+        if (currentTime - lastTokenBalanceUpdateTime < TOKEN_BALANCE_UPDATE_COOLDOWN) {
+            debug.log(`Token balance update throttled (${Math.floor((TOKEN_BALANCE_UPDATE_COOLDOWN - (currentTime - lastTokenBalanceUpdateTime))/1000)} seconds remaining)`);
+            return Promise.resolve({ message: 'Update throttled' });
+        }
+        
+        isUpdatingTokenBalances = true;
+        lastTokenBalanceUpdateTime = currentTime;
         
         try {
             debug.log('updating token balances...');
@@ -1826,6 +2171,9 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (error) {
             debug.error('failed to update token balances:', error);
             return Promise.reject(error);
+        } finally {
+            // Always reset the updating flag
+            isUpdatingTokenBalances = false;
         }
     }
     
@@ -1859,11 +2207,47 @@ document.addEventListener('DOMContentLoaded', () => {
      * disconnect wallet
      */
     function disconnectWallet() {
-        // send disconnect wallet message to wallet iframe
-        walletFrame.contentWindow.postMessage({ type: 'disconnectWallet' }, '*');
+        debug.log('Disconnecting wallet...');
         
-        // handle wallet disconnect directly
+        // Try to disconnect using WalletNetworkManager first
+        if (walletNetworkManager) {
+            debug.log('Using WalletNetworkManager to disconnect wallet');
+            disconnectWalletViaManager();
+        } else {
+            debug.log('WalletNetworkManager not available, using iframe method');
+            // Fallback to iframe method
+            if (walletFrame && walletFrame.contentWindow) {
+        walletFrame.contentWindow.postMessage({ type: 'disconnectWallet' }, '*');
+            }
+            // Handle disconnect directly
+            handleWalletDisconnect();
+        }
+    }
+    
+    /**
+     * Disconnect wallet using WalletNetworkManager
+     */
+    async function disconnectWalletViaManager() {
+        try {
+            debug.log('Attempting to disconnect wallet via WalletNetworkManager...');
+            
+            const disconnectResult = await walletNetworkManager.disconnectWallet();
+            debug.log('WalletNetworkManager disconnect result:', disconnectResult);
+            
+            if (disconnectResult.success) {
+                debug.log('Wallet disconnected successfully via WalletNetworkManager');
+                // Update local state
+                updateLocalStateFromManager(disconnectResult);
+            } else {
+                debug.warn('WalletNetworkManager disconnect failed, handling manually');
+                // Handle disconnect manually
         handleWalletDisconnect();
+            }
+        } catch (error) {
+            debug.error('Error disconnecting wallet via WalletNetworkManager:', error);
+            // Handle disconnect manually as fallback
+            handleWalletDisconnect();
+        }
     }
     
     /**
@@ -1875,7 +2259,17 @@ document.addEventListener('DOMContentLoaded', () => {
         // reset status
         isWalletConnected = false;
         currentAddress = null;
+        currentWalletType = null;
         web3 = null;
+        
+        // Clear global Web3 instances
+        window.web3 = null;
+        window.gameWeb3 = null;
+        
+        // Reset contract instances
+        pwPointContract = null;
+        pwBountyContract = null;
+        pwFoodContract = null;
         
         // update UI
         updateWalletUI(false);
@@ -1895,24 +2289,63 @@ document.addEventListener('DOMContentLoaded', () => {
         if (pwPointBalanceElem) pwPointBalanceElem.textContent = '0';
         if (pwBountyBalanceElem) pwBountyBalanceElem.textContent = '0';
         if (pwFoodBalanceElem) pwFoodBalanceElem.textContent = '0';
+        
+        // Refresh farm animals to show adopt button
+        setTimeout(() => {
+            loadFarmAnimals(true);
+        }, 500);
     }
     
     /**
      * update wallet UI
      */
     function updateWalletUI(connected, address = null) {
-        if (connected) {
+        debug.log('Updating wallet UI:', { connected, address });
+        
+        // Ensure DOM elements are available
+        if (!walletBtn) {
+            walletBtn = document.getElementById('connectWalletBtn');
+            if (!walletBtn) {
+                debug.error('Wallet button element not found, cannot update UI');
+                return;
+            }
+        }
+        
+        if (!walletAddressSpan) {
+            walletAddressSpan = document.getElementById('walletAddress');
+            if (!walletAddressSpan) {
+                debug.error('Wallet address span element not found, cannot update UI');
+                return;
+            }
+        }
+        
+        if (connected && address) {
+            debug.log('Setting wallet UI to connected state with address:', address);
             walletBtn.textContent = i18n ? i18n.t('wallet.disconnect') : 'disconnect wallet';
             walletBtn.classList.add('connected');
-            walletAddressSpan.textContent = formatAddress(address);
+            
+            const formattedAddress = formatAddress(address);
+            walletAddressSpan.textContent = formattedAddress;
             walletAddressSpan.title = address;
             walletAddressSpan.classList.add('truncated-address');
+            
+            debug.log('Wallet UI updated to connected state:', {
+                buttonText: walletBtn.textContent,
+                addressText: walletAddressSpan.textContent,
+                fullAddress: address
+            });
         } else {
+            debug.log('Setting wallet UI to disconnected state');
             walletBtn.textContent = i18n ? i18n.t('wallet.connect') : 'connect wallet';
             walletBtn.classList.remove('connected');
             walletAddressSpan.textContent = i18n ? i18n.t('wallet.noWallet') : 'no wallet connected';
             walletAddressSpan.title = '';
             walletAddressSpan.classList.remove('truncated-address');
+            
+            debug.log('Wallet UI updated to disconnected state:', {
+                buttonText: walletBtn.textContent,
+                addressText: walletAddressSpan.textContent
+            });
         }
     }
     
@@ -2101,11 +2534,89 @@ document.addEventListener('DOMContentLoaded', () => {
             case 'pets-modal':
                 // load pets page
                 document.getElementById('pets-iframe').src = '../../webPages/gamePages/pets.html';
+                
+                // wait for iframe to load and send data
+                const petsIframe = document.getElementById('pets-iframe');
+                petsIframe.onload = function() {
+                    debug.log('pets iframe loaded, sending data');
+                    // send wallet information
+                    petsIframe.contentWindow.postMessage({
+                        type: 'walletInfo',
+                        data: {
+                            connected: isWalletConnected,
+                            address: currentAddress
+                        }
+                    }, '*');
+                    
+                    // send Web3 instance
+                    if (web3) {
+                        try {
+                            // create a cloneable data structure
+                            const web3Data = {
+                                type: 'web3Ready',
+                                data: { 
+                                    connected: isWalletConnected,
+                                    address: currentAddress,
+                                    walletType: localStorage.getItem('walletType') || 'metamask'
+                                }
+                            };
+                            // directly attach web3 instance to window object to avoid postMessage clone failure
+                            window.gameWeb3 = web3;
+                            petsIframe.contentWindow.postMessage(web3Data, '*');
+                            debug.log('sent web3 ready message to pets iframe');
+                        } catch (error) {
+                            debug.error('error sending web3 instance to pets iframe:', error);
+                            // ensure web3 instance can be used in iframe
+                            window.gameWeb3 = web3;
+                        }
+                    } else {
+                        debug.error('web3 instance not initialized, cannot send to pets iframe');
+                    }
+                };
                 break;
                 
             case 'market-modal':
                 // load market page
                 document.getElementById('market-iframe').src = '../../webPages/gamePages/market.html';
+                
+                // wait for iframe to load and send data
+                const marketIframe = document.getElementById('market-iframe');
+                marketIframe.onload = function() {
+                    debug.log('market iframe loaded, sending data');
+                    // send wallet information
+                    marketIframe.contentWindow.postMessage({
+                        type: 'walletInfo',
+                        data: {
+                            connected: isWalletConnected,
+                            address: currentAddress
+                        }
+                    }, '*');
+                    
+                    // send Web3 instance
+                    if (web3) {
+                        try {
+                            // create a cloneable data structure
+                            const web3Data = {
+                                type: 'web3Ready',
+                                data: { 
+                                    connected: isWalletConnected,
+                                    address: currentAddress,
+                                    walletType: localStorage.getItem('walletType') || 'metamask'
+                                }
+                            };
+                            // directly attach web3 instance to window object to avoid postMessage clone failure
+                            window.gameWeb3 = web3;
+                            marketIframe.contentWindow.postMessage(web3Data, '*');
+                            debug.log('sent web3 ready message to market iframe');
+                        } catch (error) {
+                            debug.error('error sending web3 instance to market iframe:', error);
+                            // ensure web3 instance can be used in iframe
+                            window.gameWeb3 = web3;
+                        }
+                    } else {
+                        debug.error('web3 instance not initialized, cannot send to market iframe');
+                    }
+                };
                 break;
                 
             case 'settings-modal':
@@ -2175,7 +2686,14 @@ document.addEventListener('DOMContentLoaded', () => {
         animalDiv.dataset.contractAddress = nft.contractAddress;
         animalDiv.dataset.name = nft.metadata?.name || `pet #${nft.tokenId}`;
         
-        console.log(`[NFTDebug] Creating NFT animal element: ${animalDiv.dataset.name} (ID: ${animalDiv.dataset.id})`);
+        // Set basic styles (let PetSizeManager control dimensions)
+        animalDiv.style.position = 'absolute';
+        animalDiv.style.transition = 'all 0.3s ease';
+        animalDiv.style.cursor = 'pointer';
+        animalDiv.style.zIndex = '10';
+        // Don't set width/height here - let PetSizeManager control it completely
+        
+        debug.log(`[NFTDebug] Creating NFT animal element: ${animalDiv.dataset.name} (ID: ${animalDiv.dataset.id})`);
         
         // check if it is a special type of NFT (like Egg or Duck)
         const nftName = (animalDiv.dataset.name || '').toLowerCase();
@@ -2184,62 +2702,49 @@ document.addEventListener('DOMContentLoaded', () => {
         if (nftName.includes('egg')) {
             animalDiv.classList.add('egg-nft');
             animalDiv.dataset.type = 'egg';
-            console.log(`[NFTDebug] Marked as EGG: ${animalDiv.dataset.name}`);
+            debug.log(`[NFTDebug] Marked as EGG: ${animalDiv.dataset.name}`);
         } else if (nftName.includes('duck')) {
             animalDiv.classList.add('duck-nft');
             animalDiv.dataset.type = 'duck';
-            console.log(`[NFTDebug] Marked as DUCK: ${animalDiv.dataset.name}`);
+            debug.log(`[NFTDebug] Marked as DUCK: ${animalDiv.dataset.name}`);
         } else if (nftName.includes('chicken')) {
             animalDiv.classList.add('chicken-nft');
             animalDiv.dataset.type = 'chicken';
-            console.log(`[NFTDebug] Marked as CHICKEN: ${animalDiv.dataset.name}`);
+            debug.log(`[NFTDebug] Marked as CHICKEN: ${animalDiv.dataset.name}`);
         } else if (nftName.includes('cat')) {
             animalDiv.classList.add('cat-nft');
             animalDiv.dataset.type = 'cat';
-            console.log(`[NFTDebug] Marked as CAT: ${animalDiv.dataset.name}`);
+            debug.log(`[NFTDebug] Marked as CAT: ${animalDiv.dataset.name}`);
         } else if (nftName.includes('dog')) {
             animalDiv.classList.add('dog-nft');
             animalDiv.dataset.type = 'dog';
-            console.log(`[NFTDebug] Marked as DOG: ${animalDiv.dataset.name}`);
+            debug.log(`[NFTDebug] Marked as DOG: ${animalDiv.dataset.name}`);
         } else if (nftName.includes('dragon')) {
             animalDiv.classList.add('dragon-nft');
             animalDiv.dataset.type = 'dragon';
-            console.log(`[NFTDebug] Marked as DRAGON: ${animalDiv.dataset.name}`);
+            debug.log(`[NFTDebug] Marked as DRAGON: ${animalDiv.dataset.name}`);
         } else if (nftName.includes('unicorn')) {
             animalDiv.classList.add('unicorn-nft');
             animalDiv.dataset.type = 'unicorn';
-            console.log(`[NFTDebug] Marked as UNICORN: ${animalDiv.dataset.name}`); 
+            debug.log(`[NFTDebug] Marked as UNICORN: ${animalDiv.dataset.name}`); 
         } else if (nftName.includes('white tiger')) {
             animalDiv.classList.add('white-tiger-nft');
             animalDiv.dataset.type = 'white tiger';
-            console.log(`[NFTDebug] Marked as WHITE TIGER: ${animalDiv.dataset.name}`);
+            debug.log(`[NFTDebug] Marked as WHITE TIGER: ${animalDiv.dataset.name}`);
         } else if (nftName.includes('white lion')) {
             animalDiv.classList.add('white-lion-nft');
             animalDiv.dataset.type = 'white lion';
-            console.log(`[NFTDebug] Marked as WHITE LION: ${animalDiv.dataset.name}`);
+            debug.log(`[NFTDebug] Marked as WHITE LION: ${animalDiv.dataset.name}`);
         } else if (nftName.includes('black panther')) {
             animalDiv.classList.add('black-panther-nft');
             animalDiv.dataset.type = 'black panther';
-            console.log(`[NFTDebug] Marked as BLACK PANTHER: ${animalDiv.dataset.name}`);
+            debug.log(`[NFTDebug] Marked as BLACK PANTHER: ${animalDiv.dataset.name}`);
         } else if (nftName.includes('moonlit wolf')) {
             animalDiv.classList.add('moonlit-wolf-nft');
             animalDiv.dataset.type = 'moonlit wolf';
-            console.log(`[NFTDebug] Marked as MOONLIT WOLF: ${animalDiv.dataset.name}`);
+            debug.log(`[NFTDebug] Marked as MOONLIT WOLF: ${animalDiv.dataset.name}`);
         } else {
-            console.log(`[NFTDebug] Unknown pet type: ${animalDiv.dataset.name}`);
-        }
-        
-        // use PetSizeManager to set pet size
-        if (window.PetSizeManager) {
-            // apply size in next render cycle, ensure element is added to DOM
-            setTimeout(() => {
-                window.PetSizeManager.setSize(animalDiv, animalDiv.dataset.type);
-            }, 0);
-        } else {
-        // basic style, not区分品质
-        animalDiv.style.position = 'absolute';
-        // remove background color and rounded corners, no circle
-        animalDiv.style.transition = 'all 0.3s ease';
+            debug.log(`[NFTDebug] Unknown pet type: ${animalDiv.dataset.name}`);
         }
         
         // hover effect - only keep zoom effect
@@ -2255,6 +2760,37 @@ document.addEventListener('DOMContentLoaded', () => {
         animalDiv.addEventListener('click', () => {
             // call handle function
             handleNFTAnimalClick(nft);
+        });
+        
+        // Apply PetSizeManager after element is added to DOM and rendered
+        // Use requestAnimationFrame to ensure element is properly rendered before sizing
+        requestAnimationFrame(() => {
+            if (window.PetSizeManager) {
+                debug.log(`[NFTDebug] Applying PetSizeManager to ${animalDiv.dataset.name} (type: ${animalDiv.dataset.type}) after DOM render`);
+            // Get farm container dimensions for proper sizing
+            const farmContainer = document.getElementById('farm-animals-container');
+            const containerWidth = farmContainer ? farmContainer.offsetWidth : 800;
+            const containerHeight = farmContainer ? farmContainer.offsetHeight : 600;
+            
+                // Check if element has been added to DOM and has dimensions
+                if (animalDiv.parentNode && (animalDiv.offsetWidth > 0 || animalDiv.offsetHeight > 0)) {
+                    window.PetSizeManager.setSize(animalDiv, animalDiv.dataset.type, {
+                        containerWidth: containerWidth,
+                        containerHeight: containerHeight
+                    });
+                } else {
+                    // If element still has no dimensions, wait a bit more
+                    setTimeout(() => {
+                        if (window.PetSizeManager && animalDiv.parentNode) {
+                            debug.log(`[NFTDebug] Delayed PetSizeManager application for ${animalDiv.dataset.name}`);
+            window.PetSizeManager.setSize(animalDiv, animalDiv.dataset.type, {
+                containerWidth: containerWidth,
+                containerHeight: containerHeight
+            });
+        }
+                    }, 100);
+                }
+            }
         });
         
         // dispatch NFT loaded event, allow other components to handle special NFTs (like Egg animation or Duck animation)
@@ -2408,86 +2944,219 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // Animation managers cache and throttling
+    let animationManagersCache = null;
+    let lastAnimationApplyTime = 0;
+    const ANIMATION_APPLY_COOLDOWN = 1000; // 1 second cooldown between animation applications
+    
+    // Performance optimization flags
+    let isApplyingEffects = false;
+    let pendingEffectsQueue = [];
+    
+    // Memory management
+    let memoryCleanupInterval = null;
+    const MEMORY_CLEANUP_INTERVAL = 300000; // 5 minutes
+    
     /**
-     * apply animations to existing pets, without reloading data
+     * Get animation managers with caching
      */
-    function applyAnimationsToExistingPets() {
-        // check and update all egg animations
-        if (window.EggManager) {
-            debug.log('check all egg animations...');
-            // disable auto shadow application
-            window.EggManager.checkForEggs(false);
+    function getAnimationManagers() {
+        if (!animationManagersCache) {
+            animationManagersCache = [
+                { name: 'EggManager', manager: window.EggManager, method: 'checkForEggs' },
+                { name: 'DuckManager', manager: window.DuckManager, method: 'checkForDucks' },
+                { name: 'ChickenManager', manager: window.ChickenManager, method: 'checkForChickens' },
+                { name: 'CatManager', manager: window.CatManager, method: 'checkForCats' },
+                { name: 'WhiteTigerManager', manager: window.WhiteTigerManager, method: 'checkForWhiteTigers' },
+                { name: 'WhiteLionManager', manager: window.WhiteLionManager, method: 'checkForWhiteLions' },
+                { name: 'BlackPantherManager', manager: window.BlackPantherManager, method: 'checkForBlackPanthers' },
+                { name: 'MoonlitWolfManager', manager: window.MoonlitWolfManager, method: 'checkForMoonlitWolves' },
+                { name: 'DragonManager', manager: window.DragonManager, method: 'checkForDragons' },
+                { name: 'UnicornManager', manager: window.UnicornManager, method: 'checkForUnicorns' },
+                { name: 'DogManager', manager: window.DogManager, method: 'checkForDogs' }
+            ].filter(item => item.manager && typeof item.manager[item.method] === 'function');
+        }
+        return animationManagersCache;
+    }
+    
+    /**
+     * Optimized pet effects application (sizing, shadows, animations)
+     */
+    function applyPetEffectsOptimized(container, nftsData, source) {
+        // Prevent concurrent effects application
+        if (isApplyingEffects) {
+            debug.log('Effects application already in progress, queuing request');
+            pendingEffectsQueue.push({ container, nftsData, source });
+            return;
         }
         
-        // check and update all duck animations
-        if (window.DuckManager) {
-            debug.log('check all duck animations...');
-            // disable auto shadow application
-            window.DuckManager.checkForDucks(false);
-        }
-
-        // check and update all chicken animations
-        if (window.ChickenManager) {
-            debug.log('check all chicken animations...');
-            // disable auto shadow application
-            window.ChickenManager.checkForChickens(false);
-        }
-
-        // check and update all cat animations
-        if (window.CatManager) {
-            debug.log('check all cat animations...');
-            // disable auto shadow application
-            window.CatManager.checkForCats(false);
-        }
-
-        // check and update all white tiger animations
-        if (window.WhiteTigerManager) {
-            debug.log('check all white tiger animations...');
-            // disable auto shadow application
-            window.WhiteTigerManager.checkForWhiteTigers(false);
+        isApplyingEffects = true;
+        
+        // Use requestAnimationFrame to ensure DOM is fully rendered
+        requestAnimationFrame(() => {
+            // Step 1: Apply sizing and basic effects
+            setTimeout(() => {
+                try {
+                    // Apply PetSizeManager to all pets first to ensure correct sizing
+                    if (window.PetSizeManager) {
+                        debug.log('Applying PetSizeManager to all pets for proper sizing');
+                        window.PetSizeManager.applyToAll(container);
+                    }
+                    
+                    // Apply Z-axis order
+                    if (window.PetZIndexManager) {
+                        debug.log('Updating pets\' Z-axis order');
+                        window.PetZIndexManager.updateAllPetZIndexes();
+                    }
+                    
+                    // Apply shadows
+                    if (window.PetShadowManager) {
+                        debug.log('Applying pet shadows...');
+                        window.PetShadowManager.applyToAll();
+                    }
+                } catch (error) {
+                    debug.error('Error applying basic pet effects:', error);
         }   
 
-        // check and update all white lion animations
-        if (window.WhiteLionManager) {
-            debug.log('check all white lion animations...');
-            // disable auto shadow application
-            window.WhiteLionManager.checkForWhiteLions(false);
-        }   
-
-        // check and update all black panther animations
-        if (window.BlackPantherManager) {
-            debug.log('check all black panther animations...');
-            // disable auto shadow application
-            window.BlackPantherManager.checkForBlackPanthers(false);
-        }   
-
-        // check and update all moonlit wolf animations
-        if (window.MoonlitWolfManager) {
-            debug.log('check all moonlit wolf animations...');
-            // disable auto shadow application
-            window.MoonlitWolfManager.checkForMoonlitWolves(false);
-        }      
-
-        // check and update all dragon animations
-        if (window.DragonManager) {
-            debug.log('check all dragon animations...');
-            // disable auto shadow application
-            window.DragonManager.checkForDragons(false);
-        }      
-
-        // check and update all unicorn animations
-        if (window.UnicornManager) {
-            debug.log('check all unicorn animations...');
-            // disable auto shadow application
-            window.UnicornManager.checkForUnicorns(false);
-        }      
-
-        // check and update all dog animations
-        if (window.DogManager) {
-            debug.log('check all dog animations...');
-            // disable auto shadow application
-            window.DogManager.checkForDogs(false);
+                // Step 2: Apply animations with optimized batching
+                requestAnimationFrame(() => {
+                    setTimeout(() => {
+                        applyAnimationsOptimized(() => {
+                            // Step 3: Trigger events and cleanup
+                            setTimeout(() => {
+                                debug.log(`Triggering nftRefreshed event (${source})`);
+                                window.dispatchEvent(new CustomEvent('nftRefreshed', {
+                                    detail: { 
+                                        count: nftsData ? nftsData.length : 0,
+                                        source: source
+                                    }
+                                }));
+                                
+                                // Trigger all animations complete event
+                                setTimeout(() => {
+                                    debug.log(`Triggering allAnimationsComplete event (${source})`);
+                                    window.dispatchEvent(new CustomEvent('allAnimationsComplete', {
+                                        detail: { 
+                                            count: nftsData ? nftsData.length : 0,
+                                            source: source
+                                        }
+                                    }));
+                                    
+                                    // Mark effects application as complete
+                                    isApplyingEffects = false;
+                                    
+                                    // Process any queued requests
+                                    if (pendingEffectsQueue.length > 0) {
+                                        const nextRequest = pendingEffectsQueue.shift();
+                                        debug.log('Processing queued effects application request');
+                                        setTimeout(() => {
+                                            applyPetEffectsOptimized(nextRequest.container, nextRequest.nftsData, nextRequest.source);
+                                        }, 100);
+                                    }
+                                }, 200);
+                            }, 100);
+                        });
+                    }, 200);
+                });
+            }, 100);
+        });
+    }
+    
+    /**
+     * Apply animations with optimized batching
+     */
+    function applyAnimationsOptimized(callback) {
+        const managers = getAnimationManagers();
+        
+        if (managers.length === 0) {
+            debug.log('No animation managers available');
+            if (callback) callback();
+            return;
         }
+        
+        // Apply animations in smaller batches to prevent blocking
+        let currentIndex = 0;
+        const batchSize = 2; // Reduced batch size for better performance
+        
+        function processBatch() {
+            const batch = managers.slice(currentIndex, currentIndex + batchSize);
+            
+            batch.forEach(({ name, manager, method }) => {
+                try {
+                    debug.log(`Applying ${name} animations...`);
+                    manager[method](false); // disable auto shadow application
+                } catch (error) {
+                    debug.error(`Error applying ${name} animations:`, error);
+                }
+            });
+            
+            currentIndex += batchSize;
+            
+            if (currentIndex < managers.length) {
+                // Process next batch after a small delay
+                setTimeout(processBatch, 30); // Reduced delay for faster processing
+            } else {
+                debug.log('All animations applied successfully');
+                if (callback) callback();
+            }
+        }
+        
+        // Start processing immediately
+        processBatch();
+    }
+    
+    /**
+     * apply animations to existing pets, without reloading data (optimized)
+     */
+    function applyAnimationsToExistingPets() {
+        const currentTime = Date.now();
+        
+        // Throttle animation applications
+        if (currentTime - lastAnimationApplyTime < ANIMATION_APPLY_COOLDOWN) {
+            debug.log('Animation application throttled, skipping');
+            return;
+        }
+        
+        lastAnimationApplyTime = currentTime;
+        
+        // Use requestAnimationFrame to ensure elements are properly rendered before applying animations
+        requestAnimationFrame(() => {
+            const managers = getAnimationManagers();
+            
+            if (managers.length === 0) {
+                debug.log('No animation managers available');
+                return;
+        }      
+
+            // Apply animations in batches to prevent blocking
+            let currentIndex = 0;
+            const batchSize = 3; // Process 3 managers at a time
+            
+            function processBatch() {
+                const batch = managers.slice(currentIndex, currentIndex + batchSize);
+                
+                batch.forEach(({ name, manager, method }) => {
+                    try {
+                        debug.log(`Applying ${name} animations...`);
+                        manager[method](false); // disable auto shadow application
+                    } catch (error) {
+                        debug.error(`Error applying ${name} animations:`, error);
+                    }
+                });
+                
+                currentIndex += batchSize;
+                
+                if (currentIndex < managers.length) {
+                    // Process next batch after a small delay
+                    setTimeout(processBatch, 50);
+                } else {
+                    debug.log('All animations applied successfully');
+                }
+            }
+            
+            // Start processing with a small delay
+            setTimeout(processBatch, 100);
+        });
     }
 
     // Add loading animation to cursor
@@ -2498,11 +3167,22 @@ document.addEventListener('DOMContentLoaded', () => {
         document.body.classList.remove('loading');
     });
 
-    // Add click animation to cursor
+    // Add click animation to cursor (optimized with throttling)
+    let lastClickTime = 0;
+    const CLICK_ANIMATION_COOLDOWN = 200; // 200ms cooldown between click animations
+    
     document.addEventListener('click', () => {
+        const currentTime = Date.now();
+        if (currentTime - lastClickTime < CLICK_ANIMATION_COOLDOWN) {
+            return; // Skip animation if too frequent
+        }
+        lastClickTime = currentTime;
+        
         document.body.classList.add('clicked');
         setTimeout(() => {
             document.body.classList.remove('clicked');
         }, 500);
-    });
+    }, { passive: true });
+
+    // Removed deprecated wallet connection functions - functionality moved to WalletNetworkManager
 }); 
