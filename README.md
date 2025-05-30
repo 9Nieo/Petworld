@@ -87,6 +87,28 @@ graph TD
   - Staking
   - Claiming rewards
 
+## 🎮 Gameplay Examples
+
+Here are some examples of the Petworld game in action:
+
+### Game Scene
+
+See the main game environment and your pets:
+
+![Petworld Game Scene](gif/game.gif)
+
+### Providing Your Key
+
+Learn how to provide your key when entering the game:
+
+![Provide Key Example](gif/provideKey.gif)
+
+### Feeding and Claiming Rewards
+
+Watch how to feed your pets and claim your rewards:
+
+![Feeding and Claiming Rewards Example](gif/feedAndClaim.gif)
+
 ## 🛡️ Security & Transparency
 
 ✔️ Fully decentralized execution
