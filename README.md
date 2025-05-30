@@ -9,7 +9,7 @@
 [![Download Now](https://img.shields.io/badge/Download-Latest%20Release-red?style=for-the-badge&logo=github&logoColor=white&labelColor=red&color=white&scale=1.5)](https://github.com/yourusername/petworld/releases/latest)
 ## 🌟 Introduction
 
-PetWorld is an **innovative gaming platform** designed to test a **groundbreaking economic model** in a fun and engaging way. Unlike traditional models that reduce token emissions over time, our system implements:
+PetWorld is a **decentralized game** based on a **revolutionary economic model experiment**, designed to be a fun and engaging way to test this groundbreaking economic model. Unlike traditional models that reduce token emissions over time, our system implements:
 
 - 🚀 **Triple-deflationary mechanism**
 - 🔥 **Reward-based reverse burning system**
